@@ -1,0 +1,42 @@
+name: GolfCaddie
+options:
+  bundleIdPrefix: com.moisesvargasjr
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: 7.0.0
+targets:
+  GolfCaddie:
+    type: application
+    platform: iOS
+    sources:
+      - path: GolfCaddie
+    info:
+      path: GolfCaddie/Info.plist
+      properties:
+        CFBundleDisplayName: GolfCaddie
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSLocationWhenInUseUsageDescription: "GolfCaddie tracks your shot locations during a round."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "GolfCaddie keeps tracking your round in the background while your phone is in your pocket."
+        UIBackgroundModes:
+          - location
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moisesvargasjr.golfcaddie
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: GRDB
+        product: GRDB

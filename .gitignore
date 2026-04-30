@@ -19,7 +19,7 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
+# Note: Package.resolved IS committed for app targets (locks dep versions).
 
 # CocoaPods (not used, but defensive)
 Pods/
