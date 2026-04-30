@@ -31,3 +31,66 @@ enum ClubConfigurationRepository {
         }
     }
 }
+
+enum RoundRepository {
+    static func insert(_ round: Round) throws {
+        try Database.shared.write { db in try round.insert(db) }
+    }
+
+    static func update(_ round: Round) throws {
+        try Database.shared.write { db in try round.update(db) }
+    }
+
+    static func activeRound() throws -> Round? {
+        try Database.shared.read { db in
+            try Round.filter(Column("endedAt") == nil)
+                .order(Column("startedAt").desc)
+                .fetchOne(db)
+        }
+    }
+}
+
+enum HoleRepository {
+    static func insert(_ hole: Hole) throws {
+        try Database.shared.write { db in try hole.insert(db) }
+    }
+
+    static func holesForRound(_ roundID: UUID) throws -> [Hole] {
+        try Database.shared.read { db in
+            try Hole.filter(Column("roundID") == roundID)
+                .order(Column("holeNumber"))
+                .fetchAll(db)
+        }
+    }
+}
+
+enum ShotRepository {
+    static func insert(_ shot: Shot) throws {
+        try Database.shared.write { db in try shot.insert(db) }
+    }
+
+    static func shotsForHole(_ holeID: UUID) throws -> [Shot] {
+        try Database.shared.read { db in
+            try Shot.filter(Column("holeID") == holeID)
+                .order(Column("sequenceNumber"))
+                .fetchAll(db)
+        }
+    }
+
+    static func count(forHole holeID: UUID) throws -> Int {
+        try Database.shared.read { db in
+            try Shot.filter(Column("holeID") == holeID).fetchCount(db)
+        }
+    }
+
+    static func nextSequenceNumber(forHole holeID: UUID) throws -> Int {
+        try Database.shared.read { db in
+            let maxSeq = try Int.fetchOne(
+                db,
+                sql: "SELECT MAX(sequenceNumber) FROM shot WHERE holeID = ?",
+                arguments: [holeID]
+            )
+            return (maxSeq ?? 0) + 1
+        }
+    }
+}
