@@ -3,6 +3,7 @@ import SwiftUI
 struct ActiveRoundView: View {
     let controller: RoundController
     let location: LocationManager
+    let bag: [ClubID]
 
     @State private var isMarkingShot = false
     @State private var actionError: String?
@@ -72,6 +73,11 @@ struct ActiveRoundView: View {
 
             Spacer()
 
+            Text(currentClubLabel)
+                .font(.callout)
+                .foregroundStyle(controller.currentClub == nil ? .secondary : .primary)
+                .padding(.horizontal)
+
             Button(action: markShot) {
                 Group {
                     if isMarkingShot {
@@ -90,10 +96,25 @@ struct ActiveRoundView: View {
             .disabled(isMarkingShot)
             .padding(.horizontal)
 
+            ClubGridView(
+                bag: bag,
+                selectedClub: controller.currentClub
+            ) { club in
+                controller.setCurrentClub(club)
+            }
+            .padding(.horizontal)
+
             errorBanner
                 .padding(.horizontal)
                 .padding(.bottom, 8)
         }
+    }
+
+    private var currentClubLabel: String {
+        if let club = controller.currentClub {
+            return "Current: \(club.longName)"
+        }
+        return "Current: tap a club below"
     }
 
     @ViewBuilder

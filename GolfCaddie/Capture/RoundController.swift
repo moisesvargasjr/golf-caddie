@@ -16,6 +16,7 @@ final class RoundController {
 
     private(set) var state: State = .idle
     private(set) var shotsInCurrentHole: Int = 0
+    private(set) var currentClub: ClubID?
     private(set) var lastMarkResult: ShotMarkResult?
 
     @ObservationIgnored
@@ -76,6 +77,7 @@ final class RoundController {
         try HoleRepository.insert(hole)
         state = .active(round: round, hole: hole)
         shotsInCurrentHole = 0
+        currentClub = nil
         lastMarkResult = nil
         location.requestAlways()
         location.startTracking()
@@ -89,6 +91,11 @@ final class RoundController {
         location.stopTracking()
         state = .idle
         shotsInCurrentHole = 0
+        currentClub = nil
+    }
+
+    func setCurrentClub(_ club: ClubID?) {
+        currentClub = club
     }
 
     func markShot(source: ShotSource = .button) async throws {
@@ -107,7 +114,7 @@ final class RoundController {
             longitude: fix?.coordinate.longitude,
             gpsAccuracy: fix?.horizontalAccuracy,
             hadGPS: fix != nil,
-            club: nil,
+            club: currentClub,
             source: source,
             notes: nil
         )

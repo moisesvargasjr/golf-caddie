@@ -32,7 +32,7 @@ struct RootView: View {
                 bag = saved
             }
         } else if let controller {
-            ActiveRoundView(controller: controller, location: location)
+            ActiveRoundView(controller: controller, location: location, bag: bag)
                 .toolbar {
                     if !controller.isActive {
                         ToolbarItem(placement: .topBarTrailing) {
