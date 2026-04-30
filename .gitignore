@@ -1,0 +1,28 @@
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods (not used, but defensive)
+Pods/
+
+# Carthage (not used, but defensive)
+Carthage/Build/

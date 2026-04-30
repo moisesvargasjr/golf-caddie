@@ -1,0 +1,5 @@
+brew "gh"
+brew "xcbeautify"
+brew "swiftformat"
+brew "swiftlint"
+brew "xcodes"
