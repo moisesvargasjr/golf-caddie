@@ -22,7 +22,7 @@ Before writing any code, please:
    No map (Phase 2), no pin marking (Phase 3), no voice (Phase 4), no
    Watch (Phase 6).
 3. Tell me what you need from me before scaffolding the Xcode project:
-   - Bundle ID prefix preference (e.g. `com.moisesglez.golfcaddie`)
+   - Bundle ID prefix preference (e.g. `com.moisesvargasjr.golfcaddie`)
    - Deployment target (I'm thinking iOS 17 minimum since I have a
      16 Pro Max and don't need to support older devices)
    - Apple ID team for signing (Personal Team is fine)

@@ -11,7 +11,7 @@ Read this first, then `CLAUDE_CODE_KICKOFF.md`, then `DESIGN.md`.
 - **MacBook is a thin client.** SSH + tmux + `claude` is the primary path;
   VS Code Remote-SSH is a fallback when terminal-only gets painful.
 - **Repo lives only on the Mini.** GitHub is the sync layer (private repo
-  `moisesglez/golf-caddie`). No working copy on the MacBook — `gh repo
+  `moisesvargasjr/golf-caddie`). No working copy on the MacBook — `gh repo
   clone` to a scratch dir if read-only access is ever needed.
 - **Simulator policy:** deploy to the physical iPhone 16 Pro Max for most
   Phase 1 work (GPS / Action button needs a real device). Screen-share
@@ -60,7 +60,7 @@ gh auth login              # GitHub CLI auth, one-time
 git init
 git add .
 git commit -m "chore: project skeleton + handoff docs"
-gh repo create moisesglez/golf-caddie --private --source=. --push
+gh repo create moisesvargasjr/golf-caddie --private --source=. --push
 ```
 
 ### 4. Verify the toolchain end-to-end
@@ -91,7 +91,7 @@ first as the kickoff prompt instructs.
 
 The kickoff prompt already asks these — surface them in the first reply:
 
-1. Bundle ID prefix (e.g. `com.moisesglez.golfcaddie`)
+1. Bundle ID prefix (e.g. `com.moisesvargasjr.golfcaddie`)
 2. Deployment target (DESIGN.md suggests iOS 17 minimum; macOS 26 is the
    build host so iOS 18 is also fine — confirm)
 3. Apple ID team for signing — Personal Team
