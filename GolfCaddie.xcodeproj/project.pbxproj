@@ -26,9 +26,11 @@
 		68703A24569E6BC394409AD6 /* URLSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */; };
 		87DB96901A57C4300CA25B7C /* Distance.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5603EA63F132D1CF2E0BBA /* Distance.swift */; };
 		A42948A7947C505FC59AFB47 /* ClubGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84070E56DA75516A44B5B6CF /* ClubGridView.swift */; };
+		B49B8267DE6AAD4FD181D2FD /* BatteryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35A3CB04BABA68C70A9DB968 /* BatteryMonitor.swift */; };
 		B6127BDB7C32100F76A455AA /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224DF50D0D03AB8F95BFA8A0 /* Round.swift */; };
 		BF4CB2C25356B113E16430C5 /* Penalty.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4869F686A79319D1C3C34BD3 /* Penalty.swift */; };
 		C233D47E9D7FA04782F24312 /* ActiveRoundMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1EEDC778425328B2C85D2B /* ActiveRoundMap.swift */; };
+		C2AA9321C5057098D782210F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3C1416B01A8D351562763700 /* Assets.xcassets */; };
 		C6522FA199AE44507D38DADD /* BagSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2B5E6DEB2E65AB3E9B4FF6 /* BagSetupView.swift */; };
 		E2DD95E6606B16CA5F9708BC /* Shot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA158C6DE12A37EE04DDB8A /* Shot.swift */; };
 		E92720B1E160C818CD26CE54 /* RoundReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B17A3F3D410A32FD5F0025 /* RoundReviewView.swift */; };
@@ -40,6 +42,8 @@
 		1264865EE57007A986603213 /* PenaltySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenaltySheet.swift; sourceTree = "<group>"; };
 		224DF50D0D03AB8F95BFA8A0 /* Round.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Round.swift; sourceTree = "<group>"; };
 		2D2B5E6DEB2E65AB3E9B4FF6 /* BagSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BagSetupView.swift; sourceTree = "<group>"; };
+		35A3CB04BABA68C70A9DB968 /* BatteryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryMonitor.swift; sourceTree = "<group>"; };
+		3C1416B01A8D351562763700 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3CEE490EE5025D93E41E72F2 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
 		4869F686A79319D1C3C34BD3 /* Penalty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Penalty.swift; sourceTree = "<group>"; };
 		4EEE08CB9110FAA5A5C67753 /* RoundController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundController.swift; sourceTree = "<group>"; };
@@ -90,6 +94,7 @@
 		60CA06BAAF723DA6B32CADCE /* GolfCaddie */ = {
 			isa = PBXGroup;
 			children = (
+				3C1416B01A8D351562763700 /* Assets.xcassets */,
 				A5F9D1D1F38C2FB8EA42882E /* GolfCaddieApp.swift */,
 				BC765D7FB5E6B8C9B0976AF0 /* Info.plist */,
 				4A8A58ED7DEB5873593ED1B3 /* Capture */,
@@ -129,6 +134,7 @@
 		C4118B80B95B540CF0C36E49 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				35A3CB04BABA68C70A9DB968 /* BatteryMonitor.swift */,
 				BF5603EA63F132D1CF2E0BBA /* Distance.swift */,
 				0B123209BD00D13CDF3193DD /* Haptics.swift */,
 			);
@@ -174,6 +180,7 @@
 			buildConfigurationList = 68A1B87BCC51DCB2505A489E /* Build configuration list for PBXNativeTarget "GolfCaddie" */;
 			buildPhases = (
 				F688B403172474472B63C334 /* Sources */,
+				5844CAB25EE42DFBCB9FC6B9 /* Resources */,
 				9F524BD99E4820ABAD5184F9 /* Frameworks */,
 			);
 			buildRules = (
@@ -224,6 +231,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		5844CAB25EE42DFBCB9FC6B9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C2AA9321C5057098D782210F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		F688B403172474472B63C334 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -232,6 +250,7 @@
 				C233D47E9D7FA04782F24312 /* ActiveRoundMap.swift in Sources */,
 				5FCC058F5D19BE5D1BF40506 /* ActiveRoundView.swift in Sources */,
 				C6522FA199AE44507D38DADD /* BagSetupView.swift in Sources */,
+				B49B8267DE6AAD4FD181D2FD /* BatteryMonitor.swift in Sources */,
 				0FB77782B842E8B14A88BD67 /* Club.swift in Sources */,
 				63FC2C6E4606E4ECB82C5E2E /* ClubConfiguration.swift in Sources */,
 				A42948A7947C505FC59AFB47 /* ClubGridView.swift in Sources */,

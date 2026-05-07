@@ -10,6 +10,8 @@ struct ActiveRoundView: View {
     @State private var reviewingHole: Hole?
     @State private var showPenaltySheet = false
     @State private var endedRoundForReview: Round?
+    @State private var battery = BatteryMonitor()
+    @State private var batteryAtRoundStart: Float?
 
     var body: some View {
         Group {
@@ -73,7 +75,9 @@ struct ActiveRoundView: View {
             ActiveRoundMap(
                 location: location,
                 shots: controller.currentHoleShots,
-                lastMarkResult: controller.lastMarkResult
+                lastMarkResult: controller.lastMarkResult,
+                battery: battery,
+                batteryDropSinceStart: batteryDrop
             )
             .frame(height: 280)
             .padding(.horizontal)
@@ -224,6 +228,9 @@ struct ActiveRoundView: View {
         actionError = nil
         do {
             try controller.startRound()
+            if battery.hasReading {
+                batteryAtRoundStart = battery.level
+            }
         } catch {
             actionError = "Couldn't start round: \(error.localizedDescription)"
         }
@@ -235,9 +242,16 @@ struct ActiveRoundView: View {
         do {
             try controller.endRound()
             endedRoundForReview = toReview
+            batteryAtRoundStart = nil
         } catch {
             actionError = "Couldn't end round: \(error.localizedDescription)"
         }
+    }
+
+    private var batteryDrop: Int? {
+        guard let start = batteryAtRoundStart, battery.hasReading else { return nil }
+        let drop = Int(((start - battery.level) * 100).rounded())
+        return drop > 0 ? drop : nil
     }
 
     private func markShot() {

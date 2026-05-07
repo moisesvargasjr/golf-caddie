@@ -6,6 +6,8 @@ struct ActiveRoundMap: View {
     let location: LocationManager
     let shots: [Shot]
     let lastMarkResult: RoundController.ShotMarkResult?
+    let battery: BatteryMonitor
+    let batteryDropSinceStart: Int?
 
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
 
@@ -48,10 +50,28 @@ struct ActiveRoundMap: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            if let percent = battery.percent {
+                HStack(spacing: 4) {
+                    Image(systemName: battery.iconName)
+                        .foregroundStyle(batteryColor(percent: percent))
+                    Text("\(percent)%")
+                    if let drop = batteryDropSinceStart {
+                        Text("(-\(drop)%)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption2)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func batteryColor(percent: Int) -> Color {
+        if percent <= 15 { return .red }
+        if percent <= 25 { return .orange }
+        return .primary
     }
 
     private func lastResultText(_ result: RoundController.ShotMarkResult) -> String {
