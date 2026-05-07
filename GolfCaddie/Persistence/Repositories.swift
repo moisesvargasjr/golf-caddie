@@ -55,10 +55,34 @@ enum HoleRepository {
         try Database.shared.write { db in try hole.insert(db) }
     }
 
+    static func update(_ hole: Hole) throws {
+        try Database.shared.write { db in try hole.update(db) }
+    }
+
     static func holesForRound(_ roundID: UUID) throws -> [Hole] {
         try Database.shared.read { db in
             try Hole.filter(Column("roundID") == roundID)
                 .order(Column("holeNumber"))
+                .fetchAll(db)
+        }
+    }
+}
+
+enum PenaltyRepository {
+    static func insert(_ penalty: Penalty) throws {
+        try Database.shared.write { db in try penalty.insert(db) }
+    }
+
+    static func delete(_ penalty: Penalty) throws {
+        try Database.shared.write { db in
+            _ = try penalty.delete(db)
+        }
+    }
+
+    static func penaltiesForHole(_ holeID: UUID) throws -> [Penalty] {
+        try Database.shared.read { db in
+            try Penalty.filter(Column("holeID") == holeID)
+                .order(Column("timestamp"))
                 .fetchAll(db)
         }
     }
@@ -91,6 +115,34 @@ enum ShotRepository {
                 arguments: [holeID]
             )
             return (maxSeq ?? 0) + 1
+        }
+    }
+
+    static func update(_ shot: Shot) throws {
+        try Database.shared.write { db in try shot.update(db) }
+    }
+
+    static func delete(_ shot: Shot) throws {
+        try Database.shared.write { db in
+            _ = try shot.delete(db)
+        }
+    }
+
+    /// Inserts a shot at a specific sequence position, shifting any existing
+    /// shots at or after that position up by one.
+    static func insertShot(_ shot: Shot, at position: Int) throws {
+        try Database.shared.write { db in
+            try db.execute(
+                sql: """
+                UPDATE shot
+                SET sequenceNumber = sequenceNumber + 1
+                WHERE holeID = ? AND sequenceNumber >= ?
+                """,
+                arguments: [shot.holeID, position]
+            )
+            var newShot = shot
+            newShot.sequenceNumber = position
+            try newShot.insert(db)
         }
     }
 }

@@ -98,6 +98,27 @@ final class RoundController {
         currentClub = club
     }
 
+    func confirmHoleAndAdvance(par: Int?) throws {
+        guard case let .active(round, currentHole) = state else { return }
+        var updated = currentHole
+        updated.par = par
+        updated.confirmedAt = Date()
+        try HoleRepository.update(updated)
+
+        let newHole = Hole(
+            id: UUID(),
+            roundID: round.id,
+            holeNumber: currentHole.holeNumber + 1,
+            par: nil,
+            confirmedAt: nil
+        )
+        try HoleRepository.insert(newHole)
+        state = .active(round: round, hole: newHole)
+        shotsInCurrentHole = 0
+        currentClub = nil
+        lastMarkResult = nil
+    }
+
     func markShot(source: ShotSource = .button) async throws {
         guard case let .active(_, hole) = state else {
             lastMarkResult = .failed(reason: "No active round")

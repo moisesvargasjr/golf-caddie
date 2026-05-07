@@ -7,6 +7,8 @@ struct ActiveRoundView: View {
 
     @State private var isMarkingShot = false
     @State private var actionError: String?
+    @State private var reviewingHole: Hole?
+    @State private var showPenaltySheet = false
 
     var body: some View {
         Group {
@@ -104,9 +106,52 @@ struct ActiveRoundView: View {
             }
             .padding(.horizontal)
 
+            HStack {
+                Button {
+                    showPenaltySheet = true
+                } label: {
+                    Label("Penalty", systemImage: "exclamationmark.triangle.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+
+                Spacer()
+
+                Button {
+                    reviewingHole = controller.currentHole
+                } label: {
+                    Label("Next Hole", systemImage: "arrow.right.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal)
+
             errorBanner
                 .padding(.horizontal)
                 .padding(.bottom, 8)
+        }
+        .sheet(item: $reviewingHole) { hole in
+            HoleReviewSheet(
+                hole: hole,
+                bag: bag,
+                onConfirm: { par in
+                    confirmHole(par: par)
+                },
+                onCancel: {
+                    reviewingHole = nil
+                }
+            )
+        }
+        .sheet(isPresented: $showPenaltySheet) {
+            PenaltySheet(
+                onPick: { type in
+                    addPenaltyToCurrentHole(type: type)
+                },
+                onCancel: {
+                    showPenaltySheet = false
+                }
+            )
         }
     }
 
@@ -203,6 +248,38 @@ struct ActiveRoundView: View {
                 actionError = "Mark failed: \(error.localizedDescription)"
             }
             isMarkingShot = false
+        }
+    }
+
+    private func confirmHole(par: Int?) {
+        actionError = nil
+        do {
+            try controller.confirmHoleAndAdvance(par: par)
+            reviewingHole = nil
+        } catch {
+            actionError = "Couldn't advance hole: \(error.localizedDescription)"
+        }
+    }
+
+    private func addPenaltyToCurrentHole(type: PenaltyType) {
+        actionError = nil
+        guard let hole = controller.currentHole else {
+            showPenaltySheet = false
+            return
+        }
+        let penalty = Penalty(
+            id: UUID(),
+            holeID: hole.id,
+            type: type,
+            strokeCount: 1,
+            timestamp: Date(),
+            notes: nil
+        )
+        do {
+            try PenaltyRepository.insert(penalty)
+            showPenaltySheet = false
+        } catch {
+            actionError = "Add penalty failed: \(error.localizedDescription)"
         }
     }
 }
