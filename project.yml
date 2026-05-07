@@ -29,6 +29,10 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: "GolfCaddie keeps tracking your round in the background while your phone is in your pocket."
         UIBackgroundModes:
           - location
+        CFBundleURLTypes:
+          - CFBundleURLName: com.moisesvargasjr.golfcaddie
+            CFBundleURLSchemes:
+              - golfcaddie
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.moisesvargasjr.golfcaddie

@@ -9,6 +9,7 @@ struct ActiveRoundView: View {
     @State private var actionError: String?
     @State private var reviewingHole: Hole?
     @State private var showPenaltySheet = false
+    @State private var endedRoundForReview: Round?
 
     var body: some View {
         Group {
@@ -16,6 +17,14 @@ struct ActiveRoundView: View {
                 activeBody
             } else {
                 idleBody
+            }
+        }
+        .sheet(item: $endedRoundForReview) { round in
+            NavigationStack {
+                RoundReviewView(round: round, bag: bag) {
+                    endedRoundForReview = nil
+                    controller.clearMostRecentlyEndedRound()
+                }
             }
         }
     }
@@ -193,6 +202,7 @@ struct ActiveRoundView: View {
     }
 
     private var gpsColor: Color {
+        if isFixStale { return .gray }
         switch location.fixQuality {
         case .none: return .gray
         case .degraded: return .orange
@@ -201,9 +211,17 @@ struct ActiveRoundView: View {
         }
     }
 
+    private var isFixStale: Bool {
+        guard let timestamp = location.latestLocation?.timestamp else { return true }
+        return Date().timeIntervalSince(timestamp) > 10
+    }
+
     private var gpsAccuracyText: String {
         guard let loc = location.latestLocation, loc.horizontalAccuracy > 0 else {
             return "GPS no fix"
+        }
+        if isFixStale {
+            return "GPS stale"
         }
         return "GPS ±\(Int(loc.horizontalAccuracy.rounded()))m"
     }
@@ -231,8 +249,10 @@ struct ActiveRoundView: View {
 
     private func endRound() {
         actionError = nil
+        let toReview = controller.currentRound
         do {
             try controller.endRound()
+            endedRoundForReview = toReview
         } catch {
             actionError = "Couldn't end round: \(error.localizedDescription)"
         }

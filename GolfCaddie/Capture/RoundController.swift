@@ -18,9 +18,16 @@ final class RoundController {
     private(set) var shotsInCurrentHole: Int = 0
     private(set) var currentClub: ClubID?
     private(set) var lastMarkResult: ShotMarkResult?
+    private(set) var mostRecentlyEndedRound: Round?
 
     @ObservationIgnored
     private let location: LocationManager
+
+    @ObservationIgnored
+    private var lastMarkAt: Date?
+
+    @ObservationIgnored
+    private let doubleTapThreshold: TimeInterval = 2.0
 
     init(location: LocationManager) {
         self.location = location
@@ -89,9 +96,15 @@ final class RoundController {
         ended.endedAt = Date()
         try RoundRepository.update(ended)
         location.stopTracking()
+        mostRecentlyEndedRound = ended
         state = .idle
         shotsInCurrentHole = 0
         currentClub = nil
+        lastMarkAt = nil
+    }
+
+    func clearMostRecentlyEndedRound() {
+        mostRecentlyEndedRound = nil
     }
 
     func setCurrentClub(_ club: ClubID?) {
@@ -119,9 +132,23 @@ final class RoundController {
         lastMarkResult = nil
     }
 
-    func markShot(source: ShotSource = .button) async throws {
+    func markShot() async throws {
+        try await markShotInternal(source: .button, club: currentClub)
+    }
+
+    func markShotFromActionButton() async throws {
+        try await markShotInternal(source: .actionButton, club: nil)
+    }
+
+    private func markShotInternal(source: ShotSource, club: ClubID?) async throws {
+        if let last = lastMarkAt, Date().timeIntervalSince(last) < doubleTapThreshold {
+            return
+        }
+        lastMarkAt = Date()
+
         guard case let .active(_, hole) = state else {
             lastMarkResult = .failed(reason: "No active round")
+            Haptics.error()
             return
         }
         let fix = await location.captureBestFix()
@@ -135,12 +162,18 @@ final class RoundController {
             longitude: fix?.coordinate.longitude,
             gpsAccuracy: fix?.horizontalAccuracy,
             hadGPS: fix != nil,
-            club: currentClub,
+            club: club,
             source: source,
             notes: nil
         )
         try ShotRepository.insert(shot)
         shotsInCurrentHole += 1
         lastMarkResult = .success(shotID: shot.id, accuracy: fix?.horizontalAccuracy)
+
+        if fix != nil {
+            Haptics.success()
+        } else {
+            Haptics.warning()
+        }
     }
 }

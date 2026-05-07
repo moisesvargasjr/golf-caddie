@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var showingBagEditor = false
     @State private var location = LocationManager()
     @State private var controller: RoundController?
+    @State private var pendingURLs: [URL] = []
 
     var body: some View {
         NavigationStack {
@@ -19,6 +20,11 @@ struct RootView: View {
                 try? new.restoreActiveRound()
                 controller = new
             }
+            processPendingURLs()
+        }
+        .onOpenURL { url in
+            pendingURLs.append(url)
+            processPendingURLs()
         }
     }
 
@@ -35,6 +41,13 @@ struct RootView: View {
             ActiveRoundView(controller: controller, location: location, bag: bag)
                 .toolbar {
                     if !controller.isActive {
+                        ToolbarItem(placement: .topBarLeading) {
+                            NavigationLink {
+                                RoundListView(bag: bag)
+                            } label: {
+                                Label("Rounds", systemImage: "list.bullet.rectangle")
+                            }
+                        }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Edit Bag") { showingBagEditor = true }
                         }
@@ -64,6 +77,25 @@ struct RootView: View {
             print("Failed to load bag: \(error)")
         }
         hasLoadedConfig = true
+    }
+
+    private func processPendingURLs() {
+        guard let controller else { return }
+        let urls = pendingURLs
+        pendingURLs = []
+        for url in urls {
+            handle(url: url, controller: controller)
+        }
+    }
+
+    private func handle(url: URL, controller: RoundController) {
+        guard let action = URLSchemeHandler.parse(url) else { return }
+        switch action {
+        case .markShot:
+            Task {
+                try? await controller.markShotFromActionButton()
+            }
+        }
     }
 }
 

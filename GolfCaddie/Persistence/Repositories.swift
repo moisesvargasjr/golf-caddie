@@ -48,6 +48,12 @@ enum RoundRepository {
                 .fetchOne(db)
         }
     }
+
+    static func allRounds() throws -> [Round] {
+        try Database.shared.read { db in
+            try Round.order(Column("startedAt").desc).fetchAll(db)
+        }
+    }
 }
 
 enum HoleRepository {
@@ -125,6 +131,21 @@ enum ShotRepository {
     static func delete(_ shot: Shot) throws {
         try Database.shared.write { db in
             _ = try shot.delete(db)
+        }
+    }
+
+    static func shotsForRound(_ roundID: UUID) throws -> [Shot] {
+        try Database.shared.read { db in
+            try Shot.fetchAll(
+                db,
+                sql: """
+                SELECT s.* FROM shot s
+                JOIN hole h ON s.holeID = h.id
+                WHERE h.roundID = ?
+                ORDER BY h.holeNumber, s.sequenceNumber
+                """,
+                arguments: [roundID]
+            )
         }
     }
 

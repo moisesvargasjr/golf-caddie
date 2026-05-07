@@ -1,0 +1,283 @@
+import SwiftUI
+
+struct RoundReviewView: View {
+    let round: Round
+    let bag: [ClubID]
+    let onDismiss: (() -> Void)?
+
+    @State private var holes: [Hole] = []
+    @State private var shotsByHole: [UUID: [Shot]] = [:]
+    @State private var penaltiesByHole: [UUID: [Penalty]] = [:]
+    @State private var loadError: String?
+
+    init(round: Round, bag: [ClubID], onDismiss: (() -> Void)? = nil) {
+        self.round = round
+        self.bag = bag
+        self.onDismiss = onDismiss
+    }
+
+    var body: some View {
+        List {
+            summarySection
+            if !holes.isEmpty {
+                scorecardSection
+                shotsSection
+            } else {
+                Section {
+                    Text("No holes recorded for this round.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let loadError {
+                Section {
+                    Text(loadError)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            }
+        }
+        .navigationTitle(roundTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let onDismiss {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done", action: onDismiss)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .onAppear { reload() }
+    }
+
+    private var roundTitle: String {
+        round.startedAt.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var totalShots: Int {
+        shotsByHole.values.reduce(0) { $0 + $1.count }
+    }
+
+    private var totalPenaltyStrokes: Int {
+        penaltiesByHole.values.reduce(0) { acc, list in
+            acc + list.reduce(0) { $0 + $1.strokeCount }
+        }
+    }
+
+    private var totalScore: Int {
+        totalShots + totalPenaltyStrokes
+    }
+
+    private var totalPar: Int? {
+        let pars = holes.compactMap { $0.par }
+        guard pars.count == holes.count, !holes.isEmpty else { return nil }
+        return pars.reduce(0, +)
+    }
+
+    private var scoreVsPar: String? {
+        guard let par = totalPar else { return nil }
+        let diff = totalScore - par
+        if diff == 0 { return "E" }
+        if diff > 0 { return "+\(diff)" }
+        return "\(diff)"
+    }
+
+    private var summarySection: some View {
+        Section("Summary") {
+            LabeledContent("Holes Played") { Text("\(holes.count)").monospacedDigit() }
+            LabeledContent("Total Shots") { Text("\(totalShots)").monospacedDigit() }
+            if totalPenaltyStrokes > 0 {
+                LabeledContent("Penalties") { Text("+\(totalPenaltyStrokes)").monospacedDigit() }
+            }
+            LabeledContent("Score") {
+                HStack(spacing: 6) {
+                    Text("\(totalScore)")
+                        .font(.headline)
+                        .monospacedDigit()
+                    if let label = scoreVsPar {
+                        Text("(\(label))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if let endedAt = round.endedAt {
+                LabeledContent("Duration") {
+                    Text(formatDuration(endedAt.timeIntervalSince(round.startedAt)))
+                }
+            }
+        }
+    }
+
+    private var scorecardSection: some View {
+        Section("Scorecard") {
+            HStack {
+                Text("Hole").font(.caption.bold()).foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .leading)
+                Spacer()
+                Text("Par").font(.caption.bold()).foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .center)
+                Text("Shots").font(.caption.bold()).foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .center)
+                Text("Score").font(.caption.bold()).foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+            }
+            ForEach(holes) { hole in
+                HoleRowSummary(
+                    hole: hole,
+                    shotCount: shotsByHole[hole.id]?.count ?? 0,
+                    penaltyStrokes: (penaltiesByHole[hole.id] ?? []).reduce(0) { $0 + $1.strokeCount }
+                )
+            }
+        }
+    }
+
+    private var shotsSection: some View {
+        Section("Shots") {
+            ForEach(holes) { hole in
+                if let shots = shotsByHole[hole.id], !shots.isEmpty {
+                    ForEach(shots) { shot in
+                        NavigationLink {
+                            ShotEditView(
+                                shot: shot,
+                                bag: bag,
+                                onDelete: { deleteShot(shot) }
+                            )
+                        } label: {
+                            ShotRowSummary(shot: shot, hole: hole)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func reload() {
+        do {
+            let allHoles = try HoleRepository.holesForRound(round.id)
+            holes = trimTrailingEmptyHole(allHoles)
+
+            var shotsMap: [UUID: [Shot]] = [:]
+            var penaltiesMap: [UUID: [Penalty]] = [:]
+            for hole in holes {
+                shotsMap[hole.id] = try ShotRepository.shotsForHole(hole.id)
+                penaltiesMap[hole.id] = try PenaltyRepository.penaltiesForHole(hole.id)
+            }
+            shotsByHole = shotsMap
+            penaltiesByHole = penaltiesMap
+            loadError = nil
+        } catch {
+            loadError = "Failed to load: \(error.localizedDescription)"
+        }
+    }
+
+    private func trimTrailingEmptyHole(_ allHoles: [Hole]) -> [Hole] {
+        guard let last = allHoles.last, last.confirmedAt == nil else { return allHoles }
+        let lastShots = (try? ShotRepository.count(forHole: last.id)) ?? 0
+        let lastPenalties = (try? PenaltyRepository.penaltiesForHole(last.id).count) ?? 0
+        if lastShots == 0 && lastPenalties == 0 {
+            return Array(allHoles.dropLast())
+        }
+        return allHoles
+    }
+
+    private func deleteShot(_ shot: Shot) {
+        do {
+            try ShotRepository.delete(shot)
+            reload()
+        } catch {
+            loadError = "Delete failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = Int(seconds / 60)
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+}
+
+private struct HoleRowSummary: View {
+    let hole: Hole
+    let shotCount: Int
+    let penaltyStrokes: Int
+
+    private var score: Int { shotCount + penaltyStrokes }
+
+    private var diff: Int? {
+        guard let par = hole.par else { return nil }
+        return score - par
+    }
+
+    private var diffColor: Color {
+        guard let diff else { return .secondary }
+        if diff < 0 { return .green }
+        if diff == 0 { return .primary }
+        return .orange
+    }
+
+    var body: some View {
+        HStack {
+            Text("\(hole.holeNumber)")
+                .frame(width: 60, alignment: .leading)
+                .monospacedDigit()
+            Spacer()
+            Text(hole.par.map(String.init) ?? "—")
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .center)
+                .monospacedDigit()
+            HStack(spacing: 2) {
+                Text("\(shotCount)")
+                if penaltyStrokes > 0 {
+                    Text("+\(penaltyStrokes)")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(width: 60, alignment: .center)
+            .monospacedDigit()
+            .font(.caption)
+            Text("\(score)")
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .foregroundStyle(diffColor)
+                .frame(width: 50, alignment: .trailing)
+        }
+    }
+}
+
+private struct ShotRowSummary: View {
+    let shot: Shot
+    let hole: Hole
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("H\(hole.holeNumber)·\(shot.sequenceNumber)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 56, alignment: .leading)
+            Text(shot.club?.longName ?? "(no club)")
+                .foregroundStyle(shot.club == nil ? .orange : .primary)
+                .lineLimit(1)
+            Spacer()
+            metadataView
+        }
+    }
+
+    @ViewBuilder
+    private var metadataView: some View {
+        if !shot.hadGPS {
+            Text("manual")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        } else if let acc = shot.gpsAccuracy {
+            Text(String(format: "±%.0fm", acc))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+    }
+}
