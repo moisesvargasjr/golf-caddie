@@ -58,8 +58,10 @@ struct ActiveRoundView: View {
     }
 
     private var activeBody: some View {
-        VStack(spacing: 16) {
-            HStack(alignment: .center) {
+        VStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(holeLabel)
+                    .font(.headline)
                 gpsIndicator
                 Spacer()
                 Button("End Round", role: .destructive, action: endRound)
@@ -68,21 +70,13 @@ struct ActiveRoundView: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(holeLabel)
-                    .font(.title3.bold())
-                Text("Shots: \(controller.shotsInCurrentHole)")
-                    .foregroundStyle(.secondary)
-                if let last = controller.lastMarkResult {
-                    Text(lastResultText(last))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            ActiveRoundMap(
+                location: location,
+                shots: controller.currentHoleShots,
+                lastMarkResult: controller.lastMarkResult
+            )
+            .frame(height: 280)
             .padding(.horizontal)
-
-            Spacer()
 
             Text(currentClubLabel)
                 .font(.callout)
@@ -97,11 +91,11 @@ struct ActiveRoundView: View {
                             .tint(.white)
                     } else {
                         Text("MARK SHOT")
-                            .font(.system(size: 32, weight: .heavy))
+                            .font(.system(size: 28, weight: .heavy))
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 120)
+                .frame(height: 100)
             }
             .buttonStyle(.borderedProminent)
             .disabled(isMarkingShot)
@@ -224,18 +218,6 @@ struct ActiveRoundView: View {
             return "GPS stale"
         }
         return "GPS ±\(Int(loc.horizontalAccuracy.rounded()))m"
-    }
-
-    private func lastResultText(_ result: RoundController.ShotMarkResult) -> String {
-        switch result {
-        case let .success(_, accuracy):
-            if let accuracy {
-                return String(format: "Last shot: ±%.1fm", accuracy)
-            }
-            return "Last shot: no GPS"
-        case let .failed(reason):
-            return "Last shot failed: \(reason)"
-        }
     }
 
     private func startRound() {

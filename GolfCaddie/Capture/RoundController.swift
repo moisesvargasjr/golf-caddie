@@ -15,10 +15,12 @@ final class RoundController {
     }
 
     private(set) var state: State = .idle
-    private(set) var shotsInCurrentHole: Int = 0
+    private(set) var currentHoleShots: [Shot] = []
     private(set) var currentClub: ClubID?
     private(set) var lastMarkResult: ShotMarkResult?
     private(set) var mostRecentlyEndedRound: Round?
+
+    var shotsInCurrentHole: Int { currentHoleShots.count }
 
     @ObservationIgnored
     private let location: LocationManager
@@ -60,7 +62,7 @@ final class RoundController {
             try HoleRepository.insert(hole)
         }
         state = .active(round: round, hole: hole)
-        shotsInCurrentHole = (try? ShotRepository.count(forHole: hole.id)) ?? 0
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
         location.startTracking()
     }
 
@@ -83,7 +85,7 @@ final class RoundController {
         try RoundRepository.insert(round)
         try HoleRepository.insert(hole)
         state = .active(round: round, hole: hole)
-        shotsInCurrentHole = 0
+        currentHoleShots = []
         currentClub = nil
         lastMarkResult = nil
         location.requestAlways()
@@ -98,7 +100,7 @@ final class RoundController {
         location.stopTracking()
         mostRecentlyEndedRound = ended
         state = .idle
-        shotsInCurrentHole = 0
+        currentHoleShots = []
         currentClub = nil
         lastMarkAt = nil
     }
@@ -127,7 +129,7 @@ final class RoundController {
         )
         try HoleRepository.insert(newHole)
         state = .active(round: round, hole: newHole)
-        shotsInCurrentHole = 0
+        currentHoleShots = []
         currentClub = nil
         lastMarkResult = nil
     }
@@ -167,7 +169,7 @@ final class RoundController {
             notes: nil
         )
         try ShotRepository.insert(shot)
-        shotsInCurrentHole += 1
+        currentHoleShots.append(shot)
         lastMarkResult = .success(shotID: shot.id, accuracy: fix?.horizontalAccuracy)
 
         if fix != nil {
