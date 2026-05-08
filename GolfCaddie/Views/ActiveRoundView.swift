@@ -14,6 +14,7 @@ struct ActiveRoundView: View {
     @State private var batteryAtRoundStart: Float?
     @State private var showEndRoundConfirm = false
     @State private var showUndoConfirm = false
+    @State private var mapFollowMode: Bool = true
 
     var body: some View {
         Group {
@@ -88,94 +89,31 @@ struct ActiveRoundView: View {
     }
 
     private var activeBody: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(holeLabel)
-                    .font(.headline)
-                gpsIndicator
-                Spacer()
-                Button("End Round", role: .destructive) {
-                    showEndRoundConfirm = true
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.horizontal)
-            .padding(.top, 4)
-
-            ActiveRoundMap(
-                location: location,
-                shots: controller.currentHoleShots,
-                lastMarkResult: controller.lastMarkResult,
-                battery: battery,
-                batteryDropSinceStart: batteryDrop
-            )
-            .frame(height: 280)
-            .padding(.horizontal)
-
-            Text(currentClubLabel)
-                .font(.callout)
-                .foregroundStyle(controller.currentClub == nil ? .secondary : .primary)
-                .padding(.horizontal)
-
-            Button(action: markShot) {
-                Group {
-                    if isMarkingShot {
-                        ProgressView()
-                            .controlSize(.large)
-                            .tint(.white)
-                    } else {
-                        Text("MARK SHOT")
-                            .font(.system(size: 28, weight: .heavy))
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 100)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isMarkingShot)
-            .padding(.horizontal)
-
-            ClubGridView(
-                bag: bag,
-                selectedClub: controller.currentClub
-            ) { club in
-                controller.setCurrentClub(club)
-            }
-            .padding(.horizontal)
-
-            HStack(spacing: 8) {
+        ActiveRoundMap(
+            shots: controller.currentHoleShots,
+            followMode: $mapFollowMode
+        )
+        .ignoresSafeArea()
+        .safeAreaInset(edge: .top, spacing: 0) {
+            topBar
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomPanel
+        }
+        .overlay(alignment: .topTrailing) {
+            if !mapFollowMode {
                 Button {
-                    showUndoConfirm = true
+                    mapFollowMode = true
                 } label: {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
+                    Label("Follow", systemImage: "location.fill")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
-                .buttonStyle(.bordered)
-                .tint(.gray)
-                .disabled(controller.currentHoleShots.isEmpty)
-
-                Button {
-                    showPenaltySheet = true
-                } label: {
-                    Label("Penalty", systemImage: "exclamationmark.triangle.fill")
-                }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-
-                Spacer()
-
-                Button {
-                    reviewingHole = controller.currentHole
-                } label: {
-                    Label("Next Hole", systemImage: "arrow.right.circle.fill")
-                        .labelStyle(.titleAndIcon)
-                }
-                .buttonStyle(.bordered)
+                .padding(.trailing, 12)
+                .padding(.top, 8)
             }
-            .padding(.horizontal)
-
-            errorBanner
-                .padding(.horizontal)
-                .padding(.bottom, 8)
         }
         .sheet(item: $reviewingHole) { hole in
             HoleReviewSheet(
@@ -199,6 +137,129 @@ struct ActiveRoundView: View {
                 }
             )
         }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            Text(holeLabel)
+                .font(.headline)
+            gpsIndicator
+            Spacer()
+            batteryBadge
+            Button("End", role: .destructive) {
+                showEndRoundConfirm = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.regularMaterial)
+    }
+
+    private var bottomPanel: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(currentClubLabel)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(controller.currentClub == nil ? .secondary : .primary)
+                Spacer()
+                Text("\(controller.shotsInCurrentHole) shot\(controller.shotsInCurrentHole == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                if case let .success(_, accuracy) = controller.lastMarkResult, let accuracy {
+                    Text(String(format: "Last ±%.1fm", accuracy))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button(action: markShot) {
+                Group {
+                    if isMarkingShot {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(.white)
+                    } else {
+                        Text("MARK SHOT")
+                            .font(.system(size: 26, weight: .heavy))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 90)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isMarkingShot)
+
+            ClubGridView(
+                bag: bag,
+                selectedClub: controller.currentClub
+            ) { club in
+                controller.setCurrentClub(club)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    showUndoConfirm = true
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .tint(.gray)
+                .controlSize(.small)
+                .disabled(controller.currentHoleShots.isEmpty)
+
+                Button {
+                    showPenaltySheet = true
+                } label: {
+                    Label("Penalty", systemImage: "exclamationmark.triangle.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .controlSize(.small)
+
+                Spacer()
+
+                Button {
+                    reviewingHole = controller.currentHole
+                } label: {
+                    Label("Next Hole", systemImage: "arrow.right.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            errorBanner
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .background(.regularMaterial)
+    }
+
+    @ViewBuilder
+    private var batteryBadge: some View {
+        if let percent = battery.percent {
+            HStack(spacing: 4) {
+                Image(systemName: battery.iconName)
+                    .foregroundStyle(batteryColor(percent: percent))
+                Text("\(percent)%")
+                if let drop = batteryDrop {
+                    Text("(-\(drop)%)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption.weight(.medium))
+            .monospacedDigit()
+        }
+    }
+
+    private func batteryColor(percent: Int) -> Color {
+        if percent <= 15 { return .red }
+        if percent <= 25 { return .orange }
+        return .primary
     }
 
     private var currentClubLabel: String {
@@ -267,6 +328,7 @@ struct ActiveRoundView: View {
         actionError = nil
         do {
             try controller.startRound()
+            mapFollowMode = true
             if battery.hasReading {
                 batteryAtRoundStart = battery.level
             }
@@ -301,6 +363,7 @@ struct ActiveRoundView: View {
         do {
             try controller.resumeRound(round)
             endedRoundForReview = nil
+            mapFollowMode = true
             if battery.hasReading {
                 batteryAtRoundStart = battery.level
             }

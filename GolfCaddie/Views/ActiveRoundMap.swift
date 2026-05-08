@@ -3,95 +3,19 @@ import MapKit
 import SwiftUI
 
 struct ActiveRoundMap: View {
-    let location: LocationManager
     let shots: [Shot]
-    let lastMarkResult: RoundController.ShotMarkResult?
-    let battery: BatteryMonitor
-    let batteryDropSinceStart: Int?
-
-    @State private var followMode: Bool = true
+    @Binding var followMode: Bool
 
     var body: some View {
-        ZStack {
-            ActiveRoundMapKit(
-                shots: shots,
-                isFollowing: followMode,
-                onFollowModeChange: { newValue in
-                    if followMode != newValue {
-                        followMode = newValue
-                    }
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            VStack {
-                HStack {
-                    heading
-                    Spacer()
-                }
-                Spacer()
-                HStack {
-                    Spacer()
-                    if !followMode {
-                        Button {
-                            followMode = true
-                        } label: {
-                            Label("Follow", systemImage: "location.fill")
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(.ultraThinMaterial, in: Capsule())
-                        }
-                    }
+        ActiveRoundMapKit(
+            shots: shots,
+            isFollowing: followMode,
+            onFollowModeChange: { newValue in
+                if followMode != newValue {
+                    followMode = newValue
                 }
             }
-            .padding(8)
-        }
-    }
-
-    private var heading: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Shots: \(shots.count)")
-                .font(.caption.weight(.semibold))
-            if let last = lastMarkResult {
-                Text(lastResultText(last))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            if let percent = battery.percent {
-                HStack(spacing: 4) {
-                    Image(systemName: battery.iconName)
-                        .foregroundStyle(batteryColor(percent: percent))
-                    Text("\(percent)%")
-                    if let drop = batteryDropSinceStart {
-                        Text("(-\(drop)%)")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption2)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func lastResultText(_ result: RoundController.ShotMarkResult) -> String {
-        switch result {
-        case let .success(_, accuracy):
-            if let accuracy {
-                return String(format: "Last ±%.1fm", accuracy)
-            }
-            return "Last: no GPS"
-        case let .failed(reason):
-            return "Failed: \(reason)"
-        }
-    }
-
-    private func batteryColor(percent: Int) -> Color {
-        if percent <= 15 { return .red }
-        if percent <= 25 { return .orange }
-        return .primary
+        )
     }
 }
 
