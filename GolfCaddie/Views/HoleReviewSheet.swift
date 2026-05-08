@@ -78,7 +78,7 @@ struct HoleReviewSheet: View {
     }
 
     private var shotsSection: some View {
-        Section("Shots (\(shots.count))") {
+        Section {
             if shots.isEmpty {
                 Text("No shots recorded.")
                     .font(.callout)
@@ -93,11 +93,25 @@ struct HoleReviewSheet: View {
                         updateShotClub(shot, club: newClub)
                     }
                 }
+                .onDelete { offsets in
+                    deleteShots(at: offsets)
+                }
             }
             Button {
                 showAddShotSheet = true
             } label: {
                 Label("Add Missing Shot", systemImage: "plus.circle.fill")
+            }
+        } header: {
+            HStack {
+                Text("Shots (\(shots.count))")
+                Spacer()
+                if !shots.isEmpty {
+                    Text("Swipe to delete")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .textCase(nil)
+                }
             }
         }
     }
@@ -209,6 +223,18 @@ struct HoleReviewSheet: View {
             loadError = nil
         } catch {
             loadError = "Failed to load: \(error.localizedDescription)"
+        }
+    }
+
+    private func deleteShots(at offsets: IndexSet) {
+        let toDelete = offsets.map { shots[$0] }
+        do {
+            for shot in toDelete {
+                try ShotRepository.deleteAndRenumber(shot)
+            }
+            reload()
+        } catch {
+            loadError = "Delete failed: \(error.localizedDescription)"
         }
     }
 

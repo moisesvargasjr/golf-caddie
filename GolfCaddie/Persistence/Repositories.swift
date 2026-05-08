@@ -134,6 +134,22 @@ enum ShotRepository {
         }
     }
 
+    /// Deletes the shot and decrements sequenceNumber on every later shot in
+    /// the same hole, atomically.
+    static func deleteAndRenumber(_ shot: Shot) throws {
+        try Database.shared.write { db in
+            _ = try shot.delete(db)
+            try db.execute(
+                sql: """
+                UPDATE shot
+                SET sequenceNumber = sequenceNumber - 1
+                WHERE holeID = ? AND sequenceNumber > ?
+                """,
+                arguments: [shot.holeID, shot.sequenceNumber]
+            )
+        }
+    }
+
     static func shotsForRound(_ roundID: UUID) throws -> [Shot] {
         try Database.shared.read { db in
             try Shot.fetchAll(

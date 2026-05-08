@@ -12,6 +12,8 @@ struct ActiveRoundView: View {
     @State private var endedRoundForReview: Round?
     @State private var battery = BatteryMonitor()
     @State private var batteryAtRoundStart: Float?
+    @State private var showEndRoundConfirm = false
+    @State private var showUndoConfirm = false
 
     var body: some View {
         Group {
@@ -23,10 +25,36 @@ struct ActiveRoundView: View {
         }
         .sheet(item: $endedRoundForReview) { round in
             NavigationStack {
-                RoundReviewView(round: round, bag: bag) {
-                    endedRoundForReview = nil
-                    controller.clearMostRecentlyEndedRound()
-                }
+                RoundReviewView(
+                    round: round,
+                    bag: bag,
+                    onResume: { resumeRound(round) },
+                    onDismiss: {
+                        endedRoundForReview = nil
+                        controller.clearMostRecentlyEndedRound()
+                    }
+                )
+            }
+        }
+        .alert("End Round?", isPresented: $showEndRoundConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("End Round", role: .destructive) {
+                performEndRound()
+            }
+        } message: {
+            Text("Your round will be saved. You can resume it from the review screen if you change your mind.")
+        }
+        .alert("Undo last shot?", isPresented: $showUndoConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Undo", role: .destructive) {
+                performUndoLastShot()
+            }
+        } message: {
+            if let shot = controller.currentHoleShots.last {
+                let label = shot.club?.longName ?? "no club"
+                Text("Removes Shot \(shot.sequenceNumber) (\(label)) from this hole.")
+            } else {
+                Text("Removes the most recent shot.")
             }
         }
     }
@@ -66,8 +94,10 @@ struct ActiveRoundView: View {
                     .font(.headline)
                 gpsIndicator
                 Spacer()
-                Button("End Round", role: .destructive, action: endRound)
-                    .buttonStyle(.bordered)
+                Button("End Round", role: .destructive) {
+                    showEndRoundConfirm = true
+                }
+                .buttonStyle(.bordered)
             }
             .padding(.horizontal)
             .padding(.top, 4)
@@ -113,7 +143,16 @@ struct ActiveRoundView: View {
             }
             .padding(.horizontal)
 
-            HStack {
+            HStack(spacing: 8) {
+                Button {
+                    showUndoConfirm = true
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .tint(.gray)
+                .disabled(controller.currentHoleShots.isEmpty)
+
                 Button {
                     showPenaltySheet = true
                 } label: {
@@ -236,7 +275,7 @@ struct ActiveRoundView: View {
         }
     }
 
-    private func endRound() {
+    private func performEndRound() {
         actionError = nil
         let toReview = controller.currentRound
         do {
@@ -245,6 +284,28 @@ struct ActiveRoundView: View {
             batteryAtRoundStart = nil
         } catch {
             actionError = "Couldn't end round: \(error.localizedDescription)"
+        }
+    }
+
+    private func performUndoLastShot() {
+        actionError = nil
+        do {
+            try controller.removeLastShot()
+        } catch {
+            actionError = "Couldn't undo: \(error.localizedDescription)"
+        }
+    }
+
+    private func resumeRound(_ round: Round) {
+        actionError = nil
+        do {
+            try controller.resumeRound(round)
+            endedRoundForReview = nil
+            if battery.hasReading {
+                batteryAtRoundStart = battery.level
+            }
+        } catch {
+            actionError = "Couldn't resume: \(error.localizedDescription)"
         }
     }
 

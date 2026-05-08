@@ -109,6 +109,39 @@ final class RoundController {
         mostRecentlyEndedRound = nil
     }
 
+    func removeLastShot() throws {
+        guard case .active = state, let last = currentHoleShots.last else { return }
+        try ShotRepository.deleteAndRenumber(last)
+        currentHoleShots.removeLast()
+    }
+
+    func deleteShot(_ shot: Shot) throws {
+        try ShotRepository.deleteAndRenumber(shot)
+        if case let .active(_, hole) = state, shot.holeID == hole.id {
+            currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        }
+    }
+
+    func resumeRound(_ round: Round) throws {
+        guard case .idle = state else { return }
+        var resumed = round
+        resumed.endedAt = nil
+        try RoundRepository.update(resumed)
+
+        let holes = try HoleRepository.holesForRound(round.id)
+        let hole: Hole
+        if let last = holes.last {
+            hole = last
+        } else {
+            hole = Hole(id: UUID(), roundID: round.id, holeNumber: 1, par: nil, confirmedAt: nil)
+            try HoleRepository.insert(hole)
+        }
+        state = .active(round: resumed, hole: hole)
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        mostRecentlyEndedRound = nil
+        location.startTracking()
+    }
+
     func setCurrentClub(_ club: ClubID?) {
         currentClub = club
     }

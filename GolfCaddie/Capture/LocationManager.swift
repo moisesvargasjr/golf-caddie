@@ -56,8 +56,8 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
 
     func startTracking() {
         guard !isTracking else { return }
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        manager.distanceFilter = 10
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 5
         if manager.authorizationStatus == .authorizedAlways {
             manager.allowsBackgroundLocationUpdates = true
         }
@@ -72,7 +72,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         isTracking = false
     }
 
-    func captureBestFix(timeout: TimeInterval = 2.0) async -> CLLocation? {
+    func captureBestFix(timeout: TimeInterval = 5.0) async -> CLLocation? {
         if preciseFixContinuation != nil {
             resolvePreciseFix()
         }

@@ -3,6 +3,7 @@ import SwiftUI
 struct RoundReviewView: View {
     let round: Round
     let bag: [ClubID]
+    let onResume: (() -> Void)?
     let onDismiss: (() -> Void)?
 
     @State private var holes: [Hole] = []
@@ -10,15 +11,24 @@ struct RoundReviewView: View {
     @State private var penaltiesByHole: [UUID: [Penalty]] = [:]
     @State private var loadError: String?
 
-    init(round: Round, bag: [ClubID], onDismiss: (() -> Void)? = nil) {
+    init(
+        round: Round,
+        bag: [ClubID],
+        onResume: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
+    ) {
         self.round = round
         self.bag = bag
+        self.onResume = onResume
         self.onDismiss = onDismiss
     }
 
     var body: some View {
         List {
             summarySection
+            if onResume != nil, round.endedAt != nil {
+                resumeSection
+            }
             if !holes.isEmpty {
                 scorecardSection
                 shotsSection
@@ -79,6 +89,19 @@ struct RoundReviewView: View {
         if diff == 0 { return "E" }
         if diff > 0 { return "+\(diff)" }
         return "\(diff)"
+    }
+
+    private var resumeSection: some View {
+        Section {
+            Button {
+                onResume?()
+            } label: {
+                Label("Resume Round", systemImage: "play.circle.fill")
+                    .foregroundStyle(.green)
+            }
+        } footer: {
+            Text("If you ended the round by mistake, tap to reopen it. Tracking will resume on the last hole.")
+        }
     }
 
     private var summarySection: some View {
