@@ -112,6 +112,7 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
             case .button: return .systemOrange
             case .actionButton: return .systemBlue
             case .manual: return .systemGray
+            case .glasses: return .systemGreen
             }
         }
     }

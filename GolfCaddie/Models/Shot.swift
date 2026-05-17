@@ -5,6 +5,7 @@ enum ShotSource: String, Codable {
     case button
     case actionButton
     case manual
+    case glasses
 }
 
 struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable {

@@ -7,6 +7,9 @@ struct RootView: View {
     @State private var location = LocationManager()
     @State private var controller: RoundController?
     @State private var pendingURLs: [URL] = []
+    @State private var glassesServer: GlassesServer?
+    @State private var showingGlassesSettings = false
+    @AppStorage("glassesServerEnabled") private var glassesEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -20,11 +23,20 @@ struct RootView: View {
                 try? new.restoreActiveRound()
                 controller = new
             }
+            if glassesServer == nil, let controller {
+                let server = GlassesServer(location: location)
+                server.attach(controller: controller)
+                glassesServer = server
+                if glassesEnabled { server.start() }
+            }
             processPendingURLs()
         }
         .onOpenURL { url in
             pendingURLs.append(url)
             processPendingURLs()
+        }
+        .onChange(of: glassesEnabled) { _, enabled in
+            if enabled { glassesServer?.start() } else { glassesServer?.stop() }
         }
     }
 
@@ -51,6 +63,13 @@ struct RootView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Edit Bag") { showingBagEditor = true }
                         }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                showingGlassesSettings = true
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                            }
+                        }
                     }
                 }
                 .sheet(isPresented: $showingBagEditor) {
@@ -63,6 +82,9 @@ struct RootView: View {
                             showingBagEditor = false
                         }
                     }
+                }
+                .sheet(isPresented: $showingGlassesSettings) {
+                    GlassesSettingsView(onDone: { showingGlassesSettings = false })
                 }
         } else {
             ProgressView()

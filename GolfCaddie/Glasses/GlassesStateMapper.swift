@@ -1,0 +1,175 @@
+import CoreLocation
+import Foundation
+
+// Pure read model: live RoundController + repositories → GolfState.
+// @MainActor because it reads RoundController/LocationManager state and does
+// synchronous GRDB reads (same pattern the app already uses in RoundReviewView).
+enum GlassesStateMapper {
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime] // no fractional seconds
+        return f
+    }()
+
+    @MainActor
+    static func snapshot(
+        controller: RoundController,
+        location: LocationManager,
+        batteryPercent: Int?
+    ) -> GolfState {
+        guard controller.isActive,
+              let round = controller.currentRound,
+              let hole = controller.currentHole
+        else {
+            return .idle
+        }
+
+        let liveShots = controller.currentHoleShots
+        let holePenaltyStrokes = penaltyStrokes(forHole: hole.id)
+        let holeShotCount = liveShots.count
+        let holeScore = holeShotCount + holePenaltyStrokes
+
+        let allHoles = trimmedHoles(forRound: round.id)
+
+        return GolfState(
+            contractVersion: 1,
+            active: true,
+            round: RoundDTO(
+                id: round.id.uuidString,
+                startedAt: iso8601.string(from: round.startedAt),
+                courseName: round.courseName
+            ),
+            hole: HoleDTO(
+                number: hole.holeNumber,
+                par: hole.par,
+                shotCount: holeShotCount,
+                penalties: holePenaltyStrokes,
+                score: holeScore
+            ),
+            currentClub: controller.currentClub?.shortName,
+            lastShot: lastShotDTO(from: liveShots),
+            scoring: scoringDTO(confirmedFrom: allHoles),
+            gps: gpsDTO(location: location),
+            battery: batteryPercent,
+            holes: allHoles.map { holeSummary($0) }
+        )
+    }
+
+    // MARK: - Pieces
+
+    private static func penaltyStrokes(forHole holeID: UUID) -> Int {
+        let penalties = (try? PenaltyRepository.penaltiesForHole(holeID)) ?? []
+        return penalties.reduce(0) { $0 + $1.strokeCount }
+    }
+
+    /// Replicates RoundReviewView.trimTrailingEmptyHole: drop a trailing
+    /// unconfirmed hole only when it has zero shots AND zero penalties.
+    private static func trimmedHoles(forRound roundID: UUID) -> [Hole] {
+        let holes = (try? HoleRepository.holesForRound(roundID)) ?? []
+        guard let last = holes.last, last.confirmedAt == nil else { return holes }
+        let lastShots = (try? ShotRepository.count(forHole: last.id)) ?? 0
+        let lastPenalties = (try? PenaltyRepository.penaltiesForHole(last.id).count) ?? 0
+        if lastShots == 0 && lastPenalties == 0 {
+            return Array(holes.dropLast())
+        }
+        return holes
+    }
+
+    private static func score(forHole hole: Hole) -> Int {
+        let shotCount = (try? ShotRepository.count(forHole: hole.id)) ?? 0
+        return shotCount + penaltyStrokes(forHole: hole.id)
+    }
+
+    /// totalPar/toPar aggregate ONLY confirmed holes that have a par (omit both
+    /// if none). totalStrokes covers all confirmed holes. Deliberately does NOT
+    /// reuse RoundReviewView.totalPar (which requires every hole to have par).
+    private static func scoringDTO(confirmedFrom holes: [Hole]) -> ScoringDTO {
+        let confirmed = holes.filter { $0.confirmedAt != nil }
+        let totalStrokes = confirmed.reduce(0) { $0 + score(forHole: $1) }
+
+        let withPar = confirmed.filter { $0.par != nil }
+        let totalPar: Int?
+        let toPar: Int?
+        if withPar.isEmpty {
+            totalPar = nil
+            toPar = nil
+        } else {
+            let parSum = withPar.reduce(0) { $0 + ($1.par ?? 0) }
+            let strokesOverParHoles = withPar.reduce(0) { $0 + score(forHole: $1) }
+            totalPar = parSum
+            toPar = strokesOverParHoles - parSum
+        }
+
+        return ScoringDTO(
+            totalStrokes: totalStrokes,
+            totalPar: totalPar,
+            toPar: toPar,
+            holesCompleted: confirmed.count
+        )
+    }
+
+    private static func holeSummary(_ hole: Hole) -> HoleSummaryDTO {
+        let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        let shotDTOs = shots.enumerated().map { idx, shot in
+            ShotSummaryDTO(
+                sequenceNumber: shot.sequenceNumber,
+                club: shot.club?.shortName,
+                distanceYards: yards(between: shot, and: shots[safe: idx + 1])
+            )
+        }
+        return HoleSummaryDTO(
+            number: hole.holeNumber,
+            par: hole.par,
+            score: shots.count + penaltyStrokes(forHole: hole.id),
+            confirmedAt: hole.confirmedAt.map { iso8601.string(from: $0) },
+            shots: shotDTOs
+        )
+    }
+
+    private static func lastShotDTO(from shots: [Shot]) -> LastShotDTO? {
+        guard let last = shots.last else { return nil }
+        let prior = shots.count >= 2 ? shots[shots.count - 2] : nil
+        return LastShotDTO(
+            club: last.club?.shortName,
+            distanceYards: yards(between: prior, and: last),
+            sequenceNumber: last.sequenceNumber
+        )
+    }
+
+    @MainActor
+    private static func gpsDTO(location: LocationManager) -> GPSDTO {
+        let loc = location.latestLocation
+        let acc = loc?.horizontalAccuracy ?? -1
+        let stale: Bool
+        if let ts = loc?.timestamp {
+            stale = Date().timeIntervalSince(ts) > 10
+        } else {
+            stale = true
+        }
+        return GPSDTO(
+            accuracyMeters: acc > 0 ? acc : nil,
+            stale: stale
+        )
+    }
+
+    /// Yards between two shots' coordinates; nil if either is missing or lacks
+    /// GPS. Order-independent (distance is symmetric).
+    private static func yards(between a: Shot?, and b: Shot?) -> Int? {
+        guard let a, let b,
+              let aLat = a.latitude, let aLng = a.longitude,
+              let bLat = b.latitude, let bLng = b.longitude
+        else { return nil }
+        let meters = Distance.meters(
+            from: CLLocationCoordinate2D(latitude: aLat, longitude: aLng),
+            to: CLLocationCoordinate2D(latitude: bLat, longitude: bLng)
+        )
+        return Int(Distance.yards(fromMeters: meters).rounded())
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}

@@ -89,6 +89,7 @@ struct ShotEditView: View {
         case .button: return "On-screen"
         case .actionButton: return "Action button"
         case .manual: return "Manual entry"
+        case .glasses: return "Glasses"
         }
     }
 

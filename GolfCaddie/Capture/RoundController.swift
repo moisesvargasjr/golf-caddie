@@ -1,6 +1,10 @@
 import Foundation
 import Observation
 
+enum GlassesError: Error {
+    case noActiveHole
+}
+
 @Observable
 @MainActor
 final class RoundController {
@@ -167,6 +171,66 @@ final class RoundController {
         lastMarkResult = nil
     }
 
+    /// Fast, non-blocking shot log for the glasses POST path. Unlike
+    /// markShotInternal it does NOT await captureBestFix (a 5s GPS ramp) —
+    /// during an active round continuous best-accuracy tracking is already
+    /// running, so latestLocation is fresh enough. Keeps POST /api/shot under
+    /// the glasses' ~5s client timeout, preventing the slow-success +
+    /// user-retry double-log. No double-tap guard (deliberate single gesture).
+    func logShotFromGlasses() throws {
+        guard case let .active(_, hole) = state else {
+            throw GlassesError.noActiveHole
+        }
+        let loc = location.latestLocation
+        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
+        let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
+        let shot = Shot(
+            id: UUID(),
+            holeID: hole.id,
+            sequenceNumber: nextSeq,
+            timestamp: Date(),
+            latitude: hasFix ? loc?.coordinate.latitude : nil,
+            longitude: hasFix ? loc?.coordinate.longitude : nil,
+            gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
+            hadGPS: hasFix,
+            club: nil,
+            source: .glasses,
+            notes: nil
+        )
+        try ShotRepository.insert(shot)
+        currentHoleShots.append(shot)
+        lastMarkResult = .success(shotID: shot.id, accuracy: hasFix ? loc?.horizontalAccuracy : nil)
+        if hasFix { Haptics.success() } else { Haptics.warning() }
+    }
+
+    /// Undo for the glasses Actions screen: remove whichever of {newest shot,
+    /// newest penalty} on the active hole has the later timestamp. No-op (not
+    /// an error) when there is nothing to undo.
+    func undoLastActionFromGlasses() throws {
+        guard case let .active(_, hole) = state else {
+            throw GlassesError.noActiveHole
+        }
+        let lastPenalty = try PenaltyRepository.penaltiesForHole(hole.id).last
+        let lastShot = currentHoleShots.last
+
+        switch (lastShot, lastPenalty) {
+        case (nil, nil):
+            return
+        case let (shot?, nil):
+            try ShotRepository.deleteAndRenumber(shot)
+            currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        case let (nil, penalty?):
+            try PenaltyRepository.delete(penalty)
+        case let (shot?, penalty?):
+            if penalty.timestamp >= shot.timestamp {
+                try PenaltyRepository.delete(penalty)
+            } else {
+                try ShotRepository.deleteAndRenumber(shot)
+                currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+            }
+        }
+    }
+
     func markShot() async throws {
         try await markShotInternal(source: .button, club: currentClub)
     }
@@ -176,10 +240,16 @@ final class RoundController {
     }
 
     private func markShotInternal(source: ShotSource, club: ClubID?) async throws {
-        if let last = lastMarkAt, Date().timeIntervalSince(last) < doubleTapThreshold {
-            return
+        // The double-tap guard exists for the physical Action button / on-screen
+        // double-press. A deliberate single glasses gesture must not be deduped
+        // against it (would return state without the shot, breaking
+        // read-after-write); the glasses path doesn't go through here anyway.
+        if source == .button || source == .actionButton {
+            if let last = lastMarkAt, Date().timeIntervalSince(last) < doubleTapThreshold {
+                return
+            }
+            lastMarkAt = Date()
         }
-        lastMarkAt = Date()
 
         guard case let .active(_, hole) = state else {
             lastMarkResult = .failed(reason: "No active round")
