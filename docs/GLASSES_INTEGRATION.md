@@ -1,218 +1,187 @@
-# Glasses Integration — iOS Server Side
+# GolfCaddie ⇄ Glasses — iOS Integration Contract
 
-How GolfCaddie exposes live round state to the Even Realities G2 glasses
-companion app (`golf-caddie-glasses`, separate repo).
+> **Status:** Implemented (commit `f59a736`). This file is the iOS-side copy of
+> the canonical contract. Source of truth lives in the glasses repo at
+> `golf-caddie-glasses/docs/IOS_INTEGRATION_CONTRACT.md`; keep the two in
+> lockstep. The glasses app's `src/shared/types.ts` is the canonical
+> TypeScript form of the schema.
+>
+> **Where it's built:** `GolfCaddie/Glasses/` (`GolfState.swift`,
+> `GlassesStateMapper.swift`, `GlassesServer.swift`), plus
+> `GolfCaddie/Views/GlassesSettingsView.swift`, the `glasses` case in
+> `ShotSource`, and `logShotFromGlasses()` / `undoLastActionFromGlasses()` on
+> `RoundController`. Enable via Settings (gear on the idle screen) →
+> "Glasses server" (`@AppStorage("glassesServerEnabled")`, default off).
 
-## Principle: Minimal, Removable Footprint
+## What this is
 
-This integration is intentionally a thin, isolated layer. If the G2
-hardware is returned, the entire feature is removed by:
+A small embedded HTTP server inside the GolfCaddie iOS app exposing **one read
+endpoint and two write endpoints**, serving the active round to the Even
+Realities G2 glasses app (a WebView in the Even App on the same phone).
 
-1. Deleting the `GolfCaddie/Glasses/` folder
-2. Removing one settings toggle and its call site in `RootView`
+**Coupling reality:** the server is *removable* (delete `GolfCaddie/Glasses/`,
+the `ShotSource.glasses` case + its switch arms, the two `RoundController`
+methods + the double-tap-guard gate, `GlassesSettingsView`, and the `RootView`
+wiring). But the write endpoints are **not zero-coupling and not
+behavior-free**: to satisfy read-after-write *and* be visible in the phone UI,
+the POST handlers drive the **same live `@MainActor RoundController` the UI
+owns** (not a snapshot), via a non-MainActor listener bridging onto the
+MainActor.
 
-No model changes, no persistence changes, no changes to capture or
-review logic. The glasses app consumes data that `RoundController` and
-the repositories already produce.
+## Transport & binding
 
-## Architecture
+- Bound to **`127.0.0.1` (loopback) on port `8417`**. Never `0.0.0.0` — round
+  data must not be exposed on the WiFi network.
+- Plain HTTP (no TLS) — loopback only, same device, no secrets in transit.
+- The consumer is the Even App's WebView on the **same phone**; loopback is
+  reachable across apps on iOS. **Validate on real hardware Day 2, not Day 6** —
+  cleartext reachability is governed by **App Transport Security on the client
+  (the Even App's WKWebView)**, which GolfCaddie does not control. GolfCaddie's
+  listener needs **no** ATS change on its side, and loopback vs LAN does not
+  affect ATS. Loopback (`127.0.0.1`) is *more* likely than an arbitrary LAN IP
+  to receive an implicit ATS exemption. **There is no LAN "fallback"** — if the
+  Even App's WebView ATS-blocks cleartext loopback, a LAN IP (also cleartext,
+  also ATS-governed, less likely exempt) will not help. The only real options
+  if blocked are: the Even App declares an ATS exception, or serve TLS on
+  loopback (self-signed). This is the one binary platform unknown.
+- Single low-frequency client: ~1 GET / 2–3 s, occasional POSTs. No auth, no
+  rate limiting. `Access-Control-Allow-Origin: *` echoed; `OPTIONS` → 204.
 
-```
-RoundController (@Observable, existing)
-        │  read-only snapshot
-        ▼
-GlassesStateMapper  ──►  GolfState (Codable)
-        │
-        ▼
-GlassesServer (embedded HTTP, local network)
-        │  GET /api/state  → JSON
-        ▼
-golf-caddie-glasses web app (Even Hub WebView)
-```
+## Background execution (critical)
 
-The server is read-only. It never mutates rounds, shots, or holes.
-Phase 1 is display-only; two-way control (mark shot from glasses) is a
-later phase and explicitly out of scope here.
+iOS suspends backgrounded apps. The server **stays responsive for the whole
+round** while GolfCaddie is backgrounded by riding on the existing **location
+background mode** (continuous GPS during a round keeps the process alive; the
+HTTP server lives in that same process). When no round is active and the app is
+backgrounded, the server may stop responding — that is fine; the glasses show
+the idle screen. No `BGTask`, no new entitlement.
 
-## New Files
+## Endpoints
 
-```
-GolfCaddie/
-└── Glasses/
-    ├── GlassesServer.swift        # NWListener-based HTTP server
-    ├── GlassesStateMapper.swift   # RoundController + repos → GolfState
-    └── GolfState.swift            # Codable structs (the API contract)
-```
+### `GET /api/state`
 
-Three files, one folder. That is the entire footprint besides the
-settings toggle.
+Returns the current round read model. Poll target. **200** always (even when no
+round). Body = `GolfState`:
 
-## HTTP Server Choice
-
-Use **`Network.framework` `NWListener`** — no third-party dependency,
-no SPM addition, available iOS 13+. A single GET endpoint does not
-justify pulling in Telegraph or Swifter.
-
-- Bind to the local network interface on a fixed port (default
-  `8080`, configurable)
-- Serve only `GET /api/state`
-- Respond `200` with `application/json`, `404` for anything else
-- CORS header `Access-Control-Allow-Origin: *` (the Even App WebView
-  is a different origin)
-- No auth in Phase 1 (LAN only, personal use); a shared token can be
-  added later if needed — the glasses app already plans for a token in
-  its connection URL pattern
-
-The server lifecycle is tied to the app being foreground + a round
-being active (or always-on if the setting prefers). Background
-operation is not required: the glasses only matter while playing, and
-the phone is already running continuous location then.
-
-## The Contract: `GolfState.swift`
-
-Must stay byte-for-byte compatible with
-`golf-caddie-glasses/src/shared/types.ts`. Mirror exactly:
-
-```swift
-struct GolfState: Codable {
-    var active: Bool
-    var round: RoundInfo?
-    var hole: HoleInfo?
-    var currentClub: String?
-    var lastShot: LastShot?
-    var scoring: Scoring?
-    var gps: GPS
-    var battery: Int?
-    var holes: [HoleSummary]?
-}
-
-struct RoundInfo: Codable {
-    var id: String
-    var startedAt: String          // ISO 8601
-    var courseName: String?
-}
-
-struct HoleInfo: Codable {
-    var number: Int
-    var par: Int?
-    var shotCount: Int
-    var penalties: Int
-    var score: Int                 // shotCount + penalties
-}
-
-struct LastShot: Codable {
-    var club: String?
-    var distanceYards: Int?
-    var sequenceNumber: Int
-}
-
-struct Scoring: Codable {
-    var totalStrokes: Int
-    var totalPar: Int?
-    var toPar: Int?
-    var holesCompleted: Int
-}
-
-struct GPS: Codable {
-    var accuracyMeters: Double?    // raw horizontalAccuracy
-    var stale: Bool
-}
-
-struct HoleSummary: Codable {
-    var number: Int
-    var par: Int?
-    var score: Int
-    var shots: [ShotSummary]
-}
-
-struct ShotSummary: Codable {
-    var sequenceNumber: Int
-    var club: String?
-    var distanceYards: Int?
+```jsonc
+{
+  "contractVersion": 1,
+  "active": true,
+  "round":  { "id": "…", "startedAt": "ISO-8601", "courseName": "…" },
+  "hole":   { "number": 7, "par": 4, "shotCount": 3, "penalties": 0, "score": 3 },
+  "currentClub": "7i",                      // short club form, or omitted
+  "lastShot": { "club": "Dr", "distanceYards": 248, "sequenceNumber": 2 },
+  "scoring": { "totalStrokes": 24, "totalPar": 28, "toPar": -1, "holesCompleted": 6 },
+  "gps": { "accuracyMeters": 3.2, "stale": false },   // accuracyMeters OMITTED = no fix
+  "battery": 84,                                       // phone battery 0–100
+  "holes": [ { "number": 1, "par": 4, "score": 4, "confirmedAt": "ISO-8601",
+               "shots": [ { "sequenceNumber": 1, "club": "Dr", "distanceYards": 248 } ] } ]
 }
 ```
 
-## Mapping (`GlassesStateMapper.swift`)
+When no round is active: `{ "contractVersion": 1, "active": false }` (all other
+fields omitted). `score` = `shotCount + penalties`. `gps.stale` = last fix
+> 10 s old. `holes[].confirmedAt` present ⇒ the hole is finalized (drives the
+glasses' auto hole-summary). The in-progress hole appears in `holes[]` once it
+has shots, with `confirmedAt` omitted (not yet finalized).
 
-Pure function: takes the current `RoundController` + repository reads,
-returns a `GolfState`. No side effects.
+#### Field encoding rules (Swift `Codable` ⇄ TypeScript)
 
-| GolfState field          | Source |
-|--------------------------|--------|
-| `active`                 | `RoundController.isActive` |
-| `round.id/startedAt`     | `RoundController.currentRound` |
-| `round.courseName`       | `Round.courseName` |
-| `hole.number/par`        | `RoundController.currentHole` |
-| `hole.shotCount`         | `RoundController.currentHoleShots.count` |
-| `hole.penalties`         | `PenaltyRepository.forHole(...)` sum of `strokeCount` |
-| `hole.score`             | shotCount + penalties (same rule as `DESIGN.md`) |
-| `currentClub`            | `RoundController.currentClub?.longName` |
-| `lastShot`               | `currentHoleShots.last` + distance from prior shot |
-| `lastShot.distanceYards` | `Distance` helper (Haversine, meters→yards), prior→last shot |
-| `scoring.*`              | aggregate over `HoleRepository.holesForRound` |
-| `gps.accuracyMeters`     | `LocationManager.latestLocation?.horizontalAccuracy` |
-| `gps.stale`              | last fix timestamp > 10s old (same rule as `ActiveRoundView`) |
-| `battery`                | `BatteryMonitor.percent` |
-| `holes`                  | confirmed holes only, for the scorecard screen |
+- **No JSON `null`.** Dates/UUIDs are pre-converted to `String` in the mapper
+  and `GolfState` is plain `Encodable`, so the default `JSONEncoder` **omits**
+  nil optionals; it never emits `"key": null`. The mock server and
+  `fixtures.ts` must likewise **omit** absent keys. TypeScript must treat a
+  field as optional/absent and **never** test `x === null`.
+- **`gps.accuracyMeters`** — `CLLocation.horizontalAccuracy` is negative when
+  invalid; iOS coerces `<= 0` to the field being **absent**. Glasses GPS render
+  precedence: **`stale` → `no fix` (accuracyMeters absent) → `±Xm`**.
+- **`currentClub` / `lastShot.club` / `shots[].club`** — iOS sends the **short**
+  club form (`"SW"`, `"7i"`, `"Dr"`), matching the screen mockups and the
+  46-char line budget.
+- **`scoring`** — `totalPar`/`toPar` aggregate **only confirmed holes that have
+  a par** (omit both if none); `totalStrokes` covers all confirmed holes;
+  `holesCompleted` = confirmed count. `toPar` may briefly lag `totalStrokes`;
+  tolerate, do not treat as an error. (Deliberately differs from the in-app
+  `RoundReviewView.totalPar`, which requires every hole to have a par.)
+- **`hole.penalties`** — iOS sends the **stroke-sum** of penalties (so
+  `score = shotCount + penalties` matches the in-app scorecard). OPEN: if the
+  glasses team means penalty *row count*, it's a one-line mapper change.
+- **`holes[]`** — iOS trims the eagerly-created trailing empty Hole N+1 before
+  building `holes[]`/`scoring`; the mock must mimic.
+- **`round.startedAt` / `holes[].confirmedAt`** — ISO-8601 **without**
+  fractional seconds (`2026-05-07T14:32:11Z`). Mock fixtures must match.
 
-`lastShot.distanceYards`: distance from the previous shot's coordinate
-to the last shot's coordinate, reusing `Utils/Distance.swift`. Null
-when either shot lacks GPS (`hadGPS == false`).
+### `POST /api/shot`
 
-`gps.accuracyMeters` is the raw `horizontalAccuracy` value — the same
-number the on-screen context bar renders as `GPS ±Xm`. The glasses app
-formats it; iOS just passes the number through.
+Log one shot on the **currently active hole**. Empty request body (club
+selection from glasses is future scope). Effect:
 
-## Settings Toggle
+- Increment the active hole's shot count; recompute `score`/`scoring`.
+- **Fast: < ~500 ms p99.** Does **not** reuse the 5s-GPS-blocking shot path
+  (`captureBestFix`). During an active round continuous best-accuracy location
+  is already running, so the handler logs immediately with the best currently
+  available fix (`source = .glasses`, `club = nil`, `hadGPS` from the latest
+  fix). The glasses' ~5 s timeout is a true **error bound**, not the expected
+  duration — keeping POST fast is what prevents the slow-success-then-user-retry
+  double-log.
+- The glasses tap **bypasses** the in-app double-tap dedupe guard (that guard
+  is for the physical Action button / screen double-press; it is gated to
+  `.button`/`.actionButton` only).
 
-Add a single `@AppStorage("glassesServerEnabled")` bool, default
-`false`. Surface it wherever app settings live (or a minimal inline
-toggle in `RootView` if there is no settings screen yet). When true,
-`GlassesServer` starts on round start and stops on round end. When
-false, the server type is never instantiated.
+Response: **200** with the updated full `GolfState`. If no round/hole is
+active: **409** `{ "error": "no_active_hole" }`.
 
-Removal = delete the toggle, delete the `Glasses/` folder, delete the
-start/stop calls in `RoundController.startRound()` / `endRound()`.
+### `POST /api/shot/undo`
 
-## Build Order
+Revert the **most recent** shot or penalty on the active hole. Empty body.
 
-### Step 1 — Contract types
-- Add `GolfState.swift`
-- Verify it encodes to JSON matching the glasses repo's `types.ts`
-  (round-trip a hand-written fixture, diff against the mock server's
-  output)
+- Delete **whichever of {newest shot, newest penalty} on the active hole has
+  the later timestamp** — not "pop the last shot." If the last action was a
+  penalty, undo removes the penalty. After a shot delete, `currentHoleShots` is
+  resynced from the repo so the in-app UI stays consistent.
+- Nothing to undo: **200** no-op with current `GolfState` (safe to call
+  redundantly).
 
-### Step 2 — State mapper
-- Add `GlassesStateMapper.swift`
-- Unit test: construct a known round/hole/shot fixture in an in-memory
-  GRDB, assert the mapped `GolfState` JSON
-- Reuse `Distance.swift` for `lastShot.distanceYards`
+Response: **200** with the updated full `GolfState`. No round/hole active:
+**409** `{ "error": "no_active_hole" }`.
 
-### Step 3 — Embedded server
-- Add `GlassesServer.swift` (NWListener, single GET route)
-- Wire start/stop into `RoundController` behind the setting
-- Manual test: `curl http://<iphone-ip>:8080/api/state` while a round
-  is active, diff shape against the glasses mock server
+### `GET /api/health`
 
-### Step 4 — End-to-end
-- Run the real `golf-caddie-glasses` app pointed at the iPhone's IP
-- Play a simulated round (walk the block), confirm the G2 HUD tracks
-  hole, club, last-shot distance, score, and `±Xm` GPS live
+**200** `{ "ok": true }`. Lets the glasses distinguish "server up, no round"
+from "server down."
 
-### Step 5 — Robustness
-- Handle WiFi unavailable / port in use gracefully (log, don't crash)
-- Confirm zero behavioral/battery impact when the toggle is off
-- Confirm server stops cleanly on round end and app background
+## Semantics & guarantees
 
-## Out of Scope
+- **One gesture = exactly one POST; never coalesced or auto-fired.** The
+  command-client in-flight guard rejects a second write while one is pending.
+- **Writes are user-initiated, never auto-retried.** No silent retry on
+  timeout. A `FOREGROUND_EXIT_EVENT` mid-write does not trigger a resend on
+  `FOREGROUND_ENTER_EVENT` — iOS still applies an in-flight POST and the glasses
+  reconcile from the next poll. No idempotency key is sent.
+- **Read-after-write:** the `GolfState` returned by a POST already includes that
+  write's effect (the handler mutates then maps in one MainActor hop, no await
+  between); a subsequent `GET /api/state` never regresses it.
+- **Single writer:** only the glasses client writes via HTTP; concurrent
+  phone-side edits are allowed and reflected on the next GET.
 
-- Marking shots / selecting clubs from the glasses (two-way) — future
-- Auth tokens — LAN + personal use only for now
-- Background server operation — glasses only used mid-round, foreground
-- Course/pin distances — depends on Phase 2 (satellite map) data
+## Out of scope
 
-## Related
+Club selection / penalty entry / hole confirmation from glasses; discovery or
+pairing UI; multi-client; auth. Only the four endpoints above.
 
-- Glasses app + full screen designs:
-  `golf-caddie-glasses/docs/IMPLEMENTATION_PLAN.md`
-- Scoring rule, data model: `DESIGN.md`
+## Acceptance (iOS side)
+
+```bash
+curl -s 127.0.0.1:8417/api/health | jq .ok                # true
+curl -s 127.0.0.1:8417/api/state  | jq .active            # false with no round, true mid-round
+curl -s -X POST 127.0.0.1:8417/api/shot | jq .hole        # shotCount +1, score recomputed
+curl -s -X POST 127.0.0.1:8417/api/shot/undo | jq .hole   # back to prior shotCount
+# add a penalty in-app, then POST /api/shot/undo removes the penalty (newer), not a shot
+curl -s 127.0.0.1:8417/api/state | grep -c null           # 0
+# Backgrounded mid-round (location active): GET still responds within ~1s.
+```
+
+Headless-verified at `f59a736`: health, idle-state shape (no nulls,
+`contractVersion`), 409 idle gate, 404 unknown route. Active-round assertions
+(POST increments, undo, penalty-precedence) verified on device during the joint
+field test — the simulator cannot drive a real round/GPS.
