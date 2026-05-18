@@ -48,6 +48,7 @@ enum GlassesStateMapper {
                 score: holeScore
             ),
             currentClub: controller.currentClub?.shortName,
+            clubs: selectableClubShortNames(),
             lastShot: lastShotDTO(from: liveShots),
             scoring: scoringDTO(confirmedFrom: allHoles),
             gps: gpsDTO(location: location),
@@ -74,6 +75,19 @@ enum GlassesStateMapper {
             return Array(holes.dropLast())
         }
         return holes
+    }
+
+    /// Ordered selectable clubs as ClubID.shortName strings, in the golfer's
+    /// bag order. Single source of truth: the SAME ClubConfigurationRepository
+    /// bag RootView loads and feeds into the phone club picker
+    /// (RootView.swift:97 → ActiveRoundView → ClubGridView) and the SAME
+    /// ClubID.shortName vocabulary GET's currentClub uses. Omitted (nil) when
+    /// the bag is empty so the wire shape matches the contract's "older iOS /
+    /// no clubs" case rather than emitting [].
+    private static func selectableClubShortNames() -> [String]? {
+        let bag = (try? ClubConfigurationRepository.load().bag) ?? []
+        guard !bag.isEmpty else { return nil }
+        return bag.map { $0.shortName }
     }
 
     private static func score(forHole hole: Hole) -> Int {
@@ -141,9 +155,23 @@ enum GlassesStateMapper {
     private static func gpsDTO(location: LocationManager) -> GPSDTO {
         let loc = location.latestLocation
         let acc = loc?.horizontalAccuracy ?? -1
+        // Revised gps.stale semantics (contract): a golfer stands still
+        // constantly, so an age-only window flagged STALE even with a
+        // perfectly valid recent fix. stale is true ONLY when:
+        //   (a) location authorization/services are genuinely unavailable
+        //       (denied/restricted), OR
+        //   (b) NO location has been *received* by this process for > 30 s.
+        // The freshness clock keys off LocationManager.lastLocationReceivedAt
+        // (reset on ANY received location, independent of distanceFilter and
+        // of the fix's own embedded timestamp — see LocationManager
+        // didUpdateLocations), not loc.timestamp, so a stationary golfer with
+        // a valid recent fix is never flagged stale (distanceFilter is now
+        // kCLDistanceFilterNone so fixes keep arriving while stationary).
         let stale: Bool
-        if let ts = loc?.timestamp {
-            stale = Date().timeIntervalSince(ts) > 10
+        if location.locationUnavailable {
+            stale = true
+        } else if let received = location.lastLocationReceivedAt {
+            stale = Date().timeIntervalSince(received) > 30
         } else {
             stale = true
         }

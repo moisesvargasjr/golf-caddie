@@ -45,6 +45,15 @@ enum ClubID: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Parse a club from its `shortName` (the exact vocabulary the glasses
+    /// `clubs[]` / `currentClub` use). Derived from `allCases` + `shortName`
+    /// so there is no parallel hardcoded table to drift; case-sensitive,
+    /// matching what `shortName` emits ("Dr", "7i", "SW"). Returns nil for an
+    /// unknown/unparseable short name.
+    static func from(shortName: String) -> ClubID? {
+        allCases.first { $0.shortName == shortName }
+    }
+
     var longName: String {
         switch self {
         case .driver: return "Driver"

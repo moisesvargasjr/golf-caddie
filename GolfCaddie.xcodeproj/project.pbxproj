@@ -69,7 +69,7 @@
 		AACE405237B270A6D4E74FBA /* HoleReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleReviewSheet.swift; sourceTree = "<group>"; };
 		BC765D7FB5E6B8C9B0976AF0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BF5603EA63F132D1CF2E0BBA /* Distance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Distance.swift; sourceTree = "<group>"; };
-		C4E1A5239F7D8B0933F8ADF8 /* GolfCaddie.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GolfCaddie.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C4E1A5239F7D8B0933F8ADF8 /* GolfCaddie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GolfCaddie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D098D5E6FE4AFAD850ABD80F /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
 		D1215933A096A3A8231AEBEF /* Club.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Club.swift; sourceTree = "<group>"; };
 		D321048A8B8F84C9D195456D /* GlassesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesSettingsView.swift; sourceTree = "<group>"; };
@@ -239,7 +239,7 @@
 			mainGroup = B3B010B72A22DCF3F7FEE5C6;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				1959314EE3B55AE66FE68212 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				1959314EE3B55AE66FE68212 /* XCRemoteSwiftPackageReference "GRDB" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DDA3D7832E5E1661F9EAEC57 /* Products */;
@@ -365,6 +365,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = XH3PSRWH49;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = GolfCaddie/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -448,6 +449,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = XH3PSRWH49;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = GolfCaddie/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -486,7 +488,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		1959314EE3B55AE66FE68212 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+		1959314EE3B55AE66FE68212 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
 			requirement = {
@@ -499,7 +501,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		59E6B95800688673A241E16D /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 1959314EE3B55AE66FE68212 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			package = 1959314EE3B55AE66FE68212 /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */

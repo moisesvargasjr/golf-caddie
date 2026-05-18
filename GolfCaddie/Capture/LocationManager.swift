@@ -16,6 +16,29 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
     private(set) var latestLocation: CLLocation?
     private(set) var isTracking = false
 
+    /// Wall-clock instant the most recent location was *received* by this
+    /// process, independent of the fix's own embedded `timestamp` and
+    /// independent of `distanceFilter`. The glasses `gps.stale` freshness
+    /// clock keys off this: it resets on ANY received location (see
+    /// didUpdateLocations) so a stationary golfer with a valid recent fix is
+    /// never flagged stale. nil until the first fix arrives.
+    private(set) var lastLocationReceivedAt: Date?
+
+    /// True only when location authorization/services are genuinely
+    /// unavailable (denied/restricted) — used by the glasses `gps.stale`
+    /// computation as the "actually unavailable" condition, distinct from a
+    /// merely-aged-but-valid fix.
+    var locationUnavailable: Bool {
+        switch authorizationStatus {
+        case .denied, .restricted:
+            return true
+        case .notDetermined, .authorizedAlways, .authorizedWhenInUse:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
     @ObservationIgnored
     private let manager: CLLocationManager
 
@@ -57,7 +80,16 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
     func startTracking() {
         guard !isTracking else { return }
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = 5
+        // kCLDistanceFilterNone (was 5 m): the glasses gps.stale freshness
+        // path needs fixes to keep arriving while the golfer is stationary
+        // (addressing/putting/waiting). A movement-gated filter only delivers
+        // after ~5 m of travel, so a perfectly valid recent fix while standing
+        // still would age past the stale window and flag STALE constantly.
+        // No shot-distance logic in this codebase reads distanceFilter
+        // (distances are computed from stored shot coordinates in
+        // GlassesStateMapper.yards / Distance), so removing the filter does
+        // not affect shot distances — it only restores continuous delivery.
+        manager.distanceFilter = kCLDistanceFilterNone
         if manager.authorizationStatus == .authorizedAlways {
             manager.allowsBackgroundLocationUpdates = true
         }
@@ -122,6 +154,10 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         guard let last = locations.last else { return }
         Task { @MainActor in
             self.latestLocation = last
+            // Reset the glasses gps.stale freshness clock on ANY received
+            // location, independent of distanceFilter and of the fix's own
+            // embedded timestamp.
+            self.lastLocationReceivedAt = Date()
             if self.preciseFixContinuation != nil,
                last.horizontalAccuracy > 0,
                last.horizontalAccuracy <= 5 {

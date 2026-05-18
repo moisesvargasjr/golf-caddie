@@ -70,8 +70,24 @@ final class GlassesServer {
             if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
                 let headerData = buffer.subdata(in: buffer.startIndex ..< headerEnd.lowerBound)
                 let (method, path) = Self.parseRequestLine(headerData)
+                let contentLength = Self.contentLength(headerData)
+                let bodyStart = headerEnd.upperBound
+                let received = buffer.distance(from: bodyStart, to: buffer.endIndex)
+
+                // Wait for the full declared body before dispatching (only
+                // matters for POST /api/club; the other endpoints send no body
+                // so contentLength is 0 and this is a no-op).
+                if received < contentLength && error == nil && !isComplete {
+                    self.receiveRequest(connection, buffer: buffer)
+                    return
+                }
+
+                let requestBody = contentLength > 0
+                    ? buffer.subdata(in: bodyStart ..< buffer.index(bodyStart, offsetBy: min(contentLength, received)))
+                    : Data()
+
                 Task { @MainActor in
-                    let (status, body) = self.handle(method: method, path: path)
+                    let (status, body) = self.handle(method: method, path: path, requestBody: requestBody)
                     let response = Self.httpResponse(status: status, jsonBody: body)
                     connection.send(content: response, completion: .contentProcessed { _ in
                         connection.cancel()
@@ -97,11 +113,24 @@ final class GlassesServer {
         return (String(parts[0]).uppercased(), String(parts[1]))
     }
 
+    private nonisolated static func contentLength(_ headerData: Data) -> Int {
+        guard let text = String(data: headerData, encoding: .utf8) else { return 0 }
+        for line in text.split(separator: "\r\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2,
+                  parts[0].trimmingCharacters(in: .whitespaces).lowercased() == "content-length"
+            else { continue }
+            return Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? 0
+        }
+        return 0
+    }
+
     private nonisolated static func httpResponse(status: Int, jsonBody: Data) -> Data {
         let reason: String
         switch status {
         case 200: reason = "OK"
         case 204: reason = "No Content"
+        case 400: reason = "Bad Request"
         case 404: reason = "Not Found"
         case 409: reason = "Conflict"
         default: reason = "OK"
@@ -120,7 +149,7 @@ final class GlassesServer {
 
     // MARK: - Routing (@MainActor — mutate then map in one hop)
 
-    private func handle(method: String, path: String) -> (Int, Data) {
+    private func handle(method: String, path: String, requestBody: Data) -> (Int, Data) {
         if method == "OPTIONS" {
             return (204, Data())
         }
@@ -154,6 +183,33 @@ final class GlassesServer {
                 return (409, noActiveHoleBody())
             }
 
+        case ("POST", "/api/club"):
+            guard let controller, controller.isActive else {
+                return (409, noActiveHoleBody())
+            }
+            guard let shortName = Self.parseClubShortName(requestBody) else {
+                return (400, unknownClubBody())
+            }
+            do {
+                try controller.setCurrentClubFromGlasses(shortName: shortName)
+                return (200, encodeState())
+            } catch GlassesError.unknownClub {
+                return (400, unknownClubBody())
+            } catch {
+                return (409, noActiveHoleBody())
+            }
+
+        case ("POST", "/api/hole/advance"):
+            guard let controller, controller.isActive else {
+                return (409, noActiveHoleBody())
+            }
+            do {
+                try controller.advanceHoleFromGlasses()
+                return (200, encodeState())
+            } catch {
+                return (409, noActiveHoleBody())
+            }
+
         default:
             return (404, Data(#"{"error":"not_found"}"#.utf8))
         }
@@ -175,5 +231,22 @@ final class GlassesServer {
 
     private func noActiveHoleBody() -> Data {
         Data(#"{"error":"no_active_hole"}"#.utf8)
+    }
+
+    private func unknownClubBody() -> Data {
+        Data(#"{"error":"unknown_club"}"#.utf8)
+    }
+
+    /// Extract the `club` short name from a `{"club":"<shortName>"}` body.
+    /// Returns nil for missing/malformed JSON or an empty/non-string value;
+    /// the caller maps that to 400 unknown_club (the contract treats an
+    /// unparseable club the same as an unknown one).
+    private nonisolated static func parseClubShortName(_ body: Data) -> String? {
+        guard !body.isEmpty,
+              let obj = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let club = obj["club"] as? String,
+              !club.isEmpty
+        else { return nil }
+        return club
     }
 }

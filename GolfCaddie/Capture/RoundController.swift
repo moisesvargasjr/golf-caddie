@@ -3,6 +3,7 @@ import Observation
 
 enum GlassesError: Error {
     case noActiveHole
+    case unknownClub
 }
 
 @Observable
@@ -150,6 +151,48 @@ final class RoundController {
         currentClub = club
     }
 
+    /// Set the selected club from the glasses POST /api/club path. Parses the
+    /// short name with the SAME vocabulary as ClubID.shortName (ClubID.from)
+    /// and routes through the SAME setCurrentClub path / single-source-of-truth
+    /// `currentClub` property that the phone club picker sets
+    /// (ActiveRoundView.swift:199), that GET /api/state reports
+    /// (GlassesStateMapper currentClub), and that a glasses-logged shot is
+    /// tagged with (logShotFromGlasses → club: currentClub). It only changes
+    /// the selection: no shot logged, no score mutated, no GPS — a synchronous
+    /// stored-property write, so W1 (no 5s block) is unaffected. Idempotent:
+    /// re-selecting the current club is a no-op assignment. Requires an active
+    /// hole (parity with shot/undo); unknown short name → unknownClub.
+    func setCurrentClubFromGlasses(shortName: String) throws {
+        guard case .active = state else {
+            throw GlassesError.noActiveHole
+        }
+        guard let club = ClubID.from(shortName: shortName) else {
+            throw GlassesError.unknownClub
+        }
+        setCurrentClub(club)
+    }
+
+    /// Confirm/close the active hole and advance to the next from the glasses
+    /// POST /api/hole/advance path. Routes through the SAME
+    /// `confirmHoleAndAdvance` the phone "next hole"/confirm action uses
+    /// (ActiveRoundView.confirmHole → confirmHoleAndAdvance, ActiveRoundView
+    /// .swift:397) so the closed hole's `confirmedAt`, `holes[]`, `scoring`,
+    /// and the eagerly-created next hole behave EXACTLY as a phone-confirmed
+    /// hole — the newly-`confirmedAt` hole appearing in `holes[]` is what
+    /// drives the glasses auto hole-summary, no special-casing. The glasses
+    /// send an empty body and have no par input, so par is nil — identical to
+    /// a phone confirm where the golfer did not enter a par (scoring already
+    /// aggregates only confirmed holes that have a par). NOT idempotent: one
+    /// call advances exactly one hole (the glasses gate this behind a 2-step
+    /// arm+confirm and never auto-retry it). Requires an active hole (parity
+    /// with shot/undo/club); synchronous, no GPS, so W1 is unaffected.
+    func advanceHoleFromGlasses() throws {
+        guard case .active = state else {
+            throw GlassesError.noActiveHole
+        }
+        try confirmHoleAndAdvance(par: nil)
+    }
+
     func confirmHoleAndAdvance(par: Int?) throws {
         guard case let .active(round, currentHole) = state else { return }
         var updated = currentHole
@@ -177,6 +220,13 @@ final class RoundController {
     /// running, so latestLocation is fresh enough. Keeps POST /api/shot under
     /// the glasses' ~5s client timeout, preventing the slow-success +
     /// user-retry double-log. No double-tap guard (deliberate single gesture).
+    ///
+    /// The shot is tagged with the round's currently-selected `currentClub`
+    /// (the same source `GET /api/state` reports as `currentClub` and the same
+    /// value a phone-tapped shot records — see markShot()/markShotInternal). If
+    /// no club is selected, `currentClub` is nil and the shot has no club, but
+    /// a selected club is never dropped. Reading currentClub is a synchronous
+    /// stored-property access, so W1 (no 5s GPS block) is unaffected.
     func logShotFromGlasses() throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
@@ -193,7 +243,7 @@ final class RoundController {
             longitude: hasFix ? loc?.coordinate.longitude : nil,
             gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
             hadGPS: hasFix,
-            club: nil,
+            club: currentClub,
             source: .glasses,
             notes: nil
         )

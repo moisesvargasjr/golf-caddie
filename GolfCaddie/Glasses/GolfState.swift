@@ -13,6 +13,7 @@ struct GolfState: Encodable {
     var round: RoundDTO?
     var hole: HoleDTO?
     var currentClub: String?
+    var clubs: [String]?
     var lastShot: LastShotDTO?
     var scoring: ScoringDTO?
     var gps: GPSDTO?
@@ -27,6 +28,7 @@ struct GolfState: Encodable {
         round: RoundDTO? = nil,
         hole: HoleDTO? = nil,
         currentClub: String? = nil,
+        clubs: [String]? = nil,
         lastShot: LastShotDTO? = nil,
         scoring: ScoringDTO? = nil,
         gps: GPSDTO? = nil,
@@ -38,6 +40,7 @@ struct GolfState: Encodable {
         self.round = round
         self.hole = hole
         self.currentClub = currentClub
+        self.clubs = clubs
         self.lastShot = lastShot
         self.scoring = scoring
         self.gps = gps
