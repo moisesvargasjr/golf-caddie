@@ -14,6 +14,8 @@ struct ActiveRoundView: View {
     @State private var batteryAtRoundStart: Float?
     @State private var showEndRoundConfirm = false
     @State private var showUndoConfirm = false
+    @State private var showCourseEdit = false
+    @State private var courseNameDraft = ""
     @State private var mapFollowMode: Bool = true
 
     var body: some View {
@@ -57,6 +59,15 @@ struct ActiveRoundView: View {
             } else {
                 Text("Removes the most recent shot.")
             }
+        }
+        .alert("Course", isPresented: $showCourseEdit) {
+            TextField("Course name", text: $courseNameDraft)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                controller.setCourseName(courseNameDraft)
+            }
+        } message: {
+            Text("Auto-detected from your location. Edit if it's wrong, or set it manually.")
         }
     }
 
@@ -141,8 +152,27 @@ struct ActiveRoundView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Text(holeLabel)
-                .font(.headline)
+            Button {
+                courseNameDraft = controller.currentRound?.courseName ?? ""
+                showCourseEdit = true
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(holeLabel)
+                        .font(.headline)
+                    if let course = controller.currentRound?.courseName,
+                       !course.isEmpty {
+                        Text(course)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else {
+                        Text("Set course")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
             gpsIndicator
             Spacer()
             batteryBadge

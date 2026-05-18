@@ -95,6 +95,11 @@ final class RoundController {
         lastMarkResult = nil
         location.requestAlways()
         location.startTracking()
+        // Fire-and-forget course auto-detection. startRound stays fully
+        // synchronous and behavior-identical — detection never blocks the
+        // round starting (W1 discipline) and silently no-ops on any failure.
+        let roundID = round.id
+        Task { [weak self] in await self?.detectAndApplyCourseName(roundID: roundID) }
     }
 
     func endRound() throws {
@@ -112,6 +117,47 @@ final class RoundController {
 
     func clearMostRecentlyEndedRound() {
         mostRecentlyEndedRound = nil
+    }
+
+    /// Single apply path for a course-name change, shared by auto-detection
+    /// and the manual override. Guards the round is still active before
+    /// mutating, persists via the same RoundRepository.update other lifecycle
+    /// mutations use, and reassigns `state` so @Observable re-renders and the
+    /// glasses GET /api/state picks up `courseName` (GlassesStateMapper
+    /// already maps it — no glasses-side work). No-op when unchanged.
+    private func applyCourseName(_ name: String?) {
+        guard case let .active(round, hole) = state else { return }
+        guard round.courseName != name else { return }
+        var updated = round
+        updated.courseName = name
+        try? RoundRepository.update(updated)
+        state = .active(round: updated, hole: hole)
+    }
+
+    /// Manual course override from the phone UI — also the path for "detection
+    /// found nothing" or "detection was wrong". Trims whitespace; an empty
+    /// string clears the name back to nil.
+    func setCourseName(_ name: String?) {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        applyCourseName((trimmed?.isEmpty ?? true) ? nil : trimmed)
+    }
+
+    /// Fire-and-forget course auto-detection, kicked off at the end of
+    /// startRound(). Awaits captureBestFix (the existing ≤5m/5s primitive) so
+    /// the lookup uses a good fix, then aborts SILENTLY on any of: no/poor fix
+    /// (>50m — a bad fix yields an unreliable nearest-course pick, better no
+    /// name than a wrong one), no result, or the round having changed /
+    /// already carrying a name (a manual edit or restore must win — see
+    /// restoreActiveRound, which deliberately does not re-detect).
+    private func detectAndApplyCourseName(roundID: UUID) async {
+        guard let fix = await location.captureBestFix() else { return }
+        guard fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= 50 else { return }
+        guard let name = await CourseDetector.detectCourseName(near: fix.coordinate)
+        else { return }
+        guard case let .active(round, _) = state,
+              round.id == roundID,
+              round.courseName == nil else { return }
+        applyCourseName(name)
     }
 
     func removeLastShot() throws {

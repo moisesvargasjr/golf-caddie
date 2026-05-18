@@ -46,8 +46,17 @@ private struct RoundRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(round.startedAt, format: .dateTime.month().day().year().hour().minute())
-                    .font(.callout)
+                if let course = round.courseName, !course.isEmpty {
+                    Text(course)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    Text(round.startedAt, format: .dateTime.month().day().year().hour().minute())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(round.startedAt, format: .dateTime.month().day().year().hour().minute())
+                        .font(.callout)
+                }
                 if let endedAt = round.endedAt {
                     Text("Duration: \(formatDuration(endedAt.timeIntervalSince(round.startedAt)))")
                         .font(.caption)

@@ -60,7 +60,10 @@ struct RoundReviewView: View {
     }
 
     private var roundTitle: String {
-        round.startedAt.formatted(date: .abbreviated, time: .shortened)
+        if let course = round.courseName, !course.isEmpty {
+            return course
+        }
+        return round.startedAt.formatted(date: .abbreviated, time: .shortened)
     }
 
     private var totalShots: Int {
