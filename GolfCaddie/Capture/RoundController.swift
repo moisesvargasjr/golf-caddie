@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Observation
 
@@ -24,6 +25,12 @@ final class RoundController {
     private(set) var currentClub: ClubID?
     private(set) var lastMarkResult: ShotMarkResult?
     private(set) var mostRecentlyEndedRound: Round?
+
+    /// Curated course resolved for the active round (proximity, name as
+    /// tiebreak), or nil when no cached course matches. In-memory only for
+    /// now — Phase 3 consumes this (auto-par, distance-to-green) and persists
+    /// it on `Round`. Nil ⇒ exactly today's behavior (graceful degradation).
+    private(set) var curatedCourseId: String?
 
     var shotsInCurrentHole: Int { currentHoleShots.count }
 
@@ -93,6 +100,7 @@ final class RoundController {
         currentHoleShots = []
         currentClub = nil
         lastMarkResult = nil
+        curatedCourseId = nil
         location.requestAlways()
         location.startTracking()
         // Fire-and-forget course auto-detection. startRound stays fully
@@ -113,6 +121,7 @@ final class RoundController {
         currentHoleShots = []
         currentClub = nil
         lastMarkAt = nil
+        curatedCourseId = nil
     }
 
     func clearMostRecentlyEndedRound() {
@@ -152,12 +161,32 @@ final class RoundController {
     private func detectAndApplyCourseName(roundID: UUID) async {
         guard let fix = await location.captureBestFix() else { return }
         guard fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= 50 else { return }
+        // Resolve a curated course (proximity, name as tiebreak) for Phase 3
+        // consumption — independent of, and before, the POI name lookup so a
+        // missing MapKit POI doesn't also lose the curated match.
+        resolveCuratedCourse(near: fix.coordinate, roundID: roundID)
         guard let name = await CourseDetector.detectCourseName(near: fix.coordinate)
         else { return }
         guard case let .active(round, _) = state,
               round.id == roundID,
               round.courseName == nil else { return }
         applyCourseName(name)
+    }
+
+    /// Best-effort curated-course match for the active round: nearest cached
+    /// course within 3 km, else a name/alias match against the detected
+    /// `courseName`. Soft-fail (no cache / no match ⇒ nil). Guarded to the
+    /// still-active originating round.
+    private func resolveCuratedCourse(near coord: CLLocationCoordinate2D, roundID: UUID) {
+        guard case let .active(round, _) = state, round.id == roundID else { return }
+        if let course = try? CourseDataRepository.nearest(to: coord, within: 3000) {
+            curatedCourseId = course.id
+            return
+        }
+        if let name = round.courseName,
+           let course = try? CourseDataRepository.matching(name: name) {
+            curatedCourseId = course.id
+        }
     }
 
     func removeLastShot() throws {

@@ -18,6 +18,9 @@ struct RootView: View {
         .task {
             location.requestWhenInUse()
             loadConfig()
+            // Fire-and-forget curated course-data refresh. Never blocks
+            // launch; soft-fails offline; reads at the course use the cache.
+            Task { await CourseSyncClient.shared.syncIfStale() }
             if controller == nil {
                 let new = RoundController(location: location)
                 try? new.restoreActiveRound()

@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import GRDB
 
@@ -202,6 +203,72 @@ enum ShotRepository {
             var newShot = shot
             newShot.sequenceNumber = position
             try newShot.insert(db)
+        }
+    }
+}
+
+enum CourseDataRepository {
+    /// Replace the whole cached catalog with the synced file's courses (the
+    /// published file is the full truth, so removed courses get pruned).
+    /// Skipped entirely if a course fails to encode — never corrupts the
+    /// cache. Atomic.
+    static func replaceAll(with courses: [CuratedCourse], fetchedAt: Date) throws {
+        let records = courses.compactMap { CuratedCourseRecord.from($0, fetchedAt: fetchedAt) }
+        try Database.shared.write { db in
+            try CuratedCourseRecord.deleteAll(db)
+            for r in records { try r.insert(db) }
+        }
+    }
+
+    static func course(byId id: String) throws -> CuratedCourse? {
+        try Database.shared.read { db in
+            try CuratedCourseRecord.filter(Column("id") == id).fetchOne(db)?.decoded()
+        }
+    }
+
+    static func allCourses() throws -> [CuratedCourse] {
+        try Database.shared.read { db in
+            try CuratedCourseRecord.fetchAll(db).compactMap { $0.decoded() }
+        }
+    }
+
+    /// Nearest cached course whose centroid is within `within` metres of the
+    /// coordinate, or nil. Tiny dataset → in-Swift haversine is fine.
+    static func nearest(
+        to coord: CLLocationCoordinate2D,
+        within: CLLocationDistance
+    ) throws -> CuratedCourse? {
+        let origin = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        let rows = try Database.shared.read { db in try CuratedCourseRecord.fetchAll(db) }
+        let scored = rows
+            .map { (row: $0, d: CLLocation(latitude: $0.lat, longitude: $0.lng).distance(from: origin)) }
+            .filter { $0.d <= within }
+            .min { $0.d < $1.d }
+        return scored?.row.decoded()
+    }
+
+    /// Case-insensitive match of a detected course name against a cached
+    /// course's name or aliases — the tiebreak/fallback for proximity.
+    static func matching(name: String) throws -> CuratedCourse? {
+        let needle = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return nil }
+        return try allCourses().first { course in
+            if course.name.lowercased() == needle { return true }
+            return course.aliases.contains { $0.lowercased() == needle }
+        }
+    }
+
+    static func loadSyncMeta() throws -> CuratedSyncMeta {
+        try Database.shared.read { db in
+            try CuratedSyncMeta.fetchOne(db) ?? CuratedSyncMeta()
+        }
+    }
+
+    static func saveSyncMeta(_ meta: CuratedSyncMeta) throws {
+        try Database.shared.write { db in
+            var m = meta
+            m.id = 1
+            try m.save(db)
         }
     }
 }

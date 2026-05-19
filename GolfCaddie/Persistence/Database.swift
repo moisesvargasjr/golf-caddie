@@ -90,6 +90,31 @@ enum Database {
             }
         }
 
+        // Curated course reference data, synced from the published
+        // data/courses.json (golf-caddie-coursedata). The full per-course
+        // record is kept as JSON (precedent: clubConfiguration.bagJSON);
+        // name/lat/lng are denormalized so proximity + name matching at round
+        // start needs no JSON decode. Purely additive — existing rounds and
+        // the v1 schema are untouched, so old DBs migrate cleanly.
+        migrator.registerMigration("v2_curated_course") { db in
+            try db.create(table: "curatedCourse") { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text).notNull()
+                t.column("lat", .double).notNull()
+                t.column("lng", .double).notNull()
+                t.column("payloadJSON", .text).notNull()
+                t.column("fetchedAt", .datetime).notNull()
+            }
+
+            try db.create(table: "curatedSyncMeta") { t in
+                t.column("id", .integer).primaryKey()
+                t.check(sql: "id = 1")
+                t.column("lastSyncAt", .datetime)
+                t.column("lastETag", .text)
+                t.column("lastError", .text)
+            }
+        }
+
         return migrator
     }
 }
