@@ -15,16 +15,14 @@ final class CourseSyncClient {
     static let shared = CourseSyncClient()
     private init() {}
 
-    /// Raw URL of golf-caddie-coursedata `data/courses.json`.
-    ///
-    /// PENDING the repo-visibility decision: a PUBLIC repo gives an
-    /// unauthenticated raw URL (no secret in the app — preferred, course par
-    /// is public info). A PRIVATE repo would require an embedded token, which
-    /// reintroduces the secret-in-binary problem we avoided elsewhere. Until
-    /// the remote exists this stays nil and sync is a silent no-op (the app
-    /// behaves exactly as today). Set to e.g.
-    /// "https://raw.githubusercontent.com/moisesvargasjr/golf-caddie-coursedata/main/data/courses.json"
-    private static let catalogURL: URL? = nil
+    /// Raw URL of the PUBLIC golf-caddie-coursedata `data/courses.json`.
+    /// Public by decision: course par/yardage is public info, so the raw URL
+    /// is unauthenticated — no secret in the app binary. Until the repo
+    /// exists this 404s and sync soft-fails (cache kept, app behaves exactly
+    /// as today) — so shipping this constant ahead of the repo is safe.
+    private static let catalogURL: URL? = URL(
+        string: "https://raw.githubusercontent.com/moisesvargasjr/golf-caddie-coursedata/main/data/courses.json"
+    )
 
     /// Skip if we refreshed within this window (ETag makes refetch cheap, but
     /// no need to even try more than this often).
