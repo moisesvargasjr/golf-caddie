@@ -30,6 +30,13 @@ struct RoundReviewView: View {
                 resumeSection
             }
             if !holes.isEmpty {
+                Section {
+                    NavigationLink {
+                        HoleDetailView(holes: holes, bag: bag, onChanged: { reload() })
+                    } label: {
+                        Label("Review & Edit Holes", systemImage: "pencil.and.list.clipboard")
+                    }
+                }
                 scorecardSection
                 shotsSection
             } else {

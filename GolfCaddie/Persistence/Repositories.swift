@@ -72,6 +72,28 @@ enum HoleRepository {
                 .fetchAll(db)
         }
     }
+
+    static func hole(byID id: UUID) throws -> Hole? {
+        try Database.shared.read { db in
+            try Hole.filter(Column("id") == id).fetchOne(db)
+        }
+    }
+
+    /// Sets par on a hole — including an already-confirmed one — WITHOUT
+    /// touching `confirmedAt` or creating a next hole. This is the
+    /// previous-hole-editor path, deliberately distinct from
+    /// `RoundController.confirmHoleAndAdvance` (which is the only place that
+    /// also closes the hole + spawns the next one). Score is derived
+    /// everywhere (RoundReviewView, GlassesStateMapper), so changing par alone
+    /// is sufficient — no recompute. No-op if the hole no longer exists.
+    static func setPar(holeID: UUID, par: Int?) throws {
+        try Database.shared.write { db in
+            guard var hole = try Hole.filter(Column("id") == holeID).fetchOne(db)
+            else { return }
+            hole.par = par
+            try hole.update(db)
+        }
+    }
 }
 
 enum PenaltyRepository {

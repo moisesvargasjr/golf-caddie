@@ -260,6 +260,24 @@ final class RoundController {
         lastMarkResult = nil
     }
 
+    /// Edit par on ANY hole (incl. an already-confirmed one) from the
+    /// previous-hole editor. Deliberately NOT `confirmHoleAndAdvance`: it must
+    /// not set `confirmedAt` or spawn a next hole — it only changes `par`.
+    /// Persists via `HoleRepository.setPar`; if the edited hole is the live
+    /// `currentHole`, reassign `state` so @Observable re-renders and the
+    /// glasses GET picks it up (same discipline as `applyCourseName`). Score
+    /// is derived everywhere, so no recompute is needed. Use this for an
+    /// active round; for an ended round with no live controller call
+    /// `HoleRepository.setPar` directly.
+    func setPar(_ par: Int?, forHole holeID: UUID) throws {
+        try HoleRepository.setPar(holeID: holeID, par: par)
+        if case let .active(round, hole) = state, hole.id == holeID {
+            var updated = hole
+            updated.par = par
+            state = .active(round: round, hole: updated)
+        }
+    }
+
     /// Fast, non-blocking shot log for the glasses POST path. Unlike
     /// markShotInternal it does NOT await captureBestFix (a 5s GPS ramp) —
     /// during an active round continuous best-accuracy tracking is already
