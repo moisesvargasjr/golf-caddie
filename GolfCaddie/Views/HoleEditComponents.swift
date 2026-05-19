@@ -1,5 +1,25 @@
 import CoreLocation
 import SwiftUI
+import UIKit
+
+/// Identifiable URL wrapper so a generated export file can drive `.sheet(item:)`.
+struct ExportFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// Minimal share-sheet bridge — used to hand the anchor-export JSON file to
+/// AirDrop/Files so the coursedata tooling can `import-anchors` it. The app
+/// never pushes to git itself (human/agent is the transport, by design).
+struct ShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
 
 // Shared hole-editing UI, used by both `HoleReviewSheet` (active-round hole
 // confirm) and `HoleDetailView` (previous-hole editor). Extracted verbatim

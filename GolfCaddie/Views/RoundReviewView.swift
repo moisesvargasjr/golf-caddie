@@ -32,7 +32,12 @@ struct RoundReviewView: View {
             if !holes.isEmpty {
                 Section {
                     NavigationLink {
-                        HoleDetailView(holes: holes, bag: bag, onChanged: { reload() })
+                        HoleDetailView(
+                            holes: holes,
+                            bag: bag,
+                            curatedCourseId: round.curatedCourseId,
+                            onChanged: { reload() }
+                        )
                     } label: {
                         Label("Review & Edit Holes", systemImage: "pencil.and.list.clipboard")
                     }

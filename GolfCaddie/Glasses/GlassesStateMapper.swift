@@ -45,7 +45,12 @@ enum GlassesStateMapper {
                 par: hole.par,
                 shotCount: holeShotCount,
                 penalties: holePenaltyStrokes,
-                score: holeScore
+                score: holeScore,
+                distanceToGreenYards: distanceToGreen(
+                    courseId: controller.curatedCourseId,
+                    holeNumber: hole.holeNumber,
+                    location: location
+                )
             ),
             currentClub: controller.currentClub?.shortName,
             clubs: selectableClubShortNames(),
@@ -179,6 +184,32 @@ enum GlassesStateMapper {
             accuracyMeters: acc > 0 ? acc : nil,
             stale: stale
         )
+    }
+
+    /// Live yards from the current fix to the hole's green anchor (local
+    /// capture wins over curated). nil — and thus omitted — when the round
+    /// didn't match a curated course, no green anchor exists yet, or there's
+    /// no fix. Same yardage primitive as everywhere else.
+    @MainActor
+    private static func distanceToGreen(
+        courseId: String?,
+        holeNumber: Int,
+        location: LocationManager
+    ) -> Int? {
+        guard let courseId,
+              let loc = location.latestLocation, loc.horizontalAccuracy > 0
+        else { return nil }
+        let local = try? LocalAnchorRepository.anchor(
+            courseId: courseId, holeNumber: holeNumber
+        )
+        let curatedGreen = (try? CourseDataRepository.course(byId: courseId))?
+            .holes.first { $0.number == holeNumber }?.greenAnchor
+        guard let green = local?.green ?? curatedGreen else { return nil }
+        let meters = Distance.meters(
+            from: loc.coordinate,
+            to: CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng)
+        )
+        return Int(Distance.yards(fromMeters: meters).rounded())
     }
 
     /// Yards between two shots' coordinates; nil if either is missing or lacks

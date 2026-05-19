@@ -4,20 +4,33 @@ import SwiftUI
 
 /// Satellite map for the previous-hole editor. Deliberately a SEPARATE
 /// representable from `ActiveRoundMap` (the field-tested live-capture map):
-/// no user tracking, explicit per-hole camera framing, and DRAGGABLE shot
-/// pins. It only reports a drop upward via `onShotMoved` — persistence lives
-/// in `HoleDetailView` (same "report up" discipline as `ActiveRoundMap`'s
-/// follow-mode callback).
+/// no user tracking, explicit per-hole camera framing, and DRAGGABLE pins —
+/// both shot pins and (in anchor mode) the Tee/Green anchors. It only reports
+/// drops upward; persistence lives in `HoleDetailView`.
 struct EditableHoleMap: View {
     /// Shots for the currently-displayed hole, ordered by sequence.
     let shots: [Shot]
-    /// Drives reframing: the camera refits only when this changes.
+    /// Drives reframing: the camera refits when the hole — or anchor
+    /// presence — changes.
     let holeID: UUID
     /// Called on drop with the shot and its new coordinate.
     let onShotMoved: (Shot, CLLocationCoordinate2D) -> Void
+    /// Tee/green anchors to show as draggable pins (nil = don't show that
+    /// pin). Set only in anchor-capture mode.
+    var tee: GeoPoint? = nil
+    var green: GeoPoint? = nil
+    /// Called on anchor drop. nil = anchor capture disabled.
+    var onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)? = nil
 
     var body: some View {
-        EditableHoleMapKit(shots: shots, holeID: holeID, onShotMoved: onShotMoved)
+        EditableHoleMapKit(
+            shots: shots,
+            holeID: holeID,
+            onShotMoved: onShotMoved,
+            tee: tee,
+            green: green,
+            onAnchorMoved: onAnchorMoved
+        )
     }
 }
 
@@ -25,9 +38,12 @@ private struct EditableHoleMapKit: UIViewRepresentable {
     let shots: [Shot]
     let holeID: UUID
     let onShotMoved: (Shot, CLLocationCoordinate2D) -> Void
+    let tee: GeoPoint?
+    let green: GeoPoint?
+    let onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onShotMoved: onShotMoved)
+        Coordinator(onShotMoved: onShotMoved, onAnchorMoved: onAnchorMoved)
     }
 
     func makeUIView(context: Context) -> MKMapView {
@@ -42,27 +58,33 @@ private struct EditableHoleMapKit: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onShotMoved = onShotMoved
-        syncAnnotations(in: map, coordinator: context.coordinator)
+        context.coordinator.onAnchorMoved = onAnchorMoved
+        syncShots(in: map, coordinator: context.coordinator)
+        syncAnchors(in: map, coordinator: context.coordinator)
 
-        // Reframe only when the hole changes and no drag is in progress
-        // (re-setting the region mid-drag would fight the user's gesture).
-        if context.coordinator.lastFramedHoleID != holeID,
-           context.coordinator.draggingShotID == nil {
-            let coords = shots.compactMap { shot -> CLLocationCoordinate2D? in
+        // Reframe when the hole changes OR anchors first appear/disappear
+        // (entering anchor mode should pull tee/green into view). Never
+        // mid-drag — that would fight the gesture.
+        let key = "\(holeID.uuidString)|\(tee != nil)|\(green != nil)"
+        if context.coordinator.lastFramedKey != key,
+           context.coordinator.draggingID == nil {
+            var coords = shots.compactMap { shot -> CLLocationCoordinate2D? in
                 guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
                 return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            }
+            if let tee { coords.append(CLLocationCoordinate2D(latitude: tee.lat, longitude: tee.lng)) }
+            if let green {
+                coords.append(CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng))
             }
             if let region = Self.regionFitting(coords) {
                 map.setRegion(region, animated: true)
             }
-            // No GPS shots → leave the existing region; HoleDetailView shows
-            // a "no GPS shots to place" caption in that case.
-            context.coordinator.lastFramedHoleID = holeID
+            context.coordinator.lastFramedKey = key
         }
     }
 
-    /// Bounding region of the hole's shots, padded, with a floor span so a
-    /// single-shot hole isn't zoomed to street level (~0.0015° ≈ 165 m).
+    /// Bounding region of the supplied coords, padded, with a floor span so a
+    /// single point isn't zoomed to street level (~0.0015° ≈ 165 m).
     private static func regionFitting(_ coords: [CLLocationCoordinate2D]) -> MKCoordinateRegion? {
         guard !coords.isEmpty else { return nil }
         let lats = coords.map(\.latitude)
@@ -80,7 +102,7 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         return MKCoordinateRegion(center: center, span: span)
     }
 
-    private func syncAnnotations(in map: MKMapView, coordinator: Coordinator) {
+    private func syncShots(in map: MKMapView, coordinator: Coordinator) {
         let existing = map.annotations.compactMap { $0 as? EditableShotAnnotation }
         let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.shot.id, $0) })
         let currentByID = Dictionary(uniqueKeysWithValues: shots.map { ($0.id, $0) })
@@ -93,15 +115,12 @@ private struct EditableHoleMapKit: UIViewRepresentable {
             guard let lat = shot.latitude, let lng = shot.longitude else { continue }
             let coord = CLLocationCoordinate2D(latitude: lat, longitude: lng)
             if let existing = existingByID[shot.id] {
-                // Never churn the pin the user is actively dragging.
-                if existing.shot.id == coordinator.draggingShotID { continue }
+                if existing.shot.id.uuidString == coordinator.draggingID { continue }
                 if existing.shot.sequenceNumber != shot.sequenceNumber {
                     map.removeAnnotation(existing)
                     map.addAnnotation(EditableShotAnnotation(shot: shot, coordinate: coord))
                 } else if existing.coordinate.latitude != lat
                     || existing.coordinate.longitude != lng {
-                    // Coordinate changed (e.g. just persisted a drag): move
-                    // the pin in place via KVO rather than remove/re-add.
                     existing.coordinate = coord
                 }
             } else {
@@ -110,34 +129,77 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         }
     }
 
+    private func syncAnchors(in map: MKMapView, coordinator: Coordinator) {
+        let existing = map.annotations.compactMap { $0 as? AnchorAnnotation }
+        func reconcile(_ kind: LocalAnchorRepository.AnchorKind, _ point: GeoPoint?) {
+            let current = existing.first { $0.kind == kind }
+            // Don't churn the anchor the user is dragging.
+            if coordinator.draggingID == kind.dragToken { return }
+            guard let point else {
+                if let current { map.removeAnnotation(current) }
+                return
+            }
+            let coord = CLLocationCoordinate2D(latitude: point.lat, longitude: point.lng)
+            if let current {
+                if current.coordinate.latitude != point.lat
+                    || current.coordinate.longitude != point.lng {
+                    current.coordinate = coord
+                }
+            } else {
+                map.addAnnotation(AnchorAnnotation(kind: kind, coordinate: coord))
+            }
+        }
+        reconcile(.tee, tee)
+        reconcile(.green, green)
+    }
+
     final class Coordinator: NSObject, MKMapViewDelegate {
         var onShotMoved: (Shot, CLLocationCoordinate2D) -> Void
-        var draggingShotID: UUID?
-        var lastFramedHoleID: UUID?
+        var onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)?
+        /// Stable token of whatever pin is mid-drag (shot UUID string or
+        /// `tee`/`green`), so sync never churns it.
+        var draggingID: String?
+        var lastFramedKey: String?
 
-        init(onShotMoved: @escaping (Shot, CLLocationCoordinate2D) -> Void) {
+        init(
+            onShotMoved: @escaping (Shot, CLLocationCoordinate2D) -> Void,
+            onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)?
+        ) {
             self.onShotMoved = onShotMoved
+            self.onAnchorMoved = onAnchorMoved
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let shotAnn = annotation as? EditableShotAnnotation else { return nil }
-            let identifier = "EditableShotMarker"
-            let view: MKMarkerAnnotationView
-            if let dequeued = mapView.dequeueReusableAnnotationView(
-                withIdentifier: identifier
-            ) as? MKMarkerAnnotationView {
-                view = dequeued
-                view.annotation = annotation
-            } else {
-                view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            if let shotAnn = annotation as? EditableShotAnnotation {
+                let view = Self.marker(mapView, annotation, "EditableShotMarker")
+                view.glyphText = "\(shotAnn.shot.sequenceNumber)"
+                view.markerTintColor = Self.markerColor(for: shotAnn.shot)
+                view.canShowCallout = true
+                view.isDraggable = true
+                return view
             }
-            view.glyphText = "\(shotAnn.shot.sequenceNumber)"
-            view.markerTintColor = Self.markerColor(for: shotAnn.shot)
-            view.canShowCallout = true
-            // Tap-to-select then drag (the standard mitigation for the
-            // drag-vs-pan gesture conflict on a marker).
-            view.isDraggable = true
-            return view
+            if let anchorAnn = annotation as? AnchorAnnotation {
+                let view = Self.marker(mapView, annotation, "AnchorMarker")
+                view.glyphText = anchorAnn.kind == .tee ? "T" : "G"
+                view.markerTintColor = anchorAnn.kind == .tee ? .systemPurple : .systemTeal
+                view.canShowCallout = true
+                view.isDraggable = true
+                return view
+            }
+            return nil
+        }
+
+        private static func marker(
+            _ mapView: MKMapView,
+            _ annotation: MKAnnotation,
+            _ id: String
+        ) -> MKMarkerAnnotationView {
+            if let dequeued = mapView.dequeueReusableAnnotationView(withIdentifier: id)
+                as? MKMarkerAnnotationView {
+                dequeued.annotation = annotation
+                return dequeued
+            }
+            return MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
         }
 
         func mapView(
@@ -146,20 +208,36 @@ private struct EditableHoleMapKit: UIViewRepresentable {
             didChange newState: MKAnnotationView.DragState,
             fromOldState oldState: MKAnnotationView.DragState
         ) {
-            guard let ann = view.annotation as? EditableShotAnnotation else { return }
-            switch newState {
-            case .starting:
-                draggingShotID = ann.shot.id
-                view.dragState = .dragging
-            case .ending:
-                onShotMoved(ann.shot, ann.coordinate)
-                draggingShotID = nil
-                view.dragState = .none
-            case .canceling:
-                draggingShotID = nil
-                view.dragState = .none
-            default:
-                break
+            if let ann = view.annotation as? EditableShotAnnotation {
+                switch newState {
+                case .starting:
+                    draggingID = ann.shot.id.uuidString
+                    view.dragState = .dragging
+                case .ending:
+                    onShotMoved(ann.shot, ann.coordinate)
+                    draggingID = nil
+                    view.dragState = .none
+                case .canceling:
+                    draggingID = nil
+                    view.dragState = .none
+                default:
+                    break
+                }
+            } else if let ann = view.annotation as? AnchorAnnotation {
+                switch newState {
+                case .starting:
+                    draggingID = ann.kind.dragToken
+                    view.dragState = .dragging
+                case .ending:
+                    onAnchorMoved?(ann.kind, ann.coordinate)
+                    draggingID = nil
+                    view.dragState = .none
+                case .canceling:
+                    draggingID = nil
+                    view.dragState = .none
+                default:
+                    break
+                }
             }
         }
 
@@ -174,6 +252,10 @@ private struct EditableHoleMapKit: UIViewRepresentable {
     }
 }
 
+private extension LocalAnchorRepository.AnchorKind {
+    var dragToken: String { self == .tee ? "tee" : "green" }
+}
+
 /// KVO-compliant (`@objc dynamic coordinate`) so MapKit's drag machinery can
 /// update the position during a drag.
 private final class EditableShotAnnotation: NSObject, MKAnnotation {
@@ -185,6 +267,19 @@ private final class EditableShotAnnotation: NSObject, MKAnnotation {
         self.shot = shot
         self.coordinate = coordinate
         self.title = "Shot \(shot.sequenceNumber)"
+        super.init()
+    }
+}
+
+private final class AnchorAnnotation: NSObject, MKAnnotation {
+    let kind: LocalAnchorRepository.AnchorKind
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    var title: String?
+
+    init(kind: LocalAnchorRepository.AnchorKind, coordinate: CLLocationCoordinate2D) {
+        self.kind = kind
+        self.coordinate = coordinate
+        self.title = kind == .tee ? "Tee" : "Green"
         super.init()
     }
 }

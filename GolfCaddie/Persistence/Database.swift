@@ -115,6 +115,33 @@ enum Database {
             }
         }
 
+        // Persist the resolved curated course on the round (survives
+        // relaunch/resume → drives auto-par + distance-to-green without
+        // re-matching), and store locally-captured tee/green anchors. Both
+        // additive: ALTER ADD COLUMN is nullable so existing rounds get NULL.
+        migrator.registerMigration("v3_curated_link_and_anchors") { db in
+            try db.alter(table: "round") { t in
+                t.add(column: "curatedCourseId", .text)
+            }
+
+            try db.create(table: "localCourseAnchor") { t in
+                // id = "<courseId>|<holeNumber>" so capture is an upsert.
+                t.column("id", .text).primaryKey()
+                t.column("courseId", .text).notNull()
+                t.column("holeNumber", .integer).notNull()
+                t.column("teeLat", .double)
+                t.column("teeLng", .double)
+                t.column("greenLat", .double)
+                t.column("greenLng", .double)
+                t.column("capturedAt", .datetime).notNull()
+            }
+            try db.create(
+                index: "localCourseAnchor_course_idx",
+                on: "localCourseAnchor",
+                columns: ["courseId"]
+            )
+        }
+
         return migrator
     }
 }

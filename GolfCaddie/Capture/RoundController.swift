@@ -75,6 +75,10 @@ final class RoundController {
         }
         state = .active(round: round, hole: hole)
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        // Hydrate the curated link from the persisted round (no re-match)
+        // and fill par if the restored hole still has none.
+        curatedCourseId = round.curatedCourseId
+        autoFillParIfAvailable()
         location.startTracking()
     }
 
@@ -180,13 +184,41 @@ final class RoundController {
     private func resolveCuratedCourse(near coord: CLLocationCoordinate2D, roundID: UUID) {
         guard case let .active(round, _) = state, round.id == roundID else { return }
         if let course = try? CourseDataRepository.nearest(to: coord, within: 3000) {
-            curatedCourseId = course.id
+            applyCuratedCourseId(course.id)
             return
         }
         if let name = round.courseName,
            let course = try? CourseDataRepository.matching(name: name) {
-            curatedCourseId = course.id
+            applyCuratedCourseId(course.id)
         }
+    }
+
+    /// Set the resolved curated course: in-memory property + persist it on
+    /// the round (survives relaunch/resume) + reassign state (same discipline
+    /// as applyCourseName). Then auto-fill par for the active hole.
+    private func applyCuratedCourseId(_ id: String?) {
+        curatedCourseId = id
+        if case let .active(round, hole) = state, round.curatedCourseId != id {
+            var updated = round
+            updated.curatedCourseId = id
+            try? RoundRepository.update(updated)
+            state = .active(round: updated, hole: hole)
+        }
+        autoFillParIfAvailable()
+    }
+
+    /// If a curated course is resolved, pre-fill par for the ACTIVE hole when
+    /// it has none yet. Manual par always wins (only nil → filled), so this
+    /// is a creation-time default, not an override. Idempotent; routed
+    /// through setPar so state/glasses propagation is consistent.
+    private func autoFillParIfAvailable() {
+        guard let courseId = curatedCourseId,
+              case let .active(_, hole) = state,
+              hole.par == nil,
+              let course = try? CourseDataRepository.course(byId: courseId),
+              let curated = course.holes.first(where: { $0.number == hole.holeNumber })
+        else { return }
+        try? setPar(curated.par, forHole: hole.id)
     }
 
     func removeLastShot() throws {
@@ -287,6 +319,9 @@ final class RoundController {
         currentHoleShots = []
         currentClub = nil
         lastMarkResult = nil
+        // Pre-fill the new hole's par from curated data (creation-time
+        // default; the golfer can still override at confirm/in the editor).
+        autoFillParIfAvailable()
     }
 
     /// Edit par on ANY hole (incl. an already-confirmed one) from the

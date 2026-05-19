@@ -61,6 +61,11 @@ struct HoleDTO: Encodable {
     var shotCount: Int
     var penalties: Int
     var score: Int
+    /// Live yards from the current GPS position to this hole's green anchor.
+    /// Omitted when the round didn't match a curated course, no green anchor
+    /// is captured yet, or there's no fix — graceful degradation, contract's
+    /// "no JSON null" rule (default nil keeps the memberwise init source-compatible).
+    var distanceToGreenYards: Int? = nil
 }
 
 struct LastShotDTO: Encodable {

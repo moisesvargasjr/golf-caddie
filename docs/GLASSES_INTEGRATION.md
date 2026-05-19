@@ -68,7 +68,8 @@ round). Body = `GolfState`:
   "contractVersion": 1,
   "active": true,
   "round":  { "id": "…", "startedAt": "ISO-8601", "courseName": "…" },
-  "hole":   { "number": 7, "par": 4, "shotCount": 3, "penalties": 0, "score": 3 },
+  "hole":   { "number": 7, "par": 4, "shotCount": 3, "penalties": 0, "score": 3,
+              "distanceToGreenYards": 142 },  // OMITTED unless curated course + green anchor + fix
   "currentClub": "7i",                      // short club form, or omitted
   "lastShot": { "club": "Dr", "distanceYards": 248, "sequenceNumber": 2 },
   "scoring": { "totalStrokes": 24, "totalPar": 28, "toPar": -1, "holesCompleted": 6 },

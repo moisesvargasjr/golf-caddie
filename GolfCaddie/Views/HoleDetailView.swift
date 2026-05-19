@@ -2,17 +2,21 @@ import CoreLocation
 import SwiftUI
 
 /// Combined previous-hole review + editor: navigate hole-by-hole, fix par on
-/// any hole (incl. confirmed), restore a deleted stroke, and drag a shot's
-/// pin on the satellite map to correct its location.
+/// any hole (incl. confirmed), restore a deleted stroke, drag a shot's pin to
+/// correct its location, and (when the round matched a curated course) place
+/// the hole's Tee/Green anchors and see distance-to-green.
 ///
 /// Owns its own `holes` copy so par edits reflect immediately; every
-/// persistence call also fires `onChanged` so the parent `RoundReviewView`
-/// re-pulls the canonical data when this view pops. Par writes go straight to
-/// `HoleRepository.setPar` (repo path) — this screen is reached for
-/// ended/reviewed rounds, so there is no live controller hole to keep in
-/// sync; `RoundController.setPar` exists for any future active-round entry.
+/// persistence call also fires `onChanged` so `RoundReviewView` re-pulls the
+/// canonical data when this view pops. Par writes go through
+/// `HoleRepository.setPar` (this screen is reached for ended/reviewed rounds —
+/// no live controller hole to sync). Captured anchors are LOCAL only; they're
+/// exported later and merged into the curated catalog.
 struct HoleDetailView: View {
     let bag: [ClubID]
+    /// Curated course this round matched, or nil → anchor capture / yardage
+    /// hidden (graceful degradation).
+    let curatedCourseId: String?
     let onChanged: () -> Void
 
     @State private var holes: [Hole]
@@ -22,15 +26,21 @@ struct HoleDetailView: View {
     @State private var hasPar: Bool = false
     @State private var par: Int = 4
     @State private var showAddShotSheet = false
+    @State private var anchorsMode = false
+    @State private var localAnchor: LocalCourseAnchor?
+    @State private var curatedCourse: CuratedCourse?
+    @State private var exportFile: ExportFile?
     @State private var loadError: String?
 
     init(
         holes: [Hole],
         bag: [ClubID],
+        curatedCourseId: String? = nil,
         startIndex: Int = 0,
         onChanged: @escaping () -> Void
     ) {
         self.bag = bag
+        self.curatedCourseId = curatedCourseId
         self.onChanged = onChanged
         _holes = State(initialValue: holes)
         _index = State(initialValue: min(max(0, startIndex), max(0, holes.count - 1)))
@@ -44,6 +54,49 @@ struct HoleDetailView: View {
         shots.contains { $0.latitude != nil && $0.longitude != nil }
     }
 
+    private var curatedHole: CuratedHole? {
+        guard let hole else { return nil }
+        return curatedCourse?.holes.first { $0.number == hole.holeNumber }
+    }
+
+    private func firstShotPoint() -> GeoPoint? {
+        shots.first { $0.latitude != nil }
+            .flatMap { s in s.latitude.flatMap { lat in s.longitude.map { GeoPoint(lat: lat, lng: $0) } } }
+    }
+
+    private func lastShotPoint() -> GeoPoint? {
+        shots.last { $0.latitude != nil }
+            .flatMap { s in s.latitude.flatMap { lat in s.longitude.map { GeoPoint(lat: lat, lng: $0) } } }
+    }
+
+    /// Pin shown for capture: local override → curated → a sensible seed
+    /// (first/last GPS shot, else course centroid so there's always a
+    /// draggable pin). Only surfaced in anchorsMode.
+    private var displayTee: GeoPoint? {
+        guard anchorsMode else { return nil }
+        return localAnchor?.tee ?? curatedHole?.teeAnchor ?? firstShotPoint() ?? curatedCourse?.location
+    }
+
+    private var displayGreen: GeoPoint? {
+        guard anchorsMode else { return nil }
+        return localAnchor?.green ?? curatedHole?.greenAnchor ?? lastShotPoint() ?? curatedCourse?.location
+    }
+
+    /// Authoritative green for distance — a real captured/curated anchor
+    /// only (never a shot-derived guess, which would be a meaningless yardage).
+    private var effectiveGreen: GeoPoint? {
+        localAnchor?.green ?? curatedHole?.greenAnchor
+    }
+
+    private var greenYards: Int? {
+        guard let g = effectiveGreen, let from = lastShotPoint() else { return nil }
+        let m = Distance.meters(
+            from: CLLocationCoordinate2D(latitude: from.lat, longitude: from.lng),
+            to: CLLocationCoordinate2D(latitude: g.lat, longitude: g.lng)
+        )
+        return Int(Distance.yards(fromMeters: m).rounded())
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             navHeader
@@ -52,11 +105,22 @@ struct HoleDetailView: View {
                 EditableHoleMap(
                     shots: shots,
                     holeID: hole.id,
-                    onShotMoved: { shot, coord in moveShot(shot, to: coord) }
+                    onShotMoved: { shot, coord in moveShot(shot, to: coord) },
+                    tee: displayTee,
+                    green: displayGreen,
+                    onAnchorMoved: anchorsMode ? { kind, coord in
+                        saveAnchor(kind, coord)
+                    } : nil
                 )
                 .frame(height: 260)
                 .overlay(alignment: .bottom) {
-                    if !hasGPSShots {
+                    if anchorsMode {
+                        Text("Drag the T (tee) and G (green) pins. Saved on this device.")
+                            .font(.caption)
+                            .padding(6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(.bottom, 8)
+                    } else if !hasGPSShots {
                         Text("No GPS shots on this hole to place.")
                             .font(.caption)
                             .padding(6)
@@ -67,6 +131,9 @@ struct HoleDetailView: View {
 
                 Form {
                     parSection
+                    if curatedCourseId != nil {
+                        courseSection
+                    }
                     shotsSection
                     if penaltyCount > 0 {
                         Section {
@@ -148,6 +215,27 @@ struct HoleDetailView: View {
         .onChange(of: par) { _, _ in savePar() }
     }
 
+    private var courseSection: some View {
+        Section {
+            Toggle("Place tee & green pins", isOn: $anchorsMode)
+            if let yds = greenYards {
+                LabeledContent("To green from last shot") {
+                    Text("\(yds) yds").monospacedDigit()
+                }
+            }
+            Button {
+                exportAnchors()
+            } label: {
+                Label("Export anchors for this course", systemImage: "square.and.arrow.up")
+            }
+        } header: {
+            Text("Course setup")
+        } footer: {
+            Text("Anchors are saved on this device, then exported and merged into the shared course data later — that's what enables distance-to-green here and on the glasses.")
+        }
+        .sheet(item: $exportFile) { ShareSheet(url: $0.url) }
+    }
+
     private var shotsSection: some View {
         Section {
             if shots.isEmpty {
@@ -197,6 +285,15 @@ struct HoleDetailView: View {
                 par = 4
                 hasPar = false
             }
+            if let courseId = curatedCourseId {
+                curatedCourse = try? CourseDataRepository.course(byId: courseId)
+                localAnchor = try? LocalAnchorRepository.anchor(
+                    courseId: courseId, holeNumber: hole.holeNumber
+                )
+            } else {
+                curatedCourse = nil
+                localAnchor = nil
+            }
             loadError = nil
         } catch {
             loadError = "Failed to load: \(error.localizedDescription)"
@@ -213,6 +310,55 @@ struct HoleDetailView: View {
             onChanged()
         } catch {
             loadError = "Couldn't save par: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveAnchor(_ kind: LocalAnchorRepository.AnchorKind, _ coord: CLLocationCoordinate2D) {
+        guard let courseId = curatedCourseId, let hole else { return }
+        do {
+            try LocalAnchorRepository.setPoint(
+                courseId: courseId,
+                holeNumber: hole.holeNumber,
+                which: kind,
+                point: GeoPoint(lat: coord.latitude, lng: coord.longitude)
+            )
+            localAnchor = try? LocalAnchorRepository.anchor(
+                courseId: courseId, holeNumber: hole.holeNumber
+            )
+            onChanged()
+        } catch {
+            loadError = "Couldn't save anchor: \(error.localizedDescription)"
+        }
+    }
+
+    private func exportAnchors() {
+        guard let courseId = curatedCourseId else { return }
+        do {
+            let anchors = try LocalAnchorRepository.anchorsForCourse(courseId)
+            let payload = AnchorExport(
+                courseId: courseId,
+                anchors: anchors.compactMap { a in
+                    guard a.tee != nil || a.green != nil else { return nil }
+                    return AnchorExport.HoleAnchors(
+                        holeNumber: a.holeNumber,
+                        teeAnchor: a.tee,
+                        greenAnchor: a.green
+                    )
+                }
+            )
+            guard !payload.anchors.isEmpty else {
+                loadError = "No anchors captured for this course yet."
+                return
+            }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(payload)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(courseId)-anchors.json")
+            try data.write(to: url, options: .atomic)
+            exportFile = ExportFile(url: url)
+        } catch {
+            loadError = "Export failed: \(error.localizedDescription)"
         }
     }
 

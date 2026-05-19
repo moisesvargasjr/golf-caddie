@@ -272,3 +272,54 @@ enum CourseDataRepository {
         }
     }
 }
+
+enum LocalAnchorRepository {
+    static func anchor(courseId: String, holeNumber: Int) throws -> LocalCourseAnchor? {
+        let id = LocalCourseAnchor.makeID(courseId: courseId, holeNumber: holeNumber)
+        return try Database.shared.read { db in
+            try LocalCourseAnchor.filter(Column("id") == id).fetchOne(db)
+        }
+    }
+
+    static func anchorsForCourse(_ courseId: String) throws -> [LocalCourseAnchor] {
+        try Database.shared.read { db in
+            try LocalCourseAnchor.filter(Column("courseId") == courseId)
+                .order(Column("holeNumber"))
+                .fetchAll(db)
+        }
+    }
+
+    /// Upsert one anchor point (tee OR green) for a (course, hole) without
+    /// clobbering the other — read-modify-write on the deterministic id.
+    static func setPoint(
+        courseId: String,
+        holeNumber: Int,
+        which: AnchorKind,
+        point: GeoPoint
+    ) throws {
+        let id = LocalCourseAnchor.makeID(courseId: courseId, holeNumber: holeNumber)
+        try Database.shared.write { db in
+            var a = try LocalCourseAnchor.filter(Column("id") == id).fetchOne(db)
+                ?? LocalCourseAnchor(
+                    id: id,
+                    courseId: courseId,
+                    holeNumber: holeNumber,
+                    teeLat: nil, teeLng: nil,
+                    greenLat: nil, greenLng: nil,
+                    capturedAt: Date()
+                )
+            switch which {
+            case .tee:
+                a.teeLat = point.lat
+                a.teeLng = point.lng
+            case .green:
+                a.greenLat = point.lat
+                a.greenLng = point.lng
+            }
+            a.capturedAt = Date()
+            try a.save(db)
+        }
+    }
+
+    enum AnchorKind { case tee, green }
+}
