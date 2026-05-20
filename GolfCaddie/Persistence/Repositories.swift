@@ -55,6 +55,22 @@ enum RoundRepository {
             try Round.order(Column("startedAt").desc).fetchAll(db)
         }
     }
+
+    /// Manually attach a curated course to a round whose `curatedCourseId`
+    /// was never resolved (auto-match missed at round start, or the round
+    /// predates curated sync). Distinct from the auto path in
+    /// `RoundController.resolveCuratedCourse` — that runs once at startRound
+    /// and is then frozen on the round; this lets the user retro-link from
+    /// the review screen so green-anchor capture can attach. No-op if the
+    /// round is gone.
+    static func setCuratedCourseId(roundID: UUID, id: String?) throws {
+        try Database.shared.write { db in
+            guard var r = try Round.filter(Column("id") == roundID).fetchOne(db)
+            else { return }
+            r.curatedCourseId = id
+            try r.update(db)
+        }
+    }
 }
 
 enum HoleRepository {

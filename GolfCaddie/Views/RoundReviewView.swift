@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct RoundReviewView: View {
-    let round: Round
+    // @State (not let) so a retro-link "Set course" can mutate
+    // round.curatedCourseId in place and the downstream NavigationLink picks
+    // up the new value the next time the user opens the hole editor.
+    @State private var round: Round
     let bag: [ClubID]
     let onResume: (() -> Void)?
     let onDismiss: (() -> Void)?
@@ -9,6 +12,9 @@ struct RoundReviewView: View {
     @State private var holes: [Hole] = []
     @State private var shotsByHole: [UUID: [Shot]] = [:]
     @State private var penaltiesByHole: [UUID: [Penalty]] = [:]
+    @State private var curatedName: String?
+    @State private var curatedCourses: [CuratedCourse] = []
+    @State private var showCoursePicker = false
     @State private var loadError: String?
 
     init(
@@ -17,7 +23,7 @@ struct RoundReviewView: View {
         onResume: (() -> Void)? = nil,
         onDismiss: (() -> Void)? = nil
     ) {
-        self.round = round
+        _round = State(initialValue: round)
         self.bag = bag
         self.onResume = onResume
         self.onDismiss = onDismiss
@@ -26,6 +32,7 @@ struct RoundReviewView: View {
     var body: some View {
         List {
             summarySection
+            courseLinkSection
             if onResume != nil, round.endedAt != nil {
                 resumeSection
             }
@@ -68,7 +75,55 @@ struct RoundReviewView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCoursePicker) {
+            CoursePickerSheet(
+                courses: curatedCourses,
+                current: round.curatedCourseId,
+                onPick: { id in setCurated(id) },
+                onCancel: { showCoursePicker = false }
+            )
+        }
         .onAppear { reload() }
+    }
+
+    private var courseLinkSection: some View {
+        Section {
+            Button {
+                showCoursePicker = true
+            } label: {
+                HStack {
+                    Text("Course")
+                    Spacer()
+                    if let curatedName {
+                        Text(curatedName)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else {
+                        Text("Set course")
+                            .foregroundStyle(.tint)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } footer: {
+            if curatedName == nil {
+                Text("Link this round to a curated course to enable green-anchor capture and distance-to-green.")
+            }
+        }
+    }
+
+    private func setCurated(_ id: String?) {
+        do {
+            try RoundRepository.setCuratedCourseId(roundID: round.id, id: id)
+            round.curatedCourseId = id
+            showCoursePicker = false
+            reload()
+        } catch {
+            loadError = "Couldn't set course: \(error.localizedDescription)"
+        }
     }
 
     private var roundTitle: String {
@@ -202,6 +257,15 @@ struct RoundReviewView: View {
             }
             shotsByHole = shotsMap
             penaltiesByHole = penaltiesMap
+            // Curated catalog + the round's linked course name (if any) for
+            // the courseLinkSection. Both soft-fail (empty / nil) — the
+            // section degrades to "Set course" when the cache is empty too.
+            curatedCourses = (try? CourseDataRepository.allCourses()) ?? []
+            if let cid = round.curatedCourseId {
+                curatedName = curatedCourses.first { $0.id == cid }?.name
+            } else {
+                curatedName = nil
+            }
             loadError = nil
         } catch {
             loadError = "Failed to load: \(error.localizedDescription)"
@@ -316,6 +380,72 @@ private struct ShotRowSummary: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
+        }
+    }
+}
+
+/// Sheet to retro-link a round to a curated course. Lists the on-device
+/// curated catalog; tap to pick, or "Unlink" to clear. Empty-catalog state
+/// nudges to sync.
+private struct CoursePickerSheet: View {
+    let courses: [CuratedCourse]
+    let current: String?
+    let onPick: (String?) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if courses.isEmpty {
+                    Section {
+                        Text("No curated courses on this device yet. Open the app online to sync.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section {
+                        ForEach(courses) { course in
+                            Button {
+                                onPick(course.id)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(course.name)
+                                            .foregroundStyle(.primary)
+                                        if let firstAlias = course.aliases.first {
+                                            Text(firstAlias)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    if course.id == current {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.tint)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                if current != nil {
+                    Section {
+                        Button(role: .destructive) {
+                            onPick(nil)
+                        } label: {
+                            Label("Unlink (no course)", systemImage: "xmark.circle")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Set course")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
         }
     }
 }
