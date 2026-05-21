@@ -85,7 +85,7 @@ enum GlassesStateMapper {
     /// Ordered selectable clubs as ClubID.shortName strings, in the golfer's
     /// bag order. Single source of truth: the SAME ClubConfigurationRepository
     /// bag RootView loads and feeds into the phone club picker
-    /// (RootView.swift:97 → ActiveRoundView → ClubGridView) and the SAME
+    /// (RootView → ActiveRoundView club row) and the SAME
     /// ClubID.shortName vocabulary GET's currentClub uses. Omitted (nil) when
     /// the bag is empty so the wire shape matches the contract's "older iOS /
     /// no clubs" case rather than emitting [].

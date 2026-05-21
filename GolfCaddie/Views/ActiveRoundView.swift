@@ -1,22 +1,26 @@
+import CoreLocation
 import SwiftUI
 
 struct ActiveRoundView: View {
     let controller: RoundController
     let location: LocationManager
-    let bag: [ClubID]
+    @Binding var bag: [ClubID]
+
+    @Environment(\.palette) private var palette
+    @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
 
     @State private var isMarkingShot = false
     @State private var actionError: String?
     @State private var reviewingHole: Hole?
     @State private var showPenaltySheet = false
     @State private var endedRoundForReview: Round?
-    @State private var battery = BatteryMonitor()
-    @State private var batteryAtRoundStart: Float?
     @State private var showEndRoundConfirm = false
     @State private var showUndoConfirm = false
     @State private var showCourseEdit = false
     @State private var courseNameDraft = ""
     @State private var mapFollowMode: Bool = true
+    @State private var lyingPulse: Bool = false
+    @State private var showScorecard: Bool = false
 
     var body: some View {
         Group {
@@ -26,13 +30,24 @@ struct ActiveRoundView: View {
                 idleBody
             }
         }
-        .sheet(item: $endedRoundForReview) { round in
-            NavigationStack {
+        // Push (not sheet) so HoleDetailView can stack on top of Summary, and
+        // so the paper-styled Summary fills the screen edge-to-edge. The
+        // controller's `mostRecentlyEndedRound` survives across this push so
+        // the back navigation doesn't lose the ended round.
+        .navigationDestination(isPresented: endedRoundBinding) {
+            if let round = endedRoundForReview {
                 RoundReviewView(
                     round: round,
                     bag: bag,
                     onResume: { resumeRound(round) },
                     onDismiss: {
+                        endedRoundForReview = nil
+                        controller.clearMostRecentlyEndedRound()
+                    },
+                    onDeleted: {
+                        // The just-ended round was nuked — clear the in-memory
+                        // pointer; the navigation pop is handled by the view
+                        // calling `dismiss()` itself.
                         endedRoundForReview = nil
                         controller.clearMostRecentlyEndedRound()
                     }
@@ -72,59 +87,84 @@ struct ActiveRoundView: View {
     }
 
     private var idleBody: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "figure.golf")
-                .font(.system(size: 72))
-                .foregroundStyle(.secondary)
-            VStack(spacing: 8) {
-                Text("Ready to play?")
-                    .font(.title)
-                    .fontWeight(.semibold)
-                Text("Start a round to begin tracking shots.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button(action: startRound) {
-                Text("Start Round")
-                    .font(.title2.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 64)
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal)
-            errorBanner
-                .padding(.bottom, 8)
-        }
+        HomeView(
+            bag: $bag,
+            onStartRound: { startRound() },
+            actionError: actionError
+        )
     }
 
     private var activeBody: some View {
-        ActiveRoundMap(
-            shots: controller.currentHoleShots,
-            followMode: $mapFollowMode
-        )
-        .ignoresSafeArea()
-        .safeAreaInset(edge: .top, spacing: 0) {
-            topBar
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            bottomPanel
-        }
-        .overlay(alignment: .topTrailing) {
-            if !mapFollowMode {
-                Button {
-                    mapFollowMode = true
-                } label: {
-                    Label("Follow", systemImage: "location.fill")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
+        ZStack {
+            ActiveRoundMap(
+                shots: controller.currentHoleShots,
+                holeHeading: holeBearing,
+                followMode: $mapFollowMode
+            )
+            .ignoresSafeArea()
+            // Dim layer so paper cards stay legible on top of bright satellite imagery.
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            // Top overlays — hole pill on the left, action stamps on the right.
+            VStack(spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    holePill
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        lyingStamp
+                        HStack(spacing: 6) {
+                            cardStampButton
+                            endStampButton
+                        }
+                    }
                 }
-                .padding(.trailing, 12)
-                .padding(.top, 8)
+                .padding(.horizontal, 12)
+                .padding(.top, 2)
+
+                HStack(alignment: .top) {
+                    distanceCard
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 6) {
+                        gpsIndicator
+                        if !mapFollowMode {
+                            Button {
+                                mapFollowMode = true
+                            } label: {
+                                PaperCard(padding: EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 11, weight: .bold))
+                                        Text("FOLLOW")
+                                            .font(AppFont.stamp)
+                                            .tracking(1.2)
+                                    }
+                                    .foregroundStyle(palette.ink)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+
+                if !controller.currentHoleShots.isEmpty {
+                    shotStrip
+                        .padding(.horizontal, 12)
+                        .padding(.top, 6)
+                }
+
+                Spacer()
             }
+
+            // Bottom paper sheet.
+            VStack {
+                Spacer()
+                bottomSheet
+            }
+            .ignoresSafeArea(edges: .bottom)
         }
         .sheet(item: $reviewingHole) { hole in
             HoleReviewSheet(
@@ -148,194 +188,420 @@ struct ActiveRoundView: View {
                 }
             )
         }
-    }
-
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                courseNameDraft = controller.currentRound?.courseName ?? ""
-                showCourseEdit = true
-            } label: {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(holeLabel)
-                        .font(.headline)
-                    if let course = controller.currentRound?.courseName,
-                       !course.isEmpty {
-                        Text(course)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else {
-                        Text("Set course")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+        .sheet(isPresented: $showScorecard) {
+            if let round = controller.currentRound {
+                InRoundScorecardSheet(
+                    round: round,
+                    currentHoleNumber: currentHoleNumber,
+                    onDismiss: { showScorecard = false }
+                )
             }
-            .buttonStyle(.plain)
-            gpsIndicator
-            Spacer()
-            batteryBadge
-            Button("End", role: .destructive) {
-                showEndRoundConfirm = true
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.regularMaterial)
     }
 
-    private var bottomPanel: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(currentClubLabel)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(controller.currentClub == nil ? .secondary : .primary)
-                Spacer()
-                Text("\(controller.shotsInCurrentHole) shot\(controller.shotsInCurrentHole == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                if case let .success(_, accuracy) = controller.lastMarkResult, let accuracy {
-                    Text(String(format: "Last ±%.1fm", accuracy))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+    // MARK: - Top overlays
 
-            Button(action: markShot) {
-                Group {
-                    if isMarkingShot {
-                        ProgressView()
-                            .controlSize(.large)
-                            .tint(.white)
-                    } else {
-                        Text("MARK SHOT")
-                            .font(.system(size: 26, weight: .heavy))
+    private var holePill: some View {
+        PaperCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)) {
+            VStack(spacing: 2) {
+                Text("Hole \(currentHoleNumber)")
+                    .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
+                    .foregroundStyle(palette.ink)
+                Text(holePillCaption)
+                    .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink2)
+            }
+        }
+    }
+
+    private var cardStampButton: some View {
+        Button {
+            showScorecard = true
+        } label: {
+            PaperCard(padding: EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)) {
+                Text("CARD")
+                    .font(AppFont.stamp)
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var gpsIndicator: some View {
+        PaperCard(padding: EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 10)) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(gpsColor)
+                    .frame(width: 6, height: 6)
+                Text(gpsAccuracyText)
+                    .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink2)
+                    .tabularNumerals()
+            }
+        }
+    }
+
+    /// Compact list of clubs hit on this hole so far. Each shot is a small
+    /// pill — `1 Dr`, `2 7i`, `3 PW` — so the player can see what they've
+    /// played without needing to read the map.
+    private var shotStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(controller.currentHoleShots, id: \.id) { shot in
+                    PaperCard(padding: EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)) {
+                        HStack(spacing: 6) {
+                            Text("\(shot.sequenceNumber)")
+                                .font(.custom(AppFont.monoName, size: 10).weight(.bold))
+                                .foregroundStyle(palette.ink3)
+                                .tabularNumerals()
+                            Text(shot.club?.shortName ?? "—")
+                                .font(.custom(AppFont.serifName, size: 13).italic().weight(.bold))
+                                .foregroundStyle(palette.ink)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 90)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isMarkingShot)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-            ClubGridView(
-                bag: bag,
-                selectedClub: controller.currentClub
-            ) { club in
-                controller.setCurrentClub(club)
+    private var holePillCaption: String {
+        let parPart: String = {
+            if let par = controller.currentHole?.par { return "PAR \(par)" }
+            return "PAR —"
+        }()
+        if let yds = curatedYardsForCurrentHole {
+            let f = units.format(yards: yds)
+            return "\(parPart) · \(f.value) \(f.unit.uppercased())"
+        }
+        return parPart
+    }
+
+    private var lyingStamp: some View {
+        PaperCard(padding: EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)) {
+            Text("LYING \(controller.shotsInCurrentHole + 1)")
+                .font(AppFont.stamp)
+                .tracking(1.2)
+                .foregroundStyle(palette.flag)
+                .scaleEffect(lyingPulse ? 1.08 : 1.0)
+        }
+    }
+
+    private var endStampButton: some View {
+        Button {
+            showEndRoundConfirm = true
+        } label: {
+            PaperCard(padding: EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)) {
+                Text("END")
+                    .font(AppFont.stamp)
+                    .tracking(1.2)
+                    .foregroundStyle(palette.flag)
             }
+        }
+        .buttonStyle(.plain)
+    }
 
-            HStack(spacing: 8) {
-                Button {
-                    showUndoConfirm = true
-                } label: {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
+    // MARK: - Distance card
+
+    private var distanceCard: some View {
+        PaperCard(padding: EdgeInsets(top: 12, leading: 16, bottom: 10, trailing: 16)) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("TO PIN")
+                    .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink2)
+
+                if let yards = distanceToGreenYards {
+                    let f = units.format(yards: yards)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(f.value)")
+                            .font(AppFont.distanceHero)
+                            .tracking(-2.5)
+                            .foregroundStyle(palette.ink)
+                            .tabularNumerals()
+                        Text(f.unit)
+                            .font(.custom(AppFont.monoName, size: 14).weight(.bold))
+                            .foregroundStyle(palette.ink2)
+                    }
+
+                    Rectangle().fill(palette.rule).frame(height: 1)
+                        .padding(.vertical, 4)
+
+                    HStack(spacing: 18) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("FRONT")
+                                .font(.custom(AppFont.monoName, size: 8).weight(.bold))
+                                .tracking(1.2)
+                                .foregroundStyle(palette.ink3)
+                            Text("\(units.format(yards: max(0, yards - 14)).value)")
+                                .font(.custom(AppFont.monoName, size: 14).weight(.bold))
+                                .foregroundStyle(palette.ink)
+                                .tabularNumerals()
+                        }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("BACK")
+                                .font(.custom(AppFont.monoName, size: 8).weight(.bold))
+                                .tracking(1.2)
+                                .foregroundStyle(palette.ink3)
+                            Text("\(units.format(yards: yards + 14).value)")
+                                .font(.custom(AppFont.monoName, size: 14).weight(.bold))
+                                .foregroundStyle(palette.ink)
+                                .tabularNumerals()
+                        }
+                    }
+                } else {
+                    Stamp(text: "No anchor", color: palette.ink3)
+                        .padding(.top, 4)
                 }
-                .buttonStyle(.bordered)
-                .tint(.gray)
-                .controlSize(.small)
+            }
+        }
+    }
+
+    // MARK: - Bottom sheet
+
+    private var bottomSheet: some View {
+        VStack(spacing: 0) {
+            // Drag handle
+            Rectangle().fill(palette.rule)
+                .frame(width: 40, height: 3)
+                .clipShape(Capsule())
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+
+            // Selected club row — penalty stamp on the right (small, secondary).
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SELECTED")
+                        .font(AppFont.stamp)
+                        .tracking(1.4)
+                        .foregroundStyle(palette.ink3)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(controller.currentClub?.longName ?? "—")
+                            .font(.custom(AppFont.serifName, size: 22).italic().weight(.bold))
+                            .foregroundStyle(palette.ink)
+                        if let club = controller.currentClub,
+                           let avg = ClubAverages.shared.average(for: club) {
+                            let f = units.format(yards: avg)
+                            Text("avg \(f.value) \(f.unit)")
+                                .font(.custom(AppFont.monoName, size: 12).weight(.bold))
+                                .foregroundStyle(palette.ink3)
+                        }
+                    }
+                }
+                Spacer()
+                penaltyStampButton
+            }
+            .padding(.horizontal, 20)
+
+            // Horizontal-scroll club row
+            clubRow
+                .padding(.vertical, 6)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(palette.ink).frame(height: 1.5)
+                }
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(palette.ink).frame(height: 1)
+                }
+                .padding(.top, 14)
+
+            // Action row: Undo · Log shot (primary) · Next hole.
+            HStack(spacing: 10) {
+                actionIconButton(systemName: "arrow.uturn.backward") {
+                    showUndoConfirm = true
+                }
                 .disabled(controller.currentHoleShots.isEmpty)
 
-                Button {
-                    showPenaltySheet = true
-                } label: {
-                    Label("Penalty", systemImage: "exclamationmark.triangle.fill")
-                }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .controlSize(.small)
+                logShotCTA
 
-                Spacer()
-
-                Button {
-                    reviewingHole = controller.currentHole
-                } label: {
-                    Label("Next Hole", systemImage: "arrow.right.circle.fill")
-                        .labelStyle(.titleAndIcon)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                nextHoleButton
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
 
             errorBanner
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-        .background(.regularMaterial)
-    }
-
-    @ViewBuilder
-    private var batteryBadge: some View {
-        if let percent = battery.percent {
-            HStack(spacing: 4) {
-                Image(systemName: battery.iconName)
-                    .foregroundStyle(batteryColor(percent: percent))
-                Text("\(percent)%")
-                if let drop = batteryDrop {
-                    Text("(-\(drop)%)")
-                        .foregroundStyle(.secondary)
+        .padding(.bottom, 32)
+        .background(
+            ZStack {
+                palette.paper
+                // Subtle cross-hatch on the sheet too.
+                Canvas { ctx, size in
+                    let opacity = 0.018
+                    let stroke = Color(red: palette.inkRgb.r, green: palette.inkRgb.g, blue: palette.inkRgb.b, opacity: opacity)
+                    let spacing: CGFloat = 12
+                    var x: CGFloat = -size.height
+                    while x < size.width + size.height {
+                        var path = Path()
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x + size.height, y: size.height))
+                        ctx.stroke(path, with: .color(stroke), lineWidth: 1)
+                        x += spacing
+                    }
                 }
             }
-            .font(.caption.weight(.medium))
-            .monospacedDigit()
-        }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color.black.opacity(0.5), radius: 40, x: 0, y: -8)
     }
 
-    private func batteryColor(percent: Int) -> Color {
-        if percent <= 15 { return .red }
-        if percent <= 25 { return .orange }
-        return .primary
+    private var penaltyStampButton: some View {
+        Button {
+            showPenaltySheet = true
+        } label: {
+            Text("⚠ PENALTY")
+                .font(AppFont.stamp)
+                .tracking(1.2)
+                .foregroundStyle(palette.flag)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .stroke(palette.flag, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
-    private var currentClubLabel: String {
-        if let club = controller.currentClub {
-            return "Current: \(club.longName)"
+    private var nextHoleButton: some View {
+        Button {
+            reviewingHole = controller.currentHole
+        } label: {
+            HStack(spacing: 3) {
+                Text("Next")
+                    .font(.custom(AppFont.serifName, size: 14).italic().weight(.regular))
+                    .foregroundStyle(palette.ink)
+                Text("›")
+                    .font(.custom(AppFont.serifName, size: 18).weight(.bold))
+                    .foregroundStyle(palette.ink)
+            }
+            .frame(width: 76, height: 50)
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(palette.ink, lineWidth: 1.2)
+            )
         }
-        return "Current: tap a club below"
+        .buttonStyle(.plain)
+    }
+
+    private var clubRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(bag) { club in
+                    clubCell(club)
+                }
+            }
+        }
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.06),
+                    .init(color: .black, location: 0.94),
+                    .init(color: .clear, location: 1.0),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+    }
+
+    private func clubCell(_ club: ClubID) -> some View {
+        let isSelected = controller.currentClub == club
+        let avg = ClubAverages.shared.average(for: club)
+        return Button {
+            controller.setCurrentClub(club)
+        } label: {
+            VStack(spacing: 1) {
+                Text(club.shortName)
+                    .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                    .foregroundStyle(isSelected ? palette.paper : palette.ink)
+                if let avg, avg > 0 {
+                    let f = units.format(yards: avg)
+                    Text("\(f.value)")
+                        .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                        .foregroundStyle(isSelected ? palette.paper.opacity(0.7) : palette.ink3)
+                        .tabularNumerals()
+                } else {
+                    Text(" ")
+                        .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                }
+            }
+            .frame(minWidth: 50)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
+            .background(isSelected ? palette.ink : Color.clear)
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(palette.rule).frame(width: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func actionIconButton(systemName: String, iconColor: Color? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(iconColor ?? palette.ink)
+                .frame(width: 50, height: 50)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .stroke(palette.ink, lineWidth: 1.2)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var logShotCTA: some View {
+        Button(action: markShot) {
+            HStack(spacing: 4) {
+                if isMarkingShot {
+                    ProgressView()
+                        .tint(palette.paper)
+                } else {
+                    Text("Log")
+                        .font(.custom(AppFont.serifName, size: 20).italic().weight(.regular))
+                        .foregroundStyle(palette.paper.opacity(0.85))
+                    Text("shot")
+                        .font(.custom(AppFont.serifName, size: 20).weight(.bold))
+                        .foregroundStyle(palette.paper)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(palette.flag)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
+        .disabled(isMarkingShot)
     }
 
     @ViewBuilder
     private var errorBanner: some View {
         if let actionError {
             Text(actionError)
-                .font(.caption)
-                .foregroundStyle(.red)
+                .font(AppFont.micro)
+                .tracking(1.2)
+                .foregroundStyle(palette.red)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
         }
     }
 
-    private var holeLabel: String {
-        if let hole = controller.currentHole {
-            return "Hole \(hole.holeNumber)"
-        }
-        return "Hole 1"
-    }
-
-    private var gpsIndicator: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(gpsColor)
-                .frame(width: 12, height: 12)
-            Text(gpsAccuracyText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-        }
-    }
+    // MARK: - GPS helpers (compact paper-card indicator)
 
     private var gpsColor: Color {
-        if isFixStale { return .gray }
+        if isFixStale { return palette.ink3 }
         switch location.fixQuality {
-        case .none: return .gray
-        case .degraded: return .orange
-        case .acceptable: return .yellow
-        case .good: return .green
+        case .none:       return palette.ink3
+        case .degraded:   return palette.flag
+        case .acceptable: return palette.ink2
+        case .good:       return palette.ink
         }
     }
 
@@ -346,12 +612,111 @@ struct ActiveRoundView: View {
 
     private var gpsAccuracyText: String {
         guard let loc = location.latestLocation, loc.horizontalAccuracy > 0 else {
-            return "GPS no fix"
+            return "GPS NO FIX"
         }
-        if isFixStale {
-            return "GPS stale"
+        if isFixStale { return "GPS STALE" }
+        return "GPS ±\(Int(loc.horizontalAccuracy.rounded()))M"
+    }
+
+    // MARK: - Computed accessors
+
+    private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
+
+    private var currentHoleNumber: Int {
+        controller.currentHole?.holeNumber ?? 1
+    }
+
+    /// Yards reading from the curated course (if linked) for the current hole.
+    private var curatedYardsForCurrentHole: Int? {
+        guard let courseId = controller.curatedCourseId,
+              let course = try? CourseDataRepository.course(byId: courseId),
+              let h = course.holes.first(where: { $0.number == currentHoleNumber }),
+              let y = h.yards
+        else { return nil }
+        return Int(y.rounded())
+    }
+
+    /// Map heading for the current hole — bearing from tee → green so the
+    /// hitting direction faces "up". Resolution order:
+    ///   1. Tee anchor (local override > curated) → green anchor
+    ///   2. First shot → green anchor
+    ///   3. First shot → last shot (when there are at least two shots)
+    /// Returns nil when there's nothing to orient by; the map falls back to
+    /// north up.
+    private var holeBearing: Double? {
+        let shots = controller.currentHoleShots
+        let firstShotCoord = shots.first.flatMap(coord)
+        let lastShotCoord = shots.count >= 2 ? shots.last.flatMap(coord) : nil
+
+        var tee: CLLocationCoordinate2D?
+        var green: CLLocationCoordinate2D?
+
+        if let courseId = controller.curatedCourseId,
+           let hole = controller.currentHole {
+            let local = try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: hole.holeNumber)
+            let curated = (try? CourseDataRepository.course(byId: courseId))?
+                .holes.first(where: { $0.number == hole.holeNumber })
+            if let p = local?.tee ?? curated?.teeAnchor {
+                tee = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng)
+            }
+            if let p = local?.green ?? curated?.greenAnchor {
+                green = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng)
+            }
         }
-        return "GPS ±\(Int(loc.horizontalAccuracy.rounded()))m"
+
+        let start = tee ?? firstShotCoord
+        let end = green ?? lastShotCoord
+        guard let start, let end else { return nil }
+        guard Distance.meters(from: start, to: end) > 5 else { return nil }
+        return Distance.bearingDegrees(from: start, to: end)
+    }
+
+    private func coord(of shot: Shot) -> CLLocationCoordinate2D? {
+        guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    /// Distance-to-green for the current hole. Requires a curated course link
+    /// and a green anchor (curated or locally captured). Returns yards.
+    private var distanceToGreenYards: Int? {
+        guard let courseId = controller.curatedCourseId,
+              let hole = controller.currentHole
+        else { return nil }
+
+        let local = (try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: hole.holeNumber))?.green
+        let curated = (try? CourseDataRepository.course(byId: courseId))?
+            .holes.first(where: { $0.number == hole.holeNumber })?.greenAnchor
+        guard let green = local ?? curated else { return nil }
+
+        let fromCoord: CLLocationCoordinate2D? = {
+            if let last = controller.currentHoleShots.last,
+               let lat = last.latitude, let lng = last.longitude {
+                return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            }
+            return location.latestLocation?.coordinate
+        }()
+        guard let from = fromCoord else { return nil }
+
+        let m = Distance.meters(
+            from: from,
+            to: CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng)
+        )
+        return Int(Distance.yards(fromMeters: m).rounded())
+    }
+
+    /// `navigationDestination(isPresented:)` wants a `Binding<Bool>`. Bridge
+    /// from the `Round?` optional so any non-nil round triggers the push,
+    /// and dismissing the destination clears the optional.
+    private var endedRoundBinding: Binding<Bool> {
+        Binding(
+            get: { endedRoundForReview != nil },
+            set: { isShown in
+                if !isShown {
+                    endedRoundForReview = nil
+                    controller.clearMostRecentlyEndedRound()
+                }
+            }
+        )
     }
 
     private func startRound() {
@@ -359,9 +724,6 @@ struct ActiveRoundView: View {
         do {
             try controller.startRound()
             mapFollowMode = true
-            if battery.hasReading {
-                batteryAtRoundStart = battery.level
-            }
         } catch {
             actionError = "Couldn't start round: \(error.localizedDescription)"
         }
@@ -373,7 +735,6 @@ struct ActiveRoundView: View {
         do {
             try controller.endRound()
             endedRoundForReview = toReview
-            batteryAtRoundStart = nil
         } catch {
             actionError = "Couldn't end round: \(error.localizedDescription)"
         }
@@ -394,30 +755,35 @@ struct ActiveRoundView: View {
             try controller.resumeRound(round)
             endedRoundForReview = nil
             mapFollowMode = true
-            if battery.hasReading {
-                batteryAtRoundStart = battery.level
-            }
         } catch {
             actionError = "Couldn't resume: \(error.localizedDescription)"
         }
-    }
-
-    private var batteryDrop: Int? {
-        guard let start = batteryAtRoundStart, battery.hasReading else { return nil }
-        let drop = Int(((start - battery.level) * 100).rounded())
-        return drop > 0 ? drop : nil
     }
 
     private func markShot() {
         actionError = nil
         Task {
             isMarkingShot = true
+            var succeeded = false
             do {
                 try await controller.markShot()
+                succeeded = true
             } catch {
                 actionError = "Mark failed: \(error.localizedDescription)"
             }
+            // Release the button immediately so the user isn't stuck waiting
+            // on the animation. The pulse runs as fire-and-forget below.
             isMarkingShot = false
+            guard succeeded else { return }
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
+                lyingPulse = true
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 180_000_000)
+                withAnimation(.easeOut(duration: 0.12)) {
+                    lyingPulse = false
+                }
+            }
         }
     }
 

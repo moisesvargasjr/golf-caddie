@@ -19,6 +19,10 @@ struct HoleDetailView: View {
     let curatedCourseId: String?
     let onChanged: () -> Void
 
+    @Environment(\.palette) private var palette
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
+
     @State private var holes: [Hole]
     @State private var index: Int
     @State private var shots: [Shot] = []
@@ -31,6 +35,7 @@ struct HoleDetailView: View {
     @State private var curatedCourse: CuratedCourse?
     @State private var exportFile: ExportFile?
     @State private var loadError: String?
+    @State private var isExpanded: Bool = false
 
     init(
         holes: [Hole],
@@ -45,6 +50,10 @@ struct HoleDetailView: View {
         _holes = State(initialValue: holes)
         _index = State(initialValue: min(max(0, startIndex), max(0, holes.count - 1)))
     }
+
+    // MARK: - Computed properties (data shape unchanged)
+
+    private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
 
     private var hole: Hole? {
         holes.indices.contains(index) ? holes[index] : nil
@@ -69,9 +78,6 @@ struct HoleDetailView: View {
             .flatMap { s in s.latitude.flatMap { lat in s.longitude.map { GeoPoint(lat: lat, lng: $0) } } }
     }
 
-    /// Pin shown for capture: local override → curated → a sensible seed
-    /// (first/last GPS shot, else course centroid so there's always a
-    /// draggable pin). Only surfaced in anchorsMode.
     private var displayTee: GeoPoint? {
         guard anchorsMode else { return nil }
         return localAnchor?.tee ?? curatedHole?.teeAnchor ?? firstShotPoint() ?? curatedCourse?.location
@@ -82,8 +88,6 @@ struct HoleDetailView: View {
         return localAnchor?.green ?? curatedHole?.greenAnchor ?? lastShotPoint() ?? curatedCourse?.location
     }
 
-    /// Authoritative green for distance — a real captured/curated anchor
-    /// only (never a shot-derived guess, which would be a meaningless yardage).
     private var effectiveGreen: GeoPoint? {
         localAnchor?.green ?? curatedHole?.greenAnchor
     }
@@ -97,65 +101,115 @@ struct HoleDetailView: View {
         return Int(Distance.yards(fromMeters: m).rounded())
     }
 
+    private var score: Int { shots.count + penaltyCount }
+
+    private var delta: Int? {
+        guard let p = hole?.par else { return nil }
+        return score - p
+    }
+
+    private var statusLabel: String {
+        guard let d = delta else { return "—" }
+        switch d {
+        case ..<(-2): return "DOUBLE EAGLE"
+        case -2: return "EAGLE"
+        case -1: return "BIRDIE"
+        case 0: return "PAR"
+        case 1: return "BOGEY"
+        case 2: return "DOUBLE BOGEY"
+        case 3: return "TRIPLE BOGEY"
+        case 4: return "QUAD"
+        default: return "+\(d)"
+        }
+    }
+
+    private var statusIsRed: Bool {
+        if let d = delta { return d < 0 || d >= 2 }
+        return false
+    }
+
+    /// Placeholder lie: GREEN if within ~10yd of green anchor, HOLE if final
+    /// shot of a confirmed hole, else FAIRWAY. The Shot model has no `lie`
+    /// field yet — a future migration is the upgrade path (see plan §4.3).
+    private func lie(for shot: Shot, at idx: Int) -> String {
+        let isLast = idx == shots.count - 1
+        if isLast, hole?.confirmedAt != nil {
+            return "HOLE"
+        }
+        if let g = effectiveGreen, let lat = shot.latitude, let lng = shot.longitude {
+            let m = Distance.meters(
+                from: CLLocationCoordinate2D(latitude: lat, longitude: lng),
+                to: CLLocationCoordinate2D(latitude: g.lat, longitude: g.lng)
+            )
+            let yds = Distance.yards(fromMeters: m)
+            if yds < 10 { return "GREEN" }
+        }
+        return "FAIRWAY"
+    }
+
+    // MARK: - Body
+
     var body: some View {
-        VStack(spacing: 0) {
-            navHeader
+        ZStack {
+            PaperBackground()
 
-            if let hole {
-                EditableHoleMap(
-                    shots: shots,
-                    holeID: hole.id,
-                    onShotMoved: { shot, coord in moveShot(shot, to: coord) },
-                    tee: displayTee,
-                    green: displayGreen,
-                    onAnchorMoved: anchorsMode ? { kind, coord in
-                        saveAnchor(kind, coord)
-                    } : nil
-                )
-                .frame(height: 260)
-                .overlay(alignment: .bottom) {
-                    if anchorsMode {
-                        Text("Drag the T (tee) and G (green) pins. Saved on this device.")
-                            .font(.caption)
-                            .padding(6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(.bottom, 8)
-                    } else if !hasGPSShots {
-                        Text("No GPS shots on this hole to place.")
-                            .font(.caption)
-                            .padding(6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(.bottom, 8)
-                    }
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    navRow
+                        .padding(.horizontal, 24)
+                        .padding(.top, 6)
 
-                Form {
-                    parSection
-                    if curatedCourseId != nil {
-                        courseSection
-                    }
-                    shotsSection
-                    if penaltyCount > 0 {
-                        Section {
-                            Text("\(penaltyCount) penalty stroke\(penaltyCount == 1 ? "" : "s") on this hole")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
+                    if let hole {
+                        holeHeading(hole)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 14)
+
+                        mapBlock(hole: hole)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+
+                        ledgerSection
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
+
+                        parSection
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
+
+                        if curatedCourseId != nil {
+                            courseSection(hole: hole)
+                                .padding(.horizontal, 24)
+                                .padding(.top, 24)
                         }
+
+                        if penaltyCount > 0 {
+                            penaltyNote
+                                .padding(.horizontal, 24)
+                                .padding(.top, 20)
+                        }
+                    } else {
+                        Text("NO HOLE TO SHOW")
+                            .font(AppFont.stamp)
+                            .tracking(1.4)
+                            .foregroundStyle(palette.ink3)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 60)
                     }
+
                     if let loadError {
-                        Section {
-                            Text(loadError).foregroundStyle(.red).font(.caption)
-                        }
+                        Text(loadError)
+                            .font(AppFont.micro)
+                            .tracking(1.2)
+                            .foregroundStyle(palette.red)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
                     }
+
+                    Spacer(minLength: 48)
                 }
-            } else {
-                Spacer()
-                Text("No holes to show.").foregroundStyle(.secondary)
-                Spacer()
             }
         }
-        .navigationTitle(hole.map { "Hole \($0.holeNumber)" } ?? "Hole")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .task(id: index) { loadHole() }
         .sheet(isPresented: $showAddShotSheet) {
             AddMissingShotSheet(
@@ -165,113 +219,461 @@ struct HoleDetailView: View {
                 onCancel: { showAddShotSheet = false }
             )
         }
+        .sheet(item: $exportFile) { ShareSheet(url: $0.url) }
     }
 
-    private var navHeader: some View {
+    // MARK: - Nav row
+
+    private var navRow: some View {
         HStack {
             Button {
-                if index > 0 { index -= 1 }
+                dismiss()
             } label: {
-                Image(systemName: "chevron.left").font(.title3.weight(.semibold))
+                Text("‹ ROUND")
+                    .font(AppFont.metadata)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink)
             }
-            .disabled(index == 0)
-
             Spacer()
+            if let hole {
+                Stamp(
+                    text: hole.confirmedAt != nil ? "Confirmed" : "Unconfirmed",
+                    color: hole.confirmedAt != nil ? palette.ink : palette.flag
+                )
+            }
+        }
+    }
 
-            VStack(spacing: 2) {
-                Text(hole.map { "Hole \($0.holeNumber)" } ?? "—")
-                    .font(.headline)
-                if let hole, hole.confirmedAt != nil {
-                    Text("Confirmed")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+    // MARK: - Hole heading
+
+    private func holeHeading(_ hole: Hole) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .lastTextBaseline, spacing: 8) {
+                Text("Hole")
+                    .font(.custom(AppFont.serifName, size: 18).italic().weight(.bold))
+                    .foregroundStyle(palette.ink2)
+
+                Button {
+                    if index > 0 { index -= 1 }
+                } label: {
+                    Text("‹")
+                        .font(.custom(AppFont.serifName, size: 36).weight(.bold))
+                        .foregroundStyle(index > 0 ? palette.ink2 : palette.ink3)
+                }
+                .buttonStyle(.plain)
+                .disabled(index == 0)
+
+                Text("\(hole.holeNumber)")
+                    .font(AppFont.holeNumeral)
+                    .tracking(-3)
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(1)
+                    .tabularNumerals()
+
+                Button {
+                    if index < holes.count - 1 { index += 1 }
+                } label: {
+                    Text("›")
+                        .font(.custom(AppFont.serifName, size: 36).weight(.bold))
+                        .foregroundStyle(index < holes.count - 1 ? palette.ink2 : palette.ink3)
+                }
+                .buttonStyle(.plain)
+                .disabled(index >= holes.count - 1)
+
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    if let p = hole.par {
+                        Text("PAR \(p)")
+                            .font(AppFont.metadata)
+                            .tracking(1.2)
+                            .foregroundStyle(palette.ink2)
+                    }
+                    if let yds = curatedHole?.yards {
+                        let f = units.format(yards: Int(yds.rounded()))
+                        Text("\(f.value) \(f.unit.uppercased())")
+                            .font(AppFont.metadata)
+                            .tracking(1.2)
+                            .foregroundStyle(palette.ink3)
+                    }
+                }
+            }
+            HStack(spacing: 12) {
+                Text("\(score)")
+                    .font(AppFont.scoreMedium)
+                    .foregroundStyle(statusIsRed ? palette.red : palette.ink)
+                    .tabularNumerals()
+                Stamp(text: statusLabel, color: statusIsRed ? palette.red : palette.ink)
+            }
+        }
+    }
+
+    // MARK: - Map block
+
+    private func mapBlock(hole: Hole) -> some View {
+        ZStack(alignment: .topTrailing) {
+            EditableHoleMap(
+                // While placing tee/green anchors, hide the shot pins so they
+                // don't overlap the draggable T and G pins.
+                shots: anchorsMode ? [] : shots,
+                holeID: hole.id,
+                onShotMoved: { shot, coord in moveShot(shot, to: coord) },
+                tee: displayTee,
+                green: displayGreen,
+                onAnchorMoved: anchorsMode ? { kind, coord in
+                    saveAnchor(kind, coord)
+                } : nil
+            )
+            .frame(height: 360)
+            .overlay(alignment: .bottomLeading) {
+                if anchorsMode {
+                    Stamp(text: "Drag T & G")
+                        .padding(10)
+                } else if !hasGPSShots {
+                    Stamp(text: "No GPS shots")
+                        .padding(10)
+                } else {
+                    Stamp(text: "Tap a pin to edit")
+                        .padding(10)
                 }
             }
 
-            Spacer()
-
+            // Expand button — top-right
             Button {
-                if index < holes.count - 1 { index += 1 }
+                isExpanded = true
             } label: {
-                Image(systemName: "chevron.right").font(.title3.weight(.semibold))
+                PaperCard(padding: EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)) {
+                    Text("↗ EXPAND")
+                        .font(AppFont.stamp)
+                        .tracking(1.2)
+                        .foregroundStyle(palette.ink)
+                }
             }
-            .disabled(index >= holes.count - 1)
+            .buttonStyle(.plain)
+            .padding(10)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.regularMaterial)
+        .overlay(
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(palette.ink, lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .paperCardShadow(palette.cardShadow)
+        .fullScreenCover(isPresented: $isExpanded) {
+            expandedMap(hole: hole)
+        }
     }
 
-    private var parSection: some View {
-        Section {
-            Toggle("Set par for this hole", isOn: $hasPar)
-            if hasPar {
-                Stepper("Par: \(par)", value: $par, in: 3 ... 6)
+    private func expandedMap(hole: Hole) -> some View {
+        ZStack {
+            EditableHoleMap(
+                // Same anchor-mode hiding as the inset map.
+                shots: anchorsMode ? [] : shots,
+                holeID: hole.id,
+                onShotMoved: { shot, coord in moveShot(shot, to: coord) },
+                tee: displayTee,
+                green: displayGreen,
+                onAnchorMoved: anchorsMode ? { kind, coord in
+                    saveAnchor(kind, coord)
+                } : nil
+            )
+            .ignoresSafeArea()
+
+            VStack {
+                HStack(alignment: .top) {
+                    Button {
+                        isExpanded = false
+                    } label: {
+                        PaperCard(padding: EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)) {
+                            Text("↙ COLLAPSE")
+                                .font(AppFont.stamp)
+                                .tracking(1.2)
+                                .foregroundStyle(palette.ink)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                    PaperCard(padding: EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Hole \(hole.holeNumber)")
+                                .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
+                                .foregroundStyle(palette.ink)
+                            if let par = hole.par {
+                                Text("PAR \(par)")
+                                    .font(AppFont.micro)
+                                    .tracking(1.4)
+                                    .foregroundStyle(palette.ink2)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+
+                Spacer()
+
+                HStack {
+                    if anchorsMode {
+                        PaperCard(padding: EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)) {
+                            Stamp(text: "Drag to fix")
+                        }
+                    } else {
+                        Text("TAP A PIN TO EDIT · DRAG TO REPOSITION")
+                            .font(AppFont.micro)
+                            .tracking(1.2)
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.7), radius: 0, x: 0, y: 1)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 28)
             }
-        } footer: {
+        }
+        .themedRoot()
+    }
+
+    // MARK: - Ledger section
+
+    private var ledgerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("The Ledger.")
+                    .font(AppFont.sectionTitle)
+                    .foregroundStyle(palette.ink)
+                Spacer()
+                Stamp(text: "\(shots.count) entries")
+            }
+
+            VStack(spacing: 0) {
+                ledgerHeader
+                if shots.isEmpty {
+                    HStack {
+                        Text("No shots recorded.")
+                            .font(AppFont.bodyLarge)
+                            .italic()
+                            .foregroundStyle(palette.ink3)
+                        Spacer()
+                    }
+                    .padding(.vertical, 14)
+                } else {
+                    ForEach(Array(shots.enumerated()), id: \.element.id) { idx, shot in
+                        ledgerRow(idx: idx, shot: shot)
+                    }
+                    ledgerFooter
+                }
+            }
+
+            Button {
+                showAddShotSheet = true
+            } label: {
+                HStack {
+                    Stamp(text: "+ Add Missing Shot")
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+        }
+    }
+
+    private var ledgerHeader: some View {
+        HStack(spacing: 8) {
+            Text("NO.")
+                .frame(width: 40, alignment: .leading)
+            Text("CLUB")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("YDS")
+                .frame(width: 64, alignment: .trailing)
+            Text("LIE")
+                .frame(width: 80, alignment: .trailing)
+        }
+        .font(AppFont.micro)
+        .tracking(1.4)
+        .foregroundStyle(palette.ink2)
+        .padding(.vertical, 6)
+        .overlay(alignment: .top) { Rectangle().fill(palette.ink).frame(height: 2) }
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+    }
+
+    private func ledgerRow(idx: Int, shot: Shot) -> some View {
+        let distanceMeters = distance(at: idx)
+        let yardsLabel: String = {
+            if let m = distanceMeters {
+                let f = units.format(yards: Int(Distance.yards(fromMeters: m).rounded()))
+                return "\(f.value)"
+            }
+            return shot.hadGPS ? "—" : "—"
+        }()
+
+        return HStack(spacing: 8) {
+            Text((idx + 1).roman)
+                .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                .foregroundStyle(palette.ink2)
+                .frame(width: 40, alignment: .leading)
+
+            Menu {
+                ForEach(bag) { club in
+                    Button(club.longName) { updateShotClub(shot, club: club) }
+                }
+                Divider()
+                Button("(no club)", role: .destructive) { updateShotClub(shot, club: nil) }
+            } label: {
+                Text(shot.club?.longName ?? "tap to set club")
+                    .font(AppFont.bodyLarge)
+                    .foregroundStyle(shot.club == nil ? palette.flag : palette.ink)
+                    .italic(shot.club == nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            Text(yardsLabel)
+                .font(AppFont.monoRow)
+                .foregroundStyle(palette.ink)
+                .tabularNumerals()
+                .frame(width: 64, alignment: .trailing)
+
+            Text(lie(for: shot, at: idx))
+                .font(.custom(AppFont.monoName, size: 10).weight(.bold))
+                .tracking(1.2)
+                .foregroundStyle(palette.ink3)
+                .frame(width: 80, alignment: .trailing)
+        }
+        .padding(.vertical, 10)
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+        .contextMenu {
+            Button("Delete shot", role: .destructive) { deleteShot(shot) }
+        }
+    }
+
+    private var ledgerFooter: some View {
+        let total = totalLedgerDistance()
+        return HStack {
+            Text("Total dist.")
+                .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
+                .foregroundStyle(palette.ink2)
+            Spacer()
+            Text(total.map { "\($0) \(units.suffix)" } ?? "—")
+                .font(AppFont.monoRow)
+                .foregroundStyle(palette.ink)
+                .tabularNumerals()
+        }
+        .padding(.vertical, 10)
+        .overlay(alignment: .top) { Rectangle().fill(palette.ink).frame(height: 2) }
+    }
+
+    private func totalLedgerDistance() -> Int? {
+        var sum = 0
+        var hasAny = false
+        for idx in 0..<shots.count {
+            if let m = distance(at: idx) {
+                let yds = Int(Distance.yards(fromMeters: m).rounded())
+                let f = units.format(yards: yds)
+                sum += f.value
+                hasAny = true
+            }
+        }
+        return hasAny ? sum : nil
+    }
+
+    // MARK: - Par section
+
+    private var parSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Par")
+            HStack {
+                Toggle(isOn: $hasPar) {
+                    Text("Set par for this hole")
+                        .font(AppFont.bodyLarge)
+                        .foregroundStyle(palette.ink)
+                }
+                .tint(palette.flag)
+            }
+            if hasPar {
+                HStack {
+                    Stepper(value: $par, in: 3 ... 6) {
+                        Text("Par \(par)")
+                            .font(AppFont.bodyLarge)
+                            .italic()
+                            .foregroundStyle(palette.ink)
+                    }
+                }
+            }
             Text("Editing par here updates this hole without re-confirming it.")
+                .font(AppFont.micro)
+                .tracking(0.8)
+                .foregroundStyle(palette.ink3)
         }
         .onChange(of: hasPar) { _, _ in savePar() }
         .onChange(of: par) { _, _ in savePar() }
     }
 
-    private var courseSection: some View {
-        Section {
-            Toggle("Place tee & green pins", isOn: $anchorsMode)
+    // MARK: - Course / anchor section
+
+    private func courseSection(hole: Hole) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Course")
+
+            Toggle(isOn: $anchorsMode) {
+                Text("Place tee & green pins")
+                    .font(AppFont.bodyLarge)
+                    .foregroundStyle(palette.ink)
+            }
+            .tint(palette.flag)
+
             if let yds = greenYards {
-                LabeledContent("To green from last shot") {
-                    Text("\(yds) yds").monospacedDigit()
+                HStack {
+                    Text("To green from last shot")
+                        .font(AppFont.bodyLarge)
+                        .italic()
+                        .foregroundStyle(palette.ink)
+                    Spacer()
+                    let f = units.format(yards: yds)
+                    Text("\(f.value) \(f.unit)")
+                        .font(AppFont.monoRow)
+                        .foregroundStyle(palette.ink)
+                        .tabularNumerals()
                 }
             }
+
             Button {
                 exportAnchors()
             } label: {
-                Label("Export anchors for this course", systemImage: "square.and.arrow.up")
+                HStack {
+                    Stamp(text: "↗ Export anchors")
+                    Spacer()
+                }
             }
-        } header: {
-            Text("Course setup")
-        } footer: {
+            .buttonStyle(.plain)
+
             Text("Anchors are saved on this device, then exported and merged into the shared course data later — that's what enables distance-to-green here and on the glasses.")
+                .font(AppFont.micro)
+                .tracking(0.8)
+                .foregroundStyle(palette.ink3)
         }
-        .sheet(item: $exportFile) { ShareSheet(url: $0.url) }
     }
 
-    private var shotsSection: some View {
-        Section {
-            if shots.isEmpty {
-                Text("No shots recorded.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(shots.enumerated()), id: \.element.id) { idx, shot in
-                    ShotReviewRow(
-                        shot: shot,
-                        bag: bag,
-                        distanceMeters: distance(at: idx)
-                    ) { newClub in
-                        updateShotClub(shot, club: newClub)
-                    }
-                }
-                .onDelete { offsets in deleteShots(at: offsets) }
-            }
-            Button {
-                showAddShotSheet = true
-            } label: {
-                Label("Add Missing Shot", systemImage: "plus.circle.fill")
-            }
-        } header: {
-            HStack {
-                Text("Shots (\(shots.count))")
-                Spacer()
-                if !shots.isEmpty {
-                    Text("Swipe to delete · tap a pin then drag to fix")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .textCase(nil)
-                }
-            }
+    // MARK: - Penalty note
+
+    private var penaltyNote: some View {
+        HStack {
+            Stamp(text: "\(penaltyCount) penalty stroke\(penaltyCount == 1 ? "" : "s")", color: palette.flag)
+            Spacer()
         }
     }
+
+    // MARK: - Section header helper
+
+    private func sectionHeader(_ label: String) -> some View {
+        HStack {
+            Text(label.uppercased())
+                .font(AppFont.stamp)
+                .tracking(1.4)
+                .foregroundStyle(palette.ink3)
+            Spacer()
+            Rectangle().fill(palette.rule).frame(height: 1)
+        }
+    }
+
+    // MARK: - Persistence (preserved verbatim)
 
     private func loadHole() {
         guard let hole else { return }
@@ -366,8 +768,6 @@ struct HoleDetailView: View {
         var updated = shot
         updated.latitude = coord.latitude
         updated.longitude = coord.longitude
-        // A hand-placed point is intentional, not a GPS fix: mark it as
-        // located, with no accuracy figure. Source is left unchanged.
         updated.hadGPS = true
         updated.gpsAccuracy = nil
         do {
@@ -391,12 +791,9 @@ struct HoleDetailView: View {
         }
     }
 
-    private func deleteShots(at offsets: IndexSet) {
-        let toDelete = offsets.map { shots[$0] }
+    private func deleteShot(_ shot: Shot) {
         do {
-            for shot in toDelete {
-                try ShotRepository.deleteAndRenumber(shot)
-            }
+            try ShotRepository.deleteAndRenumber(shot)
             loadHole()
             onChanged()
         } catch {
@@ -440,5 +837,14 @@ struct HoleDetailView: View {
             from: CLLocationCoordinate2D(latitude: cLat, longitude: cLng),
             to: CLLocationCoordinate2D(latitude: nLat, longitude: nLng)
         )
+    }
+}
+
+// MARK: - Helper modifier
+
+private extension Text {
+    /// Conditional `.italic()` so we don't have to fork the call site.
+    func italic(_ on: Bool) -> Text {
+        on ? self.italic() : self
     }
 }

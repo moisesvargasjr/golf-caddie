@@ -68,24 +68,34 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         let key = "\(holeID.uuidString)|\(tee != nil)|\(green != nil)"
         if context.coordinator.lastFramedKey != key,
            context.coordinator.draggingID == nil {
-            var coords = shots.compactMap { shot -> CLLocationCoordinate2D? in
+            let shotCoords = shots.compactMap { shot -> CLLocationCoordinate2D? in
                 guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
                 return CLLocationCoordinate2D(latitude: lat, longitude: lng)
             }
-            if let tee { coords.append(CLLocationCoordinate2D(latitude: tee.lat, longitude: tee.lng)) }
+            var allCoords = shotCoords
+            if let tee { allCoords.append(CLLocationCoordinate2D(latitude: tee.lat, longitude: tee.lng)) }
             if let green {
-                coords.append(CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng))
+                allCoords.append(CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng))
             }
-            if let region = Self.regionFitting(coords) {
-                map.setRegion(region, animated: true)
+            // Bearing: prefer tee → green, then first shot → green, then
+            // first → last shot. Falls back to north up when nothing useful.
+            let bearing = Self.holeBearing(
+                shotCoords: shotCoords,
+                tee: tee.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lng) },
+                green: green.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lng) }
+            )
+            if let camera = Self.cameraFitting(allCoords, heading: bearing ?? 0) {
+                map.setCamera(camera, animated: true)
             }
             context.coordinator.lastFramedKey = key
         }
     }
 
-    /// Bounding region of the supplied coords, padded, with a floor span so a
-    /// single point isn't zoomed to street level (~0.0015° ≈ 165 m).
-    private static func regionFitting(_ coords: [CLLocationCoordinate2D]) -> MKCoordinateRegion? {
+    /// Build an `MKMapCamera` that centers on the bounding box of `coords` and
+    /// rotates by `heading` degrees. Falls back to nil when no points exist.
+    /// Distance derived from the bounding diagonal so a single point doesn't
+    /// zoom to street level.
+    private static func cameraFitting(_ coords: [CLLocationCoordinate2D], heading: CLLocationDirection) -> MKMapCamera? {
         guard !coords.isEmpty else { return nil }
         let lats = coords.map(\.latitude)
         let lngs = coords.map(\.longitude)
@@ -95,11 +105,35 @@ private struct EditableHoleMapKit: UIViewRepresentable {
             latitude: (minLat + maxLat) / 2,
             longitude: (minLng + maxLng) / 2
         )
-        let span = MKCoordinateSpan(
-            latitudeDelta: max((maxLat - minLat) * 1.4, 0.0015),
-            longitudeDelta: max((maxLng - minLng) * 1.4, 0.0015)
+        let nw = CLLocationCoordinate2D(latitude: maxLat, longitude: minLng)
+        let se = CLLocationCoordinate2D(latitude: minLat, longitude: maxLng)
+        let diagonalMeters = Distance.meters(
+            from: CLLocation(latitude: nw.latitude, longitude: nw.longitude).coordinate,
+            to: CLLocation(latitude: se.latitude, longitude: se.longitude).coordinate
         )
-        return MKCoordinateRegion(center: center, span: span)
+        // Camera distance ≈ 1.6× diagonal, floored at 250m so a single point
+        // doesn't zoom to street level.
+        let distance = max(diagonalMeters * 1.6, 250)
+        return MKMapCamera(
+            lookingAtCenter: center,
+            fromDistance: distance,
+            pitch: 0,
+            heading: heading
+        )
+    }
+
+    /// Bearing in degrees from tee → green for the current hole, with shot
+    /// fallbacks. Returns nil when there's nothing useful to orient by.
+    private static func holeBearing(
+        shotCoords: [CLLocationCoordinate2D],
+        tee: CLLocationCoordinate2D?,
+        green: CLLocationCoordinate2D?
+    ) -> CLLocationDirection? {
+        let start = tee ?? shotCoords.first
+        let end = green ?? (shotCoords.count >= 2 ? shotCoords.last : nil)
+        guard let start, let end else { return nil }
+        guard Distance.meters(from: start, to: end) > 5 else { return nil }
+        return Distance.bearingDegrees(from: start, to: end)
     }
 
     private func syncShots(in map: MKMapView, coordinator: Coordinator) {

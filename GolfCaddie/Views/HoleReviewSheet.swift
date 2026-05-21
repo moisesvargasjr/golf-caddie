@@ -1,14 +1,20 @@
 import CoreLocation
 import SwiftUI
 
-// `ShotReviewRow` and `AddMissingShotSheet` now live in
-// HoleEditComponents.swift (shared with HoleDetailView).
+// `ShotReviewRow` and `AddMissingShotSheet` live in HoleEditComponents.swift
+// (shared with HoleDetailView).
 
+/// Paper-styled hole-confirm sheet. Presented when the user taps "›" on the
+/// hole pill mid-round: captures par, lets the user fix shot clubs / add
+/// missing shots / log penalties, then confirms and advances the hole.
 struct HoleReviewSheet: View {
     let hole: Hole
     let bag: [ClubID]
     let onConfirm: (Int?) -> Void
     let onCancel: () -> Void
+
+    @Environment(\.palette) private var palette
+    @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
 
     @State private var shots: [Shot] = []
     @State private var penalties: [Penalty] = []
@@ -18,162 +24,327 @@ struct HoleReviewSheet: View {
     @State private var showAddShotSheet = false
     @State private var loadError: String?
 
+    private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                parSection
-                shotsSection
-                penaltiesSection
-                scoreSection
-                if missingClubsCount > 0 {
-                    missingWarningSection
-                }
-                if let loadError {
-                    Section {
+        ZStack {
+            PaperBackground()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    navRow
+                        .padding(.horizontal, 24)
+                        .padding(.top, 18)
+
+                    masthead
+                        .padding(.horizontal, 24)
+                        .padding(.top, 18)
+
+                    section("Par", content: parContent)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 24)
+
+                    section("Shots (\(shots.count))", content: shotsContent)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 24)
+
+                    section("Penalties (\(penalties.count))", content: penaltiesContent)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 24)
+
+                    if missingClubsCount > 0 {
+                        warning
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
+                    }
+
+                    scoreBlock
+                        .padding(.horizontal, 24)
+                        .padding(.top, 24)
+
+                    confirmButton
+                        .padding(.horizontal, 24)
+                        .padding(.top, 18)
+
+                    if let loadError {
                         Text(loadError)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .font(AppFont.micro)
+                            .tracking(1.2)
+                            .foregroundStyle(palette.red)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
                     }
+
+                    Spacer(minLength: 36)
                 }
             }
-            .navigationTitle("Hole \(hole.holeNumber) Review")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Confirm") {
-                        onConfirm(hasPar ? par : nil)
-                    }
-                    .fontWeight(.bold)
-                }
-            }
-            .sheet(isPresented: $showPenaltySheet) {
-                PenaltySheet(
-                    onPick: { type in
-                        addPenalty(type: type)
-                    },
-                    onCancel: { showPenaltySheet = false }
-                )
-            }
-            .sheet(isPresented: $showAddShotSheet) {
-                AddMissingShotSheet(
-                    bag: bag,
-                    currentShotCount: shots.count,
-                    onAdd: { club, position in
-                        addMissingShot(club: club, position: position)
-                    },
-                    onCancel: { showAddShotSheet = false }
-                )
-            }
+        }
+        .presentationBackground(palette.paper)
+        .themedRoot()
+        .sheet(isPresented: $showPenaltySheet) {
+            PenaltySheet(
+                onPick: { type in addPenalty(type: type) },
+                onCancel: { showPenaltySheet = false }
+            )
+        }
+        .sheet(isPresented: $showAddShotSheet) {
+            AddMissingShotSheet(
+                bag: bag,
+                currentShotCount: shots.count,
+                onAdd: { club, position in
+                    addMissingShot(club: club, position: position)
+                },
+                onCancel: { showAddShotSheet = false }
+            )
         }
         .task { reload() }
     }
 
-    private var parSection: some View {
-        Section {
-            Toggle("Set par for this hole", isOn: $hasPar)
-            if hasPar {
-                Stepper("Par: \(par)", value: $par, in: 3 ... 6)
+    // MARK: - Top
+
+    private var navRow: some View {
+        HStack {
+            Button {
+                onCancel()
+            } label: {
+                Text("‹ CANCEL")
+                    .font(AppFont.metadata)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink)
+            }
+            Spacer()
+        }
+    }
+
+    private var masthead: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Stamp(text: "Confirm hole")
+            HStack(alignment: .lastTextBaseline, spacing: 8) {
+                Text("Hole")
+                    .font(.custom(AppFont.serifName, size: 18).italic().weight(.bold))
+                    .foregroundStyle(palette.ink2)
+                Text("\(hole.holeNumber)")
+                    .font(.custom(AppFont.serifName, size: 56).weight(.bold))
+                    .tracking(-2)
+                    .foregroundStyle(palette.ink)
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    // MARK: - Section helper
+
+    @ViewBuilder
+    private func section<Body: View>(_ title: String, @ViewBuilder content: () -> Body) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title.uppercased())
+                    .font(AppFont.stamp)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink3)
+                Spacer()
+                Rectangle().fill(palette.rule).frame(height: 1)
+            }
+            content()
+        }
+    }
+
+    // MARK: - Par
+
+    @ViewBuilder
+    private func parContent() -> some View {
+        Toggle(isOn: $hasPar) {
+            Text("Set par for this hole")
+                .font(AppFont.bodyLarge)
+                .foregroundStyle(palette.ink)
+        }
+        .tint(palette.flag)
+
+        if hasPar {
+            Stepper(value: $par, in: 3...6) {
+                Text("Par \(par)")
+                    .font(AppFont.bodyLarge)
+                    .italic()
+                    .foregroundStyle(palette.ink)
             }
         }
     }
 
-    private var shotsSection: some View {
-        Section {
-            if shots.isEmpty {
-                Text("No shots recorded.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
+    // MARK: - Shots
+
+    @ViewBuilder
+    private func shotsContent() -> some View {
+        if shots.isEmpty {
+            Text("No shots recorded.")
+                .font(AppFont.bodyLarge)
+                .italic()
+                .foregroundStyle(palette.ink3)
+        } else {
+            VStack(spacing: 0) {
                 ForEach(Array(shots.enumerated()), id: \.element.id) { idx, shot in
-                    ShotReviewRow(
-                        shot: shot,
-                        bag: bag,
-                        distanceMeters: distance(at: idx)
-                    ) { newClub in
-                        updateShotClub(shot, club: newClub)
-                    }
-                }
-                .onDelete { offsets in
-                    deleteShots(at: offsets)
+                    shotRow(idx: idx, shot: shot)
                 }
             }
-            Button {
-                showAddShotSheet = true
-            } label: {
-                Label("Add Missing Shot", systemImage: "plus.circle.fill")
-            }
-        } header: {
+        }
+        Button {
+            showAddShotSheet = true
+        } label: {
             HStack {
-                Text("Shots (\(shots.count))")
+                Stamp(text: "+ Add Missing Shot")
                 Spacer()
-                if !shots.isEmpty {
-                    Text("Swipe to delete")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .textCase(nil)
-                }
             }
         }
+        .buttonStyle(.plain)
+        .padding(.top, 6)
     }
 
-    private var penaltiesSection: some View {
-        Section("Penalties (\(penalties.count))") {
-            ForEach(penalties) { penalty in
-                HStack {
-                    Text(penalty.type.displayName)
-                    Spacer()
-                    Text("+\(penalty.strokeCount)")
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    Button(role: .destructive) {
-                        deletePenalty(penalty)
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                    .tint(.red)
-                }
+    private func shotRow(idx: Int, shot: Shot) -> some View {
+        let dMeters = distance(at: idx)
+        let yardsLabel: String? = {
+            if let m = dMeters {
+                let f = units.format(yards: Int(Distance.yards(fromMeters: m).rounded()))
+                return "\(f.value) \(f.unit)"
             }
-            Button {
-                showPenaltySheet = true
+            return shot.hadGPS ? nil : "manual"
+        }()
+
+        return HStack(spacing: 12) {
+            Text((idx + 1).roman)
+                .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                .foregroundStyle(palette.ink2)
+                .frame(width: 36, alignment: .leading)
+
+            Menu {
+                ForEach(bag) { c in
+                    Button(c.longName) { updateShotClub(shot, club: c) }
+                }
+                Divider()
+                Button("(no club)", role: .destructive) { updateShotClub(shot, club: nil) }
             } label: {
-                Label("Add Penalty", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                Text(shot.club?.longName ?? "tap to set club")
+                    .font(AppFont.bodyLarge)
+                    .italic(shot.club == nil)
+                    .foregroundStyle(shot.club == nil ? palette.flag : palette.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
+
+            if let yardsLabel {
+                Text(yardsLabel)
+                    .font(AppFont.monoRow)
+                    .foregroundStyle(palette.ink2)
+                    .tabularNumerals()
+            }
+
+            Button(role: .destructive) {
+                deleteShot(shot)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 13))
+                    .foregroundStyle(palette.ink3)
+            }
+            .buttonStyle(.plain)
         }
+        .padding(.vertical, 10)
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
     }
 
-    private var scoreSection: some View {
-        Section {
-            HStack {
-                Text("Score").font(.title3.bold())
-                Spacer()
-                VStack(alignment: .trailing) {
-                    Text("\(score)")
-                        .font(.title.bold())
-                        .monospacedDigit()
-                    if let label = scoreLabel {
-                        Text(label)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+    // MARK: - Penalties
+
+    @ViewBuilder
+    private func penaltiesContent() -> some View {
+        if penalties.isEmpty {
+            Text("None.")
+                .font(AppFont.bodyLarge)
+                .italic()
+                .foregroundStyle(palette.ink3)
+        } else {
+            VStack(spacing: 0) {
+                ForEach(penalties) { penalty in
+                    HStack {
+                        Text(penalty.type.displayName)
+                            .font(AppFont.bodyLarge)
+                            .foregroundStyle(palette.ink)
+                        Spacer()
+                        Stamp(text: "+\(penalty.strokeCount)", color: palette.flag)
+                        Button(role: .destructive) {
+                            deletePenalty(penalty)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 13))
+                                .foregroundStyle(palette.ink3)
+                        }
+                        .buttonStyle(.plain)
                     }
+                    .padding(.vertical, 10)
+                    .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+                }
+            }
+        }
+        Button {
+            showPenaltySheet = true
+        } label: {
+            HStack {
+                Stamp(text: "+ Add Penalty", color: palette.flag)
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 6)
+    }
+
+    // MARK: - Score
+
+    private var scoreBlock: some View {
+        HStack(alignment: .lastTextBaseline) {
+            Text("Score")
+                .font(AppFont.sectionTitle)
+                .foregroundStyle(palette.ink)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(score)")
+                    .font(.custom(AppFont.serifName, size: 48).weight(.bold))
+                    .tracking(-1.5)
+                    .foregroundStyle(palette.ink)
+                    .tabularNumerals()
+                if let label = scoreLabel {
+                    Stamp(text: label, color: deltaColor)
                 }
             }
         }
     }
 
-    private var missingWarningSection: some View {
-        Section {
-            Label(
-                "\(missingClubsCount) shot\(missingClubsCount == 1 ? "" : "s") missing club",
-                systemImage: "exclamationmark.triangle"
-            )
-            .foregroundStyle(.orange)
+    private var warning: some View {
+        HStack {
+            Stamp(text: "\(missingClubsCount) shot\(missingClubsCount == 1 ? "" : "s") missing club", color: palette.flag)
+            Spacer()
         }
     }
+
+    private var confirmButton: some View {
+        Button {
+            onConfirm(hasPar ? par : nil)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Confirm")
+                    .font(AppFont.cta)
+                    .italic()
+                    .fontWeight(.regular)
+                    .foregroundStyle(palette.paper.opacity(0.85))
+                Text("hole")
+                    .font(AppFont.cta)
+                    .foregroundStyle(palette.paper)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(palette.ink)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Computed
 
     private var score: Int {
         shots.count + penalties.reduce(0) { $0 + $1.strokeCount }
@@ -187,17 +358,25 @@ struct HoleReviewSheet: View {
         guard hasPar else { return nil }
         let diff = score - par
         switch diff {
-        case ..<(-2): return "\(-diff) Under"
-        case -2: return "Eagle"
-        case -1: return "Birdie"
-        case 0: return "Par"
-        case 1: return "Bogey"
-        case 2: return "Double Bogey"
-        case 3: return "Triple Bogey"
+        case ..<(-2): return "\(-diff) UNDER"
+        case -2: return "EAGLE"
+        case -1: return "BIRDIE"
+        case 0: return "PAR"
+        case 1: return "BOGEY"
+        case 2: return "DOUBLE BOGEY"
+        case 3: return "TRIPLE BOGEY"
         case 4...: return "+\(diff)"
         default: return nil
         }
     }
+
+    private var deltaColor: Color {
+        guard hasPar else { return palette.ink }
+        let diff = score - par
+        return (diff < 0 || diff >= 2) ? palette.red : palette.ink
+    }
+
+    // MARK: - Data
 
     private func distance(at idx: Int) -> Double? {
         guard idx + 1 < shots.count else { return nil }
@@ -229,12 +408,9 @@ struct HoleReviewSheet: View {
         }
     }
 
-    private func deleteShots(at offsets: IndexSet) {
-        let toDelete = offsets.map { shots[$0] }
+    private func deleteShot(_ shot: Shot) {
         do {
-            for shot in toDelete {
-                try ShotRepository.deleteAndRenumber(shot)
-            }
+            try ShotRepository.deleteAndRenumber(shot)
             reload()
         } catch {
             loadError = "Delete failed: \(error.localizedDescription)"
@@ -301,4 +477,10 @@ struct HoleReviewSheet: View {
             loadError = "Add shot failed: \(error.localizedDescription)"
         }
     }
+}
+
+// MARK: - Italic-conditional helper (shared with HoleDetailView)
+
+private extension Text {
+    func italic(_ on: Bool) -> Text { on ? self.italic() : self }
 }

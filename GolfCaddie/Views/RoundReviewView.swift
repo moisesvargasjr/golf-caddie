@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// "Official Card" — round summary screen. Reads like a paper scorecard:
+/// masthead with course name, big final score, front-nine / back-nine tables
+/// with shape-badge cells per hole, a legend, and a signature line.
+///
+/// Below the card sit the operational sections from the previous design that
+/// the prototype didn't cover: curated-course linking, resume-round (if the
+/// caller passed `onResume`), and per-hole edit (now reached by tapping a
+/// score cell). The flat all-shots list is gone — shots are edited from
+/// inside `HoleDetailView`.
 struct RoundReviewView: View {
     // @State (not let) so a retro-link "Set course" can mutate
     // round.curatedCourseId in place and the downstream NavigationLink picks
@@ -8,6 +17,12 @@ struct RoundReviewView: View {
     let bag: [ClubID]
     let onResume: (() -> Void)?
     let onDismiss: (() -> Void)?
+    /// Called after the round is successfully deleted. Callers should refresh
+    /// their list and may pop this view (we already `dismiss()` internally).
+    let onDeleted: (() -> Void)?
+
+    @Environment(\.palette) private var palette
+    @Environment(\.dismiss) private var dismiss
 
     @State private var holes: [Hole] = []
     @State private var shotsByHole: [UUID: [Shot]] = [:]
@@ -16,65 +31,104 @@ struct RoundReviewView: View {
     @State private var curatedCourses: [CuratedCourse] = []
     @State private var showCoursePicker = false
     @State private var loadError: String?
+    @State private var roundOrdinal: Int = 0
+    @State private var showDeleteConfirm: Bool = false
 
     init(
         round: Round,
         bag: [ClubID],
         onResume: (() -> Void)? = nil,
-        onDismiss: (() -> Void)? = nil
+        onDismiss: (() -> Void)? = nil,
+        onDeleted: (() -> Void)? = nil
     ) {
         _round = State(initialValue: round)
         self.bag = bag
         self.onResume = onResume
         self.onDismiss = onDismiss
+        self.onDeleted = onDeleted
     }
 
     var body: some View {
-        List {
-            summarySection
-            courseLinkSection
-            if onResume != nil, round.endedAt != nil {
-                resumeSection
-            }
-            if !holes.isEmpty {
-                Section {
-                    NavigationLink {
-                        HoleDetailView(
-                            holes: holes,
-                            bag: bag,
-                            curatedCourseId: round.curatedCourseId,
-                            onChanged: { reload() }
-                        )
-                    } label: {
-                        Label("Review & Edit Holes", systemImage: "pencil.and.list.clipboard")
+        ZStack {
+            PaperBackground()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    navRow
+                        .padding(.horizontal, 24)
+                        .padding(.top, 6)
+
+                    masthead
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+
+                    DoubleRule()
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+
+                    bigScoreBlock
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+
+                    SingleRule(weight: .hairline, opacity: 0.5)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+
+                    if !holes.isEmpty {
+                        scorecardTables
+                            .padding(.horizontal, 20)
+                            .padding(.top, 16)
+
+                        legendStrip
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
+
+                        signatureLine
+                            .padding(.horizontal, 24)
+                            .padding(.top, 28)
+
+                        editHolesLink
+                            .padding(.horizontal, 24)
+                            .padding(.top, 28)
+                    } else {
+                        Text("NO HOLES RECORDED FOR THIS ROUND")
+                            .font(AppFont.stamp)
+                            .tracking(1.4)
+                            .foregroundStyle(palette.ink3)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
                     }
-                }
-                scorecardSection
-                shotsSection
-            } else {
-                Section {
-                    Text("No holes recorded for this round.")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if let loadError {
-                Section {
-                    Text(loadError)
-                        .foregroundStyle(.red)
-                        .font(.caption)
+
+                    courseLinkSection
+                        .padding(.horizontal, 24)
+                        .padding(.top, 28)
+
+                    if onResume != nil, round.endedAt != nil {
+                        resumeSection
+                            .padding(.horizontal, 24)
+                            .padding(.top, 20)
+                    }
+
+                    if round.endedAt != nil {
+                        deleteSection
+                            .padding(.horizontal, 24)
+                            .padding(.top, 32)
+                    }
+
+                    if let loadError {
+                        Text(loadError)
+                            .font(AppFont.micro)
+                            .tracking(1.2)
+                            .foregroundStyle(palette.red)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
+                    }
+
+                    Spacer(minLength: 48)
                 }
             }
         }
-        .navigationTitle(roundTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if let onDismiss {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done", action: onDismiss)
-                        .fontWeight(.semibold)
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showCoursePicker) {
             CoursePickerSheet(
                 courses: curatedCourses,
@@ -83,54 +137,446 @@ struct RoundReviewView: View {
                 onCancel: { showCoursePicker = false }
             )
         }
+        .alert("Delete this round?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { performDelete() }
+        } message: {
+            let course = (round.courseName?.isEmpty == false) ? round.courseName! : "This round"
+            Text("\(course) and all its holes, shots, and penalties will be permanently deleted.")
+        }
         .onAppear { reload() }
     }
 
+    // MARK: - Nav row
+
+    private var navRow: some View {
+        HStack {
+            Button {
+                if let onDismiss { onDismiss() } else { dismiss() }
+            } label: {
+                Text(onDismiss != nil ? "‹ DONE" : "‹ BACK")
+                    .font(AppFont.metadata)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink)
+            }
+            Spacer()
+            // SHARE — placeholder; not wired
+            Text("SHARE")
+                .font(AppFont.metadata)
+                .tracking(1.4)
+                .foregroundStyle(palette.ink3)
+        }
+    }
+
+    // MARK: - Masthead
+
+    private var masthead: some View {
+        VStack(spacing: 12) {
+            Stamp(text: "Official Card · No. \(roundOrdinal)", color: palette.red)
+
+            Text(courseDisplay.primary)
+                .font(AppFont.courseName)
+                .tracking(-1.2)
+                .foregroundStyle(palette.ink)
+                .multilineTextAlignment(.center)
+
+            if let secondary = courseDisplay.secondary {
+                Text(secondary)
+                    .font(.custom(AppFont.serifName, size: 22).weight(.regular).italic())
+                    .tracking(-0.4)
+                    .foregroundStyle(palette.ink2)
+            }
+
+            Text(dateLineDisplay)
+                .font(AppFont.stamp)
+                .tracking(1.4)
+                .foregroundStyle(palette.ink2)
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var courseDisplay: (primary: String, secondary: String?) {
+        guard let name = round.courseName, !name.isEmpty else {
+            return ("Untitled Round", nil)
+        }
+        // Try to split "<name> Golf Course" / "<name> G.C." etc.
+        let suffixes = [" Golf Course", " G.C.", " Golf Club"]
+        for suffix in suffixes {
+            if let range = name.range(of: suffix, options: [.caseInsensitive, .anchored, .backwards]) {
+                let primary = String(name[..<range.lowerBound])
+                return (primary, "Golf Course")
+            }
+        }
+        return (name, nil)
+    }
+
+    private var dateLineDisplay: String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM · d · yyyy"
+        return f.string(from: round.startedAt).uppercased()
+    }
+
+    // MARK: - Big score block
+
+    private var bigScoreBlock: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FINAL · \(holes.count) HOLES")
+                    .font(AppFont.stamp)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink3)
+                Text("\(totalScore)")
+                    .font(AppFont.scoreHero)
+                    .tracking(-4.5)
+                    .lineSpacing(-30)  // approximates lineHeight 0.85
+                    .foregroundStyle(palette.ink)
+                    .tabularNumerals()
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 8) {
+                if let scoreVsPar {
+                    Stamp(text: scoreVsPar, color: palette.red, size: .md)
+                }
+                Text(durationAndShotsLine)
+                    .font(AppFont.metadata)
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink2)
+                    .tabularNumerals()
+            }
+            .padding(.bottom, 18)
+        }
+    }
+
+    private var durationAndShotsLine: String {
+        var parts: [String] = []
+        if let endedAt = round.endedAt {
+            parts.append(formatDuration(endedAt.timeIntervalSince(round.startedAt)))
+        }
+        parts.append("\(totalShots) SHOTS")
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Scorecard
+
+    private var scorecardTables: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            scorecardTable(title: "Front nine.", range: 1...9)
+            if holes.contains(where: { $0.holeNumber >= 10 }) {
+                scorecardTable(title: "Back nine.", range: 10...18)
+            }
+        }
+    }
+
+    private func scorecardTable(title: String, range: ClosedRange<Int>) -> some View {
+        let rowHoles = holes.filter { range.contains($0.holeNumber) }
+        let rowPar = rowHoles.reduce(0) { $0 + ($1.par ?? 0) }
+        let rowShots = rowHoles.reduce(0) { $0 + holeScore($1) }
+        let rowDelta = rowShots - rowPar
+        let isFront = range.lowerBound == 1
+        let summaryLabel = isFront ? "OUT" : "IN"
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(AppFont.sectionTitle)
+                    .foregroundStyle(palette.ink)
+                Spacer()
+                Text("\(summaryLabel) \(rowShots) · \(deltaString(rowDelta))")
+                    .font(AppFont.metadata)
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink2)
+                    .tabularNumerals()
+            }
+
+            VStack(spacing: 0) {
+                tableHeaderRow(range: range, label: summaryLabel)
+                tableParRow(range: range, total: rowPar)
+                tableYouRow(range: range, total: rowShots, totalIsRed: rowDelta > 0)
+            }
+        }
+    }
+
+    private func tableHeaderRow(range: ClosedRange<Int>, label: String) -> some View {
+        HStack(spacing: 0) {
+            cell(text: "HOLE", style: .header, align: .leading)
+            ForEach(Array(range), id: \.self) { n in
+                cell(text: "\(n)", style: .header, align: .center)
+            }
+            cell(text: label, style: .header, align: .trailing)
+        }
+        .overlay(alignment: .top) { Rectangle().fill(palette.ink).frame(height: 2) }
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.ink).frame(height: 1) }
+    }
+
+    private func tableParRow(range: ClosedRange<Int>, total: Int) -> some View {
+        HStack(spacing: 0) {
+            cell(text: "PAR", style: .label, align: .leading)
+            ForEach(Array(range), id: \.self) { n in
+                if let hole = holes.first(where: { $0.holeNumber == n }), let par = hole.par {
+                    cell(text: "\(par)", style: .label, align: .center)
+                } else {
+                    cell(text: "—", style: .label, align: .center)
+                }
+            }
+            cell(text: "\(total)", style: .label, align: .trailing)
+        }
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+    }
+
+    private func tableYouRow(range: ClosedRange<Int>, total: Int, totalIsRed: Bool) -> some View {
+        HStack(spacing: 0) {
+            cell(text: "YOU", style: .label, align: .leading)
+            ForEach(Array(range), id: \.self) { n in
+                if let hole = holes.first(where: { $0.holeNumber == n }), let par = hole.par {
+                    let score = holeScore(hole)
+                    NavigationLink {
+                        HoleDetailView(
+                            holes: holes,
+                            bag: bag,
+                            curatedCourseId: round.curatedCourseId,
+                            startIndex: holes.firstIndex(where: { $0.id == hole.id }) ?? 0,
+                            onChanged: { reload() }
+                        )
+                    } label: {
+                        ScoreBadge(score: score, par: par)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 32)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text("—")
+                        .font(.custom(AppFont.monoName, size: 13).weight(.bold))
+                        .foregroundStyle(palette.ink3)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                }
+            }
+            Text("\(total)")
+                .font(.custom(AppFont.monoName, size: 16).weight(.bold))
+                .foregroundStyle(totalIsRed ? palette.red : palette.ink)
+                .tabularNumerals()
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    private enum CellStyle { case header, label }
+
+    private func cell(text: String, style: CellStyle, align: Alignment) -> some View {
+        Group {
+            switch style {
+            case .header:
+                Text(text)
+                    .font(AppFont.micro)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink2)
+            case .label:
+                Text(text)
+                    .font(.custom(AppFont.monoName, size: 11).weight(.bold))
+                    .foregroundStyle(palette.ink2)
+                    .tabularNumerals()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: align)
+        .frame(width: align == .leading || align == .trailing ? 44 : nil)
+        .padding(.vertical, 7)
+    }
+
+    private var legendStrip: some View {
+        HStack(spacing: 16) {
+            legendItem(shape: .circle, label: "BIRDIE")
+            legendItem(shape: .square, label: "BOGEY")
+            legendItem(shape: .squareRed, label: "DOUBLE+")
+            Spacer()
+        }
+    }
+
+    private enum LegendShape { case circle, square, squareRed }
+
+    private func legendItem(shape: LegendShape, label: String) -> some View {
+        HStack(spacing: 6) {
+            Group {
+                switch shape {
+                case .circle:
+                    Circle().stroke(palette.red, lineWidth: 1.5).frame(width: 12, height: 12)
+                case .square:
+                    RoundedRectangle(cornerRadius: 2).stroke(palette.ink, lineWidth: 1.5).frame(width: 12, height: 12)
+                case .squareRed:
+                    RoundedRectangle(cornerRadius: 2).stroke(palette.red, lineWidth: 1.5).frame(width: 12, height: 12)
+                }
+            }
+            Text(label)
+                .font(AppFont.stamp)
+                .tracking(1.2)
+                .foregroundStyle(palette.ink2)
+        }
+    }
+
+    // MARK: - Signature
+
+    private var signatureLine: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ZStack(alignment: .bottom) {
+                Rectangle().fill(palette.ink).frame(height: 1)
+                Text("—")
+                    .font(.custom(AppFont.serifName, size: 22).italic())
+                    .foregroundStyle(palette.ink2)
+                    .padding(.bottom, 2)
+                    .padding(.leading, 8)
+            }
+            .frame(height: 28)
+            Text("SIGNED · PLAYER")
+                .font(AppFont.stamp)
+                .tracking(1.4)
+                .foregroundStyle(palette.ink3)
+        }
+    }
+
+    // MARK: - Operational sections (re-skinned existing functionality)
+
+    private var editHolesLink: some View {
+        NavigationLink {
+            HoleDetailView(
+                holes: holes,
+                bag: bag,
+                curatedCourseId: round.curatedCourseId,
+                startIndex: 0,
+                onChanged: { reload() }
+            )
+        } label: {
+            HStack {
+                Stamp(text: "Review & Edit Holes")
+                Spacer()
+                Text("›")
+                    .font(AppFont.metadata)
+                    .foregroundStyle(palette.ink2)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private var courseLinkSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("COURSE")
+                    .font(AppFont.stamp)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink3)
+                Spacer()
+                Rectangle().fill(palette.rule).frame(height: 1)
+            }
             Button {
                 showCoursePicker = true
             } label: {
                 HStack {
-                    Text("Course")
+                    Text(curatedName ?? "Set curated course")
+                        .font(AppFont.bodyLarge)
+                        .italic()
+                        .foregroundStyle(curatedName != nil ? palette.ink : palette.flag)
                     Spacer()
-                    if let curatedName {
-                        Text(curatedName)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else {
-                        Text("Set course")
-                            .foregroundStyle(.tint)
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    Text("›")
+                        .font(AppFont.metadata)
+                        .foregroundStyle(palette.ink2)
                 }
             }
             .buttonStyle(.plain)
-        } footer: {
             if curatedName == nil {
                 Text("Link this round to a curated course to enable green-anchor capture and distance-to-green.")
+                    .font(AppFont.micro)
+                    .tracking(0.8)
+                    .foregroundStyle(palette.ink3)
+                    .multilineTextAlignment(.leading)
             }
         }
     }
 
-    private func setCurated(_ id: String?) {
-        do {
-            try RoundRepository.setCuratedCourseId(roundID: round.id, id: id)
-            round.curatedCourseId = id
-            showCoursePicker = false
-            reload()
-        } catch {
-            loadError = "Couldn't set course: \(error.localizedDescription)"
+    private var resumeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                onResume?()
+            } label: {
+                HStack {
+                    Text("Resume")
+                        .font(AppFont.cta)
+                        .italic()
+                        .fontWeight(.regular)
+                        .foregroundStyle(palette.paper.opacity(0.85))
+                    Text("round")
+                        .font(AppFont.cta)
+                        .foregroundStyle(palette.paper)
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(palette.flag)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            Text("If you ended the round by mistake, tap to reopen it. Tracking will resume on the last hole.")
+                .font(AppFont.micro)
+                .tracking(0.8)
+                .foregroundStyle(palette.ink3)
         }
     }
 
-    private var roundTitle: String {
-        if let course = round.courseName, !course.isEmpty {
-            return course
+    private var deleteSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("DANGER ZONE")
+                    .font(AppFont.stamp)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.red)
+                Spacer()
+                Rectangle().fill(palette.red.opacity(0.25)).frame(height: 1)
+            }
+            Button {
+                showDeleteConfirm = true
+            } label: {
+                HStack {
+                    Text("Delete round")
+                        .font(AppFont.bodyLarge)
+                        .italic()
+                        .foregroundStyle(palette.red)
+                    Spacer()
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(palette.red)
+                }
+                .padding(.vertical, 14)
+                .padding(.horizontal, 18)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(palette.red, lineWidth: 1.2)
+                )
+            }
+            .buttonStyle(.plain)
+            Text("Permanently removes this round and every hole, shot, and penalty inside it. There's no undo.")
+                .font(AppFont.micro)
+                .tracking(0.8)
+                .foregroundStyle(palette.ink3)
         }
-        return round.startedAt.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func performDelete() {
+        do {
+            try RoundRepository.delete(round)
+            onDeleted?()
+            dismiss()
+        } catch {
+            loadError = "Delete failed: \(error.localizedDescription)"
+        }
+    }
+
+
+    // MARK: - Score helpers
+
+    private func holeScore(_ hole: Hole) -> Int {
+        let s = shotsByHole[hole.id]?.count ?? 0
+        let p = (penaltiesByHole[hole.id] ?? []).reduce(0) { $0 + $1.strokeCount }
+        return s + p
     }
 
     private var totalShots: Int {
@@ -143,111 +589,30 @@ struct RoundReviewView: View {
         }
     }
 
-    private var totalScore: Int {
-        totalShots + totalPenaltyStrokes
-    }
+    private var totalScore: Int { totalShots + totalPenaltyStrokes }
 
-    private var totalPar: Int? {
-        let pars = holes.compactMap { $0.par }
-        guard pars.count == holes.count, !holes.isEmpty else { return nil }
-        return pars.reduce(0, +)
+    private var totalPar: Int {
+        holes.reduce(0) { $0 + ($1.par ?? 0) }
     }
 
     private var scoreVsPar: String? {
-        guard let par = totalPar else { return nil }
-        let diff = totalScore - par
-        if diff == 0 { return "E" }
-        if diff > 0 { return "+\(diff)" }
-        return "\(diff)"
+        let pars = holes.compactMap { $0.par }
+        guard !pars.isEmpty else { return nil }
+        return deltaString(totalScore - totalPar)
     }
 
-    private var resumeSection: some View {
-        Section {
-            Button {
-                onResume?()
-            } label: {
-                Label("Resume Round", systemImage: "play.circle.fill")
-                    .foregroundStyle(.green)
-            }
-        } footer: {
-            Text("If you ended the round by mistake, tap to reopen it. Tracking will resume on the last hole.")
-        }
+    private func deltaString(_ d: Int) -> String {
+        if d > 0 { return "+\(d)" }
+        if d == 0 { return "E" }
+        return "\(d)"
     }
 
-    private var summarySection: some View {
-        Section("Summary") {
-            LabeledContent("Holes Played") { Text("\(holes.count)").monospacedDigit() }
-            LabeledContent("Total Shots") { Text("\(totalShots)").monospacedDigit() }
-            if totalPenaltyStrokes > 0 {
-                LabeledContent("Penalties") { Text("+\(totalPenaltyStrokes)").monospacedDigit() }
-            }
-            LabeledContent("Score") {
-                HStack(spacing: 6) {
-                    Text("\(totalScore)")
-                        .font(.headline)
-                        .monospacedDigit()
-                    if let label = scoreVsPar {
-                        Text("(\(label))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            if let endedAt = round.endedAt {
-                LabeledContent("Duration") {
-                    Text(formatDuration(endedAt.timeIntervalSince(round.startedAt)))
-                }
-            }
-        }
-    }
-
-    private var scorecardSection: some View {
-        Section("Scorecard") {
-            HStack {
-                Text("Hole").font(.caption.bold()).foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .leading)
-                Spacer()
-                Text("Par").font(.caption.bold()).foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .center)
-                Text("Shots").font(.caption.bold()).foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .center)
-                Text("Score").font(.caption.bold()).foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-            }
-            ForEach(holes) { hole in
-                HoleRowSummary(
-                    hole: hole,
-                    shotCount: shotsByHole[hole.id]?.count ?? 0,
-                    penaltyStrokes: (penaltiesByHole[hole.id] ?? []).reduce(0) { $0 + $1.strokeCount }
-                )
-            }
-        }
-    }
-
-    private var shotsSection: some View {
-        Section("Shots") {
-            ForEach(holes) { hole in
-                if let shots = shotsByHole[hole.id], !shots.isEmpty {
-                    ForEach(shots) { shot in
-                        NavigationLink {
-                            ShotEditView(
-                                shot: shot,
-                                bag: bag,
-                                onDelete: { deleteShot(shot) }
-                            )
-                        } label: {
-                            ShotRowSummary(shot: shot, hole: hole)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // MARK: - Data loading
 
     private func reload() {
         do {
             let allHoles = try HoleRepository.holesForRound(round.id)
-            holes = trimTrailingEmptyHole(allHoles)
+            holes = trimTrailingEmptyHole(allHoles).sorted { $0.holeNumber < $1.holeNumber }
 
             var shotsMap: [UUID: [Shot]] = [:]
             var penaltiesMap: [UUID: [Penalty]] = [:]
@@ -257,15 +622,21 @@ struct RoundReviewView: View {
             }
             shotsByHole = shotsMap
             penaltiesByHole = penaltiesMap
-            // Curated catalog + the round's linked course name (if any) for
-            // the courseLinkSection. Both soft-fail (empty / nil) — the
-            // section degrades to "Set course" when the cache is empty too.
+
+            // Curated catalog + the round's linked course name (if any).
             curatedCourses = (try? CourseDataRepository.allCourses()) ?? []
             if let cid = round.curatedCourseId {
                 curatedName = curatedCourses.first { $0.id == cid }?.name
             } else {
                 curatedName = nil
             }
+
+            // Ordinal (chronological) for "Official Card · No.": position among
+            // all rounds, oldest = 1.
+            let all = try RoundRepository.allRounds()
+            let oldestFirst = all.sorted { $0.startedAt < $1.startedAt }
+            roundOrdinal = (oldestFirst.firstIndex(where: { $0.id == round.id }) ?? -1) + 1
+
             loadError = nil
         } catch {
             loadError = "Failed to load: \(error.localizedDescription)"
@@ -282,12 +653,14 @@ struct RoundReviewView: View {
         return allHoles
     }
 
-    private func deleteShot(_ shot: Shot) {
+    private func setCurated(_ id: String?) {
         do {
-            try ShotRepository.delete(shot)
+            try RoundRepository.setCuratedCourseId(roundID: round.id, id: id)
+            round.curatedCourseId = id
+            showCoursePicker = false
             reload()
         } catch {
-            loadError = "Delete failed: \(error.localizedDescription)"
+            loadError = "Couldn't set course: \(error.localizedDescription)"
         }
     }
 
@@ -295,157 +668,7 @@ struct RoundReviewView: View {
         let totalMinutes = Int(seconds / 60)
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
         return "\(minutes)m"
-    }
-}
-
-private struct HoleRowSummary: View {
-    let hole: Hole
-    let shotCount: Int
-    let penaltyStrokes: Int
-
-    private var score: Int { shotCount + penaltyStrokes }
-
-    private var diff: Int? {
-        guard let par = hole.par else { return nil }
-        return score - par
-    }
-
-    private var diffColor: Color {
-        guard let diff else { return .secondary }
-        if diff < 0 { return .green }
-        if diff == 0 { return .primary }
-        return .orange
-    }
-
-    var body: some View {
-        HStack {
-            Text("\(hole.holeNumber)")
-                .frame(width: 60, alignment: .leading)
-                .monospacedDigit()
-            Spacer()
-            Text(hole.par.map(String.init) ?? "—")
-                .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .center)
-                .monospacedDigit()
-            HStack(spacing: 2) {
-                Text("\(shotCount)")
-                if penaltyStrokes > 0 {
-                    Text("+\(penaltyStrokes)")
-                        .foregroundStyle(.orange)
-                }
-            }
-            .frame(width: 60, alignment: .center)
-            .monospacedDigit()
-            .font(.caption)
-            Text("\(score)")
-                .fontWeight(.semibold)
-                .monospacedDigit()
-                .foregroundStyle(diffColor)
-                .frame(width: 50, alignment: .trailing)
-        }
-    }
-}
-
-private struct ShotRowSummary: View {
-    let shot: Shot
-    let hole: Hole
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text("H\(hole.holeNumber)·\(shot.sequenceNumber)")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .frame(width: 56, alignment: .leading)
-            Text(shot.club?.longName ?? "(no club)")
-                .foregroundStyle(shot.club == nil ? .orange : .primary)
-                .lineLimit(1)
-            Spacer()
-            metadataView
-        }
-    }
-
-    @ViewBuilder
-    private var metadataView: some View {
-        if !shot.hadGPS {
-            Text("manual")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        } else if let acc = shot.gpsAccuracy {
-            Text(String(format: "±%.0fm", acc))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-        }
-    }
-}
-
-/// Sheet to retro-link a round to a curated course. Lists the on-device
-/// curated catalog; tap to pick, or "Unlink" to clear. Empty-catalog state
-/// nudges to sync.
-private struct CoursePickerSheet: View {
-    let courses: [CuratedCourse]
-    let current: String?
-    let onPick: (String?) -> Void
-    let onCancel: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if courses.isEmpty {
-                    Section {
-                        Text("No curated courses on this device yet. Open the app online to sync.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Section {
-                        ForEach(courses) { course in
-                            Button {
-                                onPick(course.id)
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(course.name)
-                                            .foregroundStyle(.primary)
-                                        if let firstAlias = course.aliases.first {
-                                            Text(firstAlias)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    if course.id == current {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.tint)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                if current != nil {
-                    Section {
-                        Button(role: .destructive) {
-                            onPick(nil)
-                        } label: {
-                            Label("Unlink (no course)", systemImage: "xmark.circle")
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Set course")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel", action: onCancel)
-                }
-            }
-        }
     }
 }

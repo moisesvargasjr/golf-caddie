@@ -1,10 +1,15 @@
 import SwiftUI
 
+/// Paper-styled bag editor. First-launch flow (when the bag is empty) shows
+/// this with no Cancel button; reached from Settings later with Cancel.
 struct BagSetupView: View {
     @State private var bag: [ClubID]
     @State private var saveError: String?
+    @State private var isEditing = false
     private let onSave: ([ClubID]) -> Void
     private let onCancel: (() -> Void)?
+
+    @Environment(\.palette) private var palette
 
     init(initialBag: [ClubID], onCancel: (() -> Void)? = nil, onSave: @escaping ([ClubID]) -> Void) {
         let seed = initialBag.isEmpty ? ClubConfiguration.recommendedDefault.bag : initialBag
@@ -18,75 +23,205 @@ struct BagSetupView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                if bag.isEmpty {
-                    Text("Tap a club below to add it to your bag.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(bag, id: \.self) { club in
-                        Text(club.longName)
-                    }
-                    .onDelete { indices in bag.remove(atOffsets: indices) }
-                    .onMove { from, to in bag.move(fromOffsets: from, toOffset: to) }
-                }
-            } header: {
-                Text("Your Bag (\(bag.count) of 14)")
-            } footer: {
-                Text("USGA rules allow up to 14 clubs. Drag to reorder; swipe to remove.")
-            }
+        ZStack {
+            PaperBackground()
 
-            if !availableClubs.isEmpty {
-                Section("Add Club") {
-                    ForEach(availableClubs, id: \.self) { club in
-                        let canAdd = bag.count < 14
-                        Button {
-                            guard canAdd else { return }
-                            bag.append(club)
-                        } label: {
-                            HStack {
-                                Text(club.longName)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundStyle(canAdd ? Color.accentColor : Color.secondary)
+            VStack(alignment: .leading, spacing: 0) {
+                navRow
+                    .padding(.horizontal, 24)
+                    .padding(.top, 18)
+
+                masthead
+                    .padding(.horizontal, 24)
+                    .padding(.top, 18)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        section(title: "Your bag (\(bag.count) of 14)") {
+                            currentBagList
+                        }
+
+                        if !availableClubs.isEmpty {
+                            section(title: "Add club") {
+                                addClubList
                             }
                         }
-                        .disabled(!canAdd)
-                    }
-                }
-            }
 
-            if let saveError {
-                Section {
+                        Text("USGA rules allow up to 14 clubs.")
+                            .font(AppFont.micro)
+                            .tracking(0.8)
+                            .foregroundStyle(palette.ink3)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 22)
+                    .padding(.bottom, 40)
+                }
+
+                if let saveError {
                     Text(saveError)
-                        .foregroundStyle(.red)
+                        .font(AppFont.micro)
+                        .tracking(1.2)
+                        .foregroundStyle(palette.red)
+                        .padding(.horizontal, 24)
                 }
+
+                saveButton
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
             }
         }
-        .navigationTitle("My Bag")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-            }
+        .toolbar(.hidden, for: .navigationBar)
+        .themedRoot()
+    }
+
+    // MARK: - Top
+
+    private var navRow: some View {
+        HStack {
             if let onCancel {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel", action: onCancel)
-                }
-            }
-            ToolbarItem(placement: .bottomBar) {
                 Button {
-                    save()
+                    onCancel()
                 } label: {
-                    Text("Save Bag")
-                        .frame(maxWidth: .infinity)
-                        .fontWeight(.semibold)
+                    Text("‹ CANCEL")
+                        .font(AppFont.metadata)
+                        .tracking(1.4)
+                        .foregroundStyle(palette.ink)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(bag.isEmpty)
+            } else {
+                Spacer().frame(width: 1)
+            }
+            Spacer()
+            Button {
+                isEditing.toggle()
+            } label: {
+                Text(isEditing ? "DONE" : "EDIT")
+                    .font(AppFont.metadata)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink)
             }
         }
+    }
+
+    private var masthead: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Stamp(text: "Equipment")
+            ItalicHeadline(
+                lines: ["The", "Bag."],
+                font: AppFont.masthead,
+                color: palette.ink,
+                tracking: -2,
+                lineSpacing: -6
+            )
+            .padding(.top, 10)
+        }
+    }
+
+    private func section<Body: View>(title: String, @ViewBuilder content: () -> Body) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title.uppercased())
+                    .font(AppFont.stamp)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink3)
+                Spacer()
+                Rectangle().fill(palette.rule).frame(height: 1)
+            }
+            content()
+        }
+    }
+
+    private var currentBagList: some View {
+        VStack(spacing: 0) {
+            if bag.isEmpty {
+                Text("Tap a club below to add it.")
+                    .font(AppFont.bodyLarge)
+                    .italic()
+                    .foregroundStyle(palette.ink3)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(Array(bag.enumerated()), id: \.element) { idx, club in
+                    HStack(spacing: 12) {
+                        Text("\(idx + 1)")
+                            .font(.custom(AppFont.monoName, size: 11).weight(.bold))
+                            .foregroundStyle(palette.ink3)
+                            .tabularNumerals()
+                            .frame(width: 28, alignment: .leading)
+                        Text(club.shortName)
+                            .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                            .foregroundStyle(palette.ink2)
+                            .frame(width: 36, alignment: .leading)
+                        Text(club.longName)
+                            .font(AppFont.bodyLarge)
+                            .foregroundStyle(palette.ink)
+                        Spacer()
+                        if isEditing {
+                            Button(role: .destructive) {
+                                bag.removeAll { $0 == club }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(palette.flag)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+                }
+            }
+        }
+    }
+
+    private var addClubList: some View {
+        VStack(spacing: 0) {
+            ForEach(availableClubs, id: \.self) { club in
+                let canAdd = bag.count < 14
+                Button {
+                    guard canAdd else { return }
+                    bag.append(club)
+                } label: {
+                    HStack {
+                        Text(club.shortName)
+                            .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                            .foregroundStyle(palette.ink2)
+                            .frame(width: 36, alignment: .leading)
+                        Text(club.longName)
+                            .font(AppFont.bodyLarge)
+                            .foregroundStyle(palette.ink)
+                        Spacer()
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(canAdd ? palette.flag : palette.ink3)
+                    }
+                    .padding(.vertical, 10)
+                    .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+                }
+                .buttonStyle(.plain)
+                .disabled(!canAdd)
+            }
+        }
+    }
+
+    private var saveButton: some View {
+        Button {
+            save()
+        } label: {
+            HStack(spacing: 6) {
+                Text("Save")
+                    .font(AppFont.cta)
+                    .italic()
+                    .fontWeight(.regular)
+                    .foregroundStyle(palette.paper.opacity(0.85))
+                Text("bag")
+                    .font(AppFont.cta)
+                    .foregroundStyle(palette.paper)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(bag.isEmpty ? palette.ink3 : palette.ink)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .disabled(bag.isEmpty)
     }
 
     private func save() {
@@ -100,13 +235,9 @@ struct BagSetupView: View {
 }
 
 #Preview("Empty") {
-    NavigationStack {
-        BagSetupView(initialBag: []) { _ in }
-    }
+    BagSetupView(initialBag: []) { _ in }
 }
 
 #Preview("Configured") {
-    NavigationStack {
-        BagSetupView(initialBag: ClubConfiguration.recommendedDefault.bag) { _ in }
-    }
+    BagSetupView(initialBag: ClubConfiguration.recommendedDefault.bag) { _ in }
 }

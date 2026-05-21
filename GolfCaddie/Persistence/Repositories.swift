@@ -71,6 +71,16 @@ enum RoundRepository {
             try r.update(db)
         }
     }
+
+    /// Delete a round and its dependent rows (holes → shots/penalties,
+    /// tracePoint). FK constraints in the schema cascade automatically; this
+    /// just removes the round row. Used from the Logbook to discard old or
+    /// junk rounds. No-op if the round is already gone.
+    static func delete(_ round: Round) throws {
+        try Database.shared.write { db in
+            _ = try Round.filter(Column("id") == round.id).deleteAll(db)
+        }
+    }
 }
 
 enum HoleRepository {

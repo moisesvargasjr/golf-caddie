@@ -3,18 +3,17 @@ import SwiftUI
 struct RootView: View {
     @State private var bag: [ClubID] = []
     @State private var hasLoadedConfig = false
-    @State private var showingBagEditor = false
     @State private var location = LocationManager()
     @State private var controller: RoundController?
     @State private var pendingURLs: [URL] = []
     @State private var glassesServer: GlassesServer?
-    @State private var showingGlassesSettings = false
     @AppStorage("glassesServerEnabled") private var glassesEnabled = false
 
     var body: some View {
         NavigationStack {
             content
         }
+        .themedRoot()
         .task {
             location.requestWhenInUse()
             loadConfig()
@@ -53,42 +52,12 @@ struct RootView: View {
                 bag = saved
             }
         } else if let controller {
-            ActiveRoundView(controller: controller, location: location, bag: bag)
-                .toolbar {
-                    if !controller.isActive {
-                        ToolbarItem(placement: .topBarLeading) {
-                            NavigationLink {
-                                RoundListView(bag: bag)
-                            } label: {
-                                Label("Rounds", systemImage: "list.bullet.rectangle")
-                            }
-                        }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Edit Bag") { showingBagEditor = true }
-                        }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                showingGlassesSettings = true
-                            } label: {
-                                Label("Settings", systemImage: "gearshape")
-                            }
-                        }
-                    }
-                }
-                .sheet(isPresented: $showingBagEditor) {
-                    NavigationStack {
-                        BagSetupView(
-                            initialBag: bag,
-                            onCancel: { showingBagEditor = false }
-                        ) { saved in
-                            bag = saved
-                            showingBagEditor = false
-                        }
-                    }
-                }
-                .sheet(isPresented: $showingGlassesSettings) {
-                    GlassesSettingsView(onDone: { showingGlassesSettings = false })
-                }
+            // ActiveRoundView routes its own idle/active state. Idle renders
+            // HomeView (with Logbook + Settings navigation links inside it);
+            // active renders the in-play map. RootView only owns app-level
+            // concerns: location, controller lifecycle, glasses server,
+            // URL scheme.
+            ActiveRoundView(controller: controller, location: location, bag: $bag)
         } else {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

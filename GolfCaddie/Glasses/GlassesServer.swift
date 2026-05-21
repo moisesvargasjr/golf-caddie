@@ -29,6 +29,11 @@ final class GlassesServer {
         self.controller = controller
     }
 
+    /// True when the listener has been started successfully. Used by Home's
+    /// "G2 LINKED" indicator. (We don't track active client connections — this
+    /// only reflects whether the local HTTP endpoint is bound.)
+    var isRunning: Bool { listener != nil }
+
     func start() {
         guard listener == nil else { return }
         let params = NWParameters.tcp

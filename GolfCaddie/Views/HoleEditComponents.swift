@@ -92,50 +92,107 @@ struct AddMissingShotSheet: View {
 
     @State private var club: ClubID?
     @State private var position: Int = 1
+    @Environment(\.palette) private var palette
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Position") {
-                    Stepper(
-                        "Insert as Shot \(position)",
-                        value: $position,
-                        in: 1 ... max(1, currentShotCount + 1)
-                    )
-                    Text(positionHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        ZStack {
+            PaperBackground()
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Button { onCancel() } label: {
+                        Text("‹ CANCEL")
+                            .font(AppFont.metadata)
+                            .tracking(1.4)
+                            .foregroundStyle(palette.ink)
+                    }
+                    Spacer()
+                    Button { onAdd(club, position) } label: {
+                        Text("ADD ›")
+                            .font(AppFont.metadata)
+                            .tracking(1.4)
+                            .foregroundStyle(palette.flag)
+                    }
                 }
-                Section("Club") {
-                    Picker("Club", selection: $club) {
-                        Text("(no club)").tag(ClubID?.none)
-                        ForEach(bag) { c in
-                            Text(c.longName).tag(ClubID?.some(c))
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Stamp(text: "Manual entry")
+                    Text("Add a shot.")
+                        .font(AppFont.sectionTitle)
+                        .foregroundStyle(palette.ink)
+                        .padding(.top, 6)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionHeader("Position")
+                            HStack {
+                                Stepper(value: $position, in: 1 ... max(1, currentShotCount + 1)) {
+                                    Text("Insert as shot \(position)")
+                                        .font(AppFont.bodyLarge)
+                                        .foregroundStyle(palette.ink)
+                                }
+                            }
+                            Text(positionHint)
+                                .font(AppFont.micro)
+                                .tracking(0.8)
+                                .foregroundStyle(palette.ink3)
                         }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionHeader("Club")
+                            Menu {
+                                Button("(no club)", role: .destructive) { club = nil }
+                                ForEach(bag) { c in
+                                    Button(c.longName) { club = c }
+                                }
+                            } label: {
+                                HStack {
+                                    Text(club?.longName ?? "Tap to set club")
+                                        .font(AppFont.bodyLarge)
+                                        .italic(club == nil)
+                                        .foregroundStyle(club == nil ? palette.flag : palette.ink)
+                                    Spacer()
+                                    Text("›")
+                                        .font(AppFont.metadata)
+                                        .foregroundStyle(palette.ink2)
+                                }
+                                .padding(.vertical, 12)
+                                .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Text("Manual shots have no GPS, so distances won't be shown for adjacent shots.")
+                            .font(AppFont.micro)
+                            .tracking(0.8)
+                            .foregroundStyle(palette.ink3)
                     }
-                }
-                Section {
-                    Text("Manual shots have no GPS, so distances won't be shown for adjacent shots.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Add Missing Shot")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add") {
-                        onAdd(club, position)
-                    }
-                    .fontWeight(.bold)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 22)
                 }
             }
         }
+        .presentationBackground(palette.paper)
+        .themedRoot()
         .onAppear {
             position = currentShotCount + 1
+        }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title.uppercased())
+                .font(AppFont.stamp)
+                .tracking(1.4)
+                .foregroundStyle(palette.ink3)
+            Spacer()
+            Rectangle().fill(palette.rule).frame(height: 1)
         }
     }
 
@@ -145,4 +202,9 @@ struct AddMissingShotSheet: View {
         }
         return "Will be appended at the end."
     }
+}
+
+// Local italic-conditional helper.
+private extension Text {
+    func italic(_ on: Bool) -> Text { on ? self.italic() : self }
 }
