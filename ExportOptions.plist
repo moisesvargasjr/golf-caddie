@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Distribution config for `xcodebuild -exportArchive` driven by
+    scripts/release-testflight.sh. Pushes the IPA straight to App Store Connect
+    (destination=upload) using the API key passed via the script's
+    -authentication* flags. method=app-store-connect is the current
+    (Xcode 15+) value; signingStyle=automatic pairs with CODE_SIGN_STYLE
+    in project.yml.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store-connect</string>
+    <key>destination</key>
+    <string>upload</string>
+    <key>teamID</key>
+    <string>XH3PSRWH49</string>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>stripSwiftSymbols</key>
+    <true/>
+</dict>
+</plist>
