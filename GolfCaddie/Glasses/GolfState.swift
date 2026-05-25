@@ -69,6 +69,8 @@ struct HoleDTO: Encodable {
 }
 
 struct LastShotDTO: Encodable {
+    /// Club of the PRIOR shot — the one that traveled `distanceYards`.
+    /// For the first mark on a hole (no prior) this is nil.
     var club: String?
     var distanceYards: Int?
     var sequenceNumber: Int

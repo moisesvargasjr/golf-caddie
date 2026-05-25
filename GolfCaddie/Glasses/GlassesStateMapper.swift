@@ -190,11 +190,16 @@ enum GlassesStateMapper {
         )
     }
 
+    /// Recap of the last swing result. The club is the PRIOR shot's club
+    /// (the one that traveled the distance), NOT the latest mark's club
+    /// (which is the golfer's upcoming selection). This keeps the pairing
+    /// meaningful: "your Driver went 280 yards." The golfer's current
+    /// club selection is already visible via `currentClub`.
     private static func lastShotDTO(from shots: [Shot]) -> LastShotDTO? {
         guard let last = shots.last else { return nil }
         let prior = shots.count >= 2 ? shots[shots.count - 2] : nil
         return LastShotDTO(
-            club: last.club?.shortName,
+            club: prior?.club?.shortName,
             distanceYards: yards(between: prior, and: last),
             sequenceNumber: last.sequenceNumber
         )

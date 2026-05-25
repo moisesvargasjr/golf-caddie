@@ -115,7 +115,9 @@ final class GlassesStateMapperTests: XCTestCase {
             isActive: true, round: round, hole: hole, shots: [s1, s2]
         ))
 
-        XCTAssertEqual(state.lastShot?.club, "7i")
+        // lastShot.club is the PRIOR shot's club (the one that traveled the
+        // distance), not the latest mark's selection. Here Driver drove ~121 yds.
+        XCTAssertEqual(state.lastShot?.club, "Dr")
         XCTAssertEqual(state.lastShot?.sequenceNumber, 2)
         XCTAssertNotNil(state.lastShot?.distanceYards)
         // ~111 m ≈ 121 yards (±2 for haversine).

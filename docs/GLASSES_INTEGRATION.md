@@ -44,7 +44,7 @@ MainActor.
   also ATS-governed, less likely exempt) will not help. The only real options
   if blocked are: the Even App declares an ATS exception, or serve TLS on
   loopback (self-signed). This is the one binary platform unknown.
-- Single low-frequency client: ~1 GET / 2–3 s, occasional POSTs. No auth, no
+- Single low-frequency client: ~1 GET / 1.5 s, occasional POSTs. No auth, no
   rate limiting. `Access-Control-Allow-Origin: *` echoed; `OPTIONS` → 204.
 
 ## Background execution (critical)
@@ -71,7 +71,7 @@ round). Body = `GolfState`:
   "hole":   { "number": 7, "par": 4, "shotCount": 3, "penalties": 0, "score": 3,
               "distanceToGreenYards": 142 },  // OMITTED unless curated course + green anchor + fix
   "currentClub": "7i",                      // short club form, or omitted
-  "lastShot": { "club": "Dr", "distanceYards": 248, "sequenceNumber": 2 },
+  "lastShot": { "club": "Dr", "distanceYards": 248, "sequenceNumber": 2 },  // club = PRIOR shot's club (traveled the distance)
   "scoring": { "totalStrokes": 24, "totalPar": 28, "toPar": -1, "holesCompleted": 6 },
   "gps": { "accuracyMeters": 3.2, "stale": false },   // accuracyMeters OMITTED = no fix
   "battery": 84,                                       // phone battery 0–100
