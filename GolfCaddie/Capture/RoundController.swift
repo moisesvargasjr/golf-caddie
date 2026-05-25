@@ -22,9 +22,24 @@ final class RoundController {
 
     private(set) var state: State = .idle
     private(set) var currentHoleShots: [Shot] = []
+    /// Penalty rows on the active hole — observable so the lie counter and
+    /// Undo button re-render when one is added/removed. Reset to [] on hole
+    /// boundaries (start / advance / end), refreshed from the DB on restore /
+    /// resume. Mutations on this property must go through
+    /// `addPenaltyToCurrentHole` / `undoLastAction` so other UI stays in sync.
+    private(set) var currentHolePenalties: [Penalty] = []
     private(set) var currentClub: ClubID?
     private(set) var lastMarkResult: ShotMarkResult?
     private(set) var mostRecentlyEndedRound: Round?
+
+    /// The just-confirmed hole when an advance came in via the glasses
+    /// (`advanceHoleFromGlasses`), so the phone can pop up a retro hole-
+    /// summary `HoleReviewSheet` — restoring the per-hole summary the
+    /// player got via the phone Next button (field-test 2026-05-22). The
+    /// phone-confirm path does NOT set this (the player already saw the
+    /// pre-confirm sheet). Cleared via
+    /// `clearMostRecentlyConfirmedHoleFromGlasses` after dismiss / save.
+    private(set) var mostRecentlyConfirmedHoleFromGlasses: Hole?
 
     /// Curated course resolved for the active round (proximity, name as
     /// tiebreak), or nil when no cached course matches. In-memory only for
@@ -34,6 +49,13 @@ final class RoundController {
 
     var shotsInCurrentHole: Int { currentHoleShots.count }
 
+    /// Penalty STROKE count on the active hole (sum of per-row strokeCount,
+    /// not row count) — what golf rules call strokes from penalties. Read by
+    /// the active-round lie stamp: `LYING = shots + penaltyStrokes + 1`.
+    var currentHolePenaltyStrokes: Int {
+        currentHolePenalties.reduce(0) { $0 + $1.strokeCount }
+    }
+
     @ObservationIgnored
     private let location: LocationManager
 
@@ -42,6 +64,19 @@ final class RoundController {
 
     @ObservationIgnored
     private let doubleTapThreshold: TimeInterval = 2.0
+
+    /// Timestamp of the most recent glasses-originated action (logged shot
+    /// OR undo). Read by `undoLastActionFromGlasses` to enforce a cooldown
+    /// — field-test 2026-05-22 found the glasses undo gesture too sensitive
+    /// to fire deliberately; consecutive undos within 3s were silently
+    /// erasing legit shots. Phone actions are intentionally NOT tracked
+    /// here: a phone-log followed by a deliberate glasses-undo is a
+    /// legitimate cross-surface sequence.
+    @ObservationIgnored
+    private var lastGlassesActionAt: Date?
+
+    @ObservationIgnored
+    private let glassesUndoCooldown: TimeInterval = 3.0
 
     init(location: LocationManager) {
         self.location = location
@@ -75,6 +110,7 @@ final class RoundController {
         }
         state = .active(round: round, hole: hole)
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        currentHolePenalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
         // Hydrate the curated link from the persisted round (no re-match)
         // and fill par if the restored hole still has none.
         curatedCourseId = round.curatedCourseId
@@ -102,6 +138,7 @@ final class RoundController {
         try HoleRepository.insert(hole)
         state = .active(round: round, hole: hole)
         currentHoleShots = []
+        currentHolePenalties = []
         currentClub = nil
         lastMarkResult = nil
         curatedCourseId = nil
@@ -123,6 +160,7 @@ final class RoundController {
         mostRecentlyEndedRound = ended
         state = .idle
         currentHoleShots = []
+        currentHolePenalties = []
         currentClub = nil
         lastMarkAt = nil
         curatedCourseId = nil
@@ -130,6 +168,10 @@ final class RoundController {
 
     func clearMostRecentlyEndedRound() {
         mostRecentlyEndedRound = nil
+    }
+
+    func clearMostRecentlyConfirmedHoleFromGlasses() {
+        mostRecentlyConfirmedHoleFromGlasses = nil
     }
 
     /// Single apply path for a course-name change, shared by auto-detection
@@ -207,6 +249,20 @@ final class RoundController {
         autoFillParIfAvailable()
     }
 
+    /// Manually link (or unlink) a curated course on the active round from
+    /// the in-round UI — the recovery path for "auto-detect missed at start"
+    /// or "auto-detect picked the wrong course." Mirrors the post-round
+    /// retro-link on `RoundReviewView`, but routes through
+    /// `applyCuratedCourseId` so the in-memory `curatedCourseId` and `state`
+    /// refresh too — without that, @Observable consumers (distance-to-green,
+    /// anchor-capture gating, curated par auto-fill, `holeBearing`) wouldn't
+    /// pick up the change until the round was reloaded. Pass nil to unlink.
+    /// No-op outside an active round (the picker isn't reachable there).
+    func setCuratedCourseId(_ id: String?) {
+        guard case .active = state else { return }
+        applyCuratedCourseId(id)
+    }
+
     /// If a curated course is resolved, pre-fill par for the ACTIVE hole when
     /// it has none yet. Manual par always wins (only nil → filled), so this
     /// is a creation-time default, not an override. Idempotent; routed
@@ -221,10 +277,93 @@ final class RoundController {
         try? setPar(curated.par, forHole: hole.id)
     }
 
-    func removeLastShot() throws {
-        guard case .active = state, let last = currentHoleShots.last else { return }
-        try ShotRepository.deleteAndRenumber(last)
-        currentHoleShots.removeLast()
+    /// Append a "missed" shot to the active hole — for the case where the
+    /// player realized after-the-fact (or after multiple shots) that they
+    /// forgot to tap Log Shot. Routes through the controller (not
+    /// `ShotRepository.insertShot` directly) so the in-memory
+    /// `currentHoleShots` refreshes and the lie counter, scorecard, and
+    /// glasses HUD all see the shot immediately.
+    ///
+    /// The coordinate comes from the phone UI's pin-drop, NOT live GPS — we
+    /// can't reconstruct where the player was at the missed-shot moment.
+    /// `hadGPS = true` because we DO have a coordinate (just not a live
+    /// fix); accuracy is left nil to distinguish from real fixes. The shot
+    /// is appended at the END of the hole (sequenceNumber = count + 1);
+    /// inserting at an arbitrary position is the post-round
+    /// `HoleDetailView` flow (the in-round common case is "I missed the
+    /// last shot," so end-insert covers it).
+    func insertMissingShot(at coord: CLLocationCoordinate2D, club: ClubID?) throws {
+        guard case let .active(_, hole) = state else {
+            throw GlassesError.noActiveHole
+        }
+        let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
+        let shot = Shot(
+            id: UUID(),
+            holeID: hole.id,
+            sequenceNumber: nextSeq,
+            timestamp: Date(),
+            latitude: coord.latitude,
+            longitude: coord.longitude,
+            gpsAccuracy: nil,
+            hadGPS: true,
+            club: club,
+            source: .manual,
+            notes: nil
+        )
+        try ShotRepository.insertShot(shot, at: nextSeq)
+        currentHoleShots.append(shot)
+    }
+
+    /// Add a 1-stroke penalty to the active hole from the phone Penalty
+    /// sheet. Routes the insert through the controller so the in-memory
+    /// `currentHolePenalties` refreshes — without that, the @Observable
+    /// consumers (the lie stamp, the Undo button enable state) wouldn't see
+    /// the new penalty until something else rebuilt them. Multi-stroke
+    /// penalties aren't exposed in the UI yet (1 covers OB / lateral / water
+    /// / unplayable — the only options in `PenaltySheet`).
+    func addPenaltyToCurrentHole(type: PenaltyType) throws {
+        guard case let .active(_, hole) = state else {
+            throw GlassesError.noActiveHole
+        }
+        let penalty = Penalty(
+            id: UUID(),
+            holeID: hole.id,
+            type: type,
+            strokeCount: 1,
+            timestamp: Date(),
+            notes: nil
+        )
+        try PenaltyRepository.insert(penalty)
+        currentHolePenalties.append(penalty)
+    }
+
+    /// Undo the most recent action on the active hole — whichever of {newest
+    /// shot, newest penalty} has the later timestamp. No-op when both are
+    /// empty. Shared by the phone Undo button (this method directly) and the
+    /// glasses POST /api/undo path (via `undoLastActionFromGlasses`, which
+    /// adds the no-active-hole error semantic the glasses contract expects).
+    func undoLastAction() throws {
+        guard case let .active(_, hole) = state else { return }
+        let lastPenalty = currentHolePenalties.last
+        let lastShot = currentHoleShots.last
+        switch (lastShot, lastPenalty) {
+        case (nil, nil):
+            return
+        case let (shot?, nil):
+            try ShotRepository.deleteAndRenumber(shot)
+            currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        case let (nil, penalty?):
+            try PenaltyRepository.delete(penalty)
+            currentHolePenalties.removeLast()
+        case let (shot?, penalty?):
+            if penalty.timestamp >= shot.timestamp {
+                try PenaltyRepository.delete(penalty)
+                currentHolePenalties.removeLast()
+            } else {
+                try ShotRepository.deleteAndRenumber(shot)
+                currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+            }
+        }
     }
 
     func deleteShot(_ shot: Shot) throws {
@@ -250,6 +389,7 @@ final class RoundController {
         }
         state = .active(round: resumed, hole: hole)
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        currentHolePenalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
         mostRecentlyEndedRound = nil
         location.startTracking()
     }
@@ -287,17 +427,30 @@ final class RoundController {
     /// and the eagerly-created next hole behave EXACTLY as a phone-confirmed
     /// hole — the newly-`confirmedAt` hole appearing in `holes[]` is what
     /// drives the glasses auto hole-summary, no special-casing. The glasses
-    /// send an empty body and have no par input, so par is nil — identical to
-    /// a phone confirm where the golfer did not enter a par (scoring already
-    /// aggregates only confirmed holes that have a par). NOT idempotent: one
-    /// call advances exactly one hole (the glasses gate this behind a 2-step
-    /// arm+confirm and never auto-retry it). Requires an active hole (parity
-    /// with shot/undo/club); synchronous, no GPS, so W1 is unaffected.
+    /// send an empty body and have no par input, so we pass the hole's
+    /// EXISTING par through — preserving the curated auto-fill (and any phone
+    /// override of it). Passing nil here would clobber the auto-filled par to
+    /// nil, dropping the closing hole out of scoring's par-aware aggregate.
+    /// When no par was ever set (no curated match + no phone entry) `.par`
+    /// is already nil and the behavior is identical to "phone confirm with no
+    /// par entered." NOT idempotent: one call advances exactly one hole (the
+    /// glasses gate this behind a 2-step arm+confirm and never auto-retry it).
+    /// Requires an active hole (parity with shot/undo/club); synchronous, no
+    /// GPS, so W1 is unaffected.
     func advanceHoleFromGlasses() throws {
-        guard case .active = state else {
+        guard case let .active(_, currentHole) = state else {
             throw GlassesError.noActiveHole
         }
-        try confirmHoleAndAdvance(par: nil)
+        try confirmHoleAndAdvance(par: currentHole.par)
+        // Capture the just-confirmed hole's identity for the phone to pop
+        // up a retro summary sheet (field-test 2026-05-22). Synthesize the
+        // confirmed state — the sheet loads shots / penalties from the DB
+        // by holeID, so we only need the ID + holeNumber + par for the
+        // masthead and par stepper.
+        var justConfirmed = currentHole
+        justConfirmed.par = currentHole.par
+        justConfirmed.confirmedAt = Date()
+        mostRecentlyConfirmedHoleFromGlasses = justConfirmed
     }
 
     func confirmHoleAndAdvance(par: Int?) throws {
@@ -317,6 +470,7 @@ final class RoundController {
         try HoleRepository.insert(newHole)
         state = .active(round: round, hole: newHole)
         currentHoleShots = []
+        currentHolePenalties = []
         currentClub = nil
         lastMarkResult = nil
         // Pre-fill the new hole's par from curated data (creation-time
@@ -378,35 +532,29 @@ final class RoundController {
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
         lastMarkResult = .success(shotID: shot.id, accuracy: hasFix ? loc?.horizontalAccuracy : nil)
+        lastGlassesActionAt = Date()
         if hasFix { Haptics.success() } else { Haptics.warning() }
     }
 
-    /// Undo for the glasses Actions screen: remove whichever of {newest shot,
-    /// newest penalty} on the active hole has the later timestamp. No-op (not
-    /// an error) when there is nothing to undo.
+    /// Undo for the glasses Actions screen. Thin wrapper around
+    /// `undoLastAction` that adds the no-active-hole error the glasses
+    /// contract expects (the phone path returns silently instead — the Undo
+    /// button is only shown during an active round). No-op (not an error)
+    /// when there is nothing to undo OR when fired within `glassesUndoCooldown`
+    /// of the previous glasses action (shot or undo) — see
+    /// `lastGlassesActionAt` for rationale. Silent return matches the
+    /// existing `markShotInternal` double-tap guard: the glasses contract
+    /// still returns 200 OK, no special-casing needed at the firmware end.
     func undoLastActionFromGlasses() throws {
-        guard case let .active(_, hole) = state else {
+        guard case .active = state else {
             throw GlassesError.noActiveHole
         }
-        let lastPenalty = try PenaltyRepository.penaltiesForHole(hole.id).last
-        let lastShot = currentHoleShots.last
-
-        switch (lastShot, lastPenalty) {
-        case (nil, nil):
+        if let last = lastGlassesActionAt,
+           Date().timeIntervalSince(last) < glassesUndoCooldown {
             return
-        case let (shot?, nil):
-            try ShotRepository.deleteAndRenumber(shot)
-            currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
-        case let (nil, penalty?):
-            try PenaltyRepository.delete(penalty)
-        case let (shot?, penalty?):
-            if penalty.timestamp >= shot.timestamp {
-                try PenaltyRepository.delete(penalty)
-            } else {
-                try ShotRepository.deleteAndRenumber(shot)
-                currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
-            }
         }
+        try undoLastAction()
+        lastGlassesActionAt = Date()
     }
 
     func markShot() async throws {

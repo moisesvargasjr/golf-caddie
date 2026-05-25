@@ -1,6 +1,25 @@
 import CoreLocation
 import Foundation
 
+/// Pure-value inputs to `GlassesStateMapper.snapshot`. Extracted so tests can
+/// exercise the mapping without instantiating `RoundController` /
+/// `LocationManager` (both `@Observable @MainActor` with `private(set)`
+/// properties that `@testable` does not relax). Production code keeps using
+/// the `snapshot(controller:location:batteryPercent:)` convenience, which
+/// builds an inputs struct and delegates.
+struct GlassesStateInputs {
+    var isActive: Bool
+    var currentRound: Round?
+    var currentHole: Hole?
+    var currentHoleShots: [Shot]
+    var currentClub: ClubID?
+    var curatedCourseId: String?
+    var latestLocation: CLLocation?
+    var lastLocationReceivedAt: Date?
+    var locationUnavailable: Bool
+    var batteryPercent: Int?
+}
+
 // Pure read model: live RoundController + repositories → GolfState.
 // @MainActor because it reads RoundController/LocationManager state and does
 // synchronous GRDB reads (same pattern the app already uses in RoundReviewView).
@@ -12,20 +31,41 @@ enum GlassesStateMapper {
         return f
     }()
 
+    /// Production entry point. Thin wrapper over `snapshot(inputs:)` — exists
+    /// so callers don't need to know about `GlassesStateInputs`.
     @MainActor
     static func snapshot(
         controller: RoundController,
         location: LocationManager,
         batteryPercent: Int?
     ) -> GolfState {
-        guard controller.isActive,
-              let round = controller.currentRound,
-              let hole = controller.currentHole
+        snapshot(inputs: GlassesStateInputs(
+            isActive: controller.isActive,
+            currentRound: controller.currentRound,
+            currentHole: controller.currentHole,
+            currentHoleShots: controller.currentHoleShots,
+            currentClub: controller.currentClub,
+            curatedCourseId: controller.curatedCourseId,
+            latestLocation: location.latestLocation,
+            lastLocationReceivedAt: location.lastLocationReceivedAt,
+            locationUnavailable: location.locationUnavailable,
+            batteryPercent: batteryPercent
+        ))
+    }
+
+    /// Pure-mapping entry point — what the tests pin against. Still touches
+    /// the database (penalties, all-holes, club bag, anchors, curated course)
+    /// because those *are* part of the mapper's real contract.
+    @MainActor
+    static func snapshot(inputs: GlassesStateInputs) -> GolfState {
+        guard inputs.isActive,
+              let round = inputs.currentRound,
+              let hole = inputs.currentHole
         else {
             return .idle
         }
 
-        let liveShots = controller.currentHoleShots
+        let liveShots = inputs.currentHoleShots
         let holePenaltyStrokes = penaltyStrokes(forHole: hole.id)
         let holeShotCount = liveShots.count
         let holeScore = holeShotCount + holePenaltyStrokes
@@ -47,17 +87,21 @@ enum GlassesStateMapper {
                 penalties: holePenaltyStrokes,
                 score: holeScore,
                 distanceToGreenYards: distanceToGreen(
-                    courseId: controller.curatedCourseId,
+                    courseId: inputs.curatedCourseId,
                     holeNumber: hole.holeNumber,
-                    location: location
+                    latestLocation: inputs.latestLocation
                 )
             ),
-            currentClub: controller.currentClub?.shortName,
+            currentClub: inputs.currentClub?.shortName,
             clubs: selectableClubShortNames(),
             lastShot: lastShotDTO(from: liveShots),
             scoring: scoringDTO(confirmedFrom: allHoles),
-            gps: gpsDTO(location: location),
-            battery: batteryPercent,
+            gps: gpsDTO(
+                latestLocation: inputs.latestLocation,
+                lastLocationReceivedAt: inputs.lastLocationReceivedAt,
+                locationUnavailable: inputs.locationUnavailable
+            ),
+            battery: inputs.batteryPercent,
             holes: allHoles.map { holeSummary($0) }
         )
     }
@@ -156,10 +200,12 @@ enum GlassesStateMapper {
         )
     }
 
-    @MainActor
-    private static func gpsDTO(location: LocationManager) -> GPSDTO {
-        let loc = location.latestLocation
-        let acc = loc?.horizontalAccuracy ?? -1
+    private static func gpsDTO(
+        latestLocation: CLLocation?,
+        lastLocationReceivedAt: Date?,
+        locationUnavailable: Bool
+    ) -> GPSDTO {
+        let acc = latestLocation?.horizontalAccuracy ?? -1
         // Revised gps.stale semantics (contract): a golfer stands still
         // constantly, so an age-only window flagged STALE even with a
         // perfectly valid recent fix. stale is true ONLY when:
@@ -173,9 +219,9 @@ enum GlassesStateMapper {
         // a valid recent fix is never flagged stale (distanceFilter is now
         // kCLDistanceFilterNone so fixes keep arriving while stationary).
         let stale: Bool
-        if location.locationUnavailable {
+        if locationUnavailable {
             stale = true
-        } else if let received = location.lastLocationReceivedAt {
+        } else if let received = lastLocationReceivedAt {
             stale = Date().timeIntervalSince(received) > 30
         } else {
             stale = true
@@ -190,14 +236,13 @@ enum GlassesStateMapper {
     /// capture wins over curated). nil — and thus omitted — when the round
     /// didn't match a curated course, no green anchor exists yet, or there's
     /// no fix. Same yardage primitive as everywhere else.
-    @MainActor
     private static func distanceToGreen(
         courseId: String?,
         holeNumber: Int,
-        location: LocationManager
+        latestLocation: CLLocation?
     ) -> Int? {
         guard let courseId,
-              let loc = location.latestLocation, loc.horizontalAccuracy > 0
+              let loc = latestLocation, loc.horizontalAccuracy > 0
         else { return nil }
         let local = try? LocalAnchorRepository.anchor(
             courseId: courseId, holeNumber: holeNumber

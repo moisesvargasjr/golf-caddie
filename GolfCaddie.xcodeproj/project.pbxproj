@@ -16,6 +16,7 @@
 		0FB77782B842E8B14A88BD67 /* Club.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1215933A096A3A8231AEBEF /* Club.swift */; };
 		17FD1DC52AF364EF563E4C0B /* HoleReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACE405237B270A6D4E74FBA /* HoleReviewSheet.swift */; };
 		1AD407BC366D6F459F023BC9 /* GolfState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDB736FA47E930506C4C4B9 /* GolfState.swift */; };
+		1DC14E4784DFB57E6E4177EE /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */; };
 		22575FE1672CB6B5648DFA9F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E397CFAB209E4AB0BA05F9E /* RootView.swift */; };
 		2AA5DAD501CD5B87340FE276 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 59E6B95800688673A241E16D /* GRDB */; };
 		2D8E52EEADAC9497FCECD6A9 /* GolfCaddieApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F9D1D1F38C2FB8EA42882E /* GolfCaddieApp.swift */; };
@@ -26,6 +27,7 @@
 		408A9E803461EA57CEDD2A13 /* CoursePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5284AA954CF7D6A22EDBF0DA /* CoursePickerSheet.swift */; };
 		40C1D692B140407E028E5C1D /* PenaltySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1264865EE57007A986603213 /* PenaltySheet.swift */; };
 		416805C2E1F5D4342873E424 /* Repositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CEE490EE5025D93E41E72F2 /* Repositories.swift */; };
+		42BCC6C41C9D7A6F5B596A0C /* DatabaseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435A866F4F4085EB7AAE374C /* DatabaseExport.swift */; };
 		44EBA2F49E8D0BC42F3D1F21 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B123209BD00D13CDF3193DD /* Haptics.swift */; };
 		4562B70E81824125A7D522FD /* DoubleRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD0F2CBF0FA371E6D67C122 /* DoubleRule.swift */; };
 		53D6829720D4A507EB1F1933 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6647B81638FF6AD842CEF465 /* Database.swift */; };
@@ -36,12 +38,15 @@
 		68703A24569E6BC394409AD6 /* URLSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */; };
 		68BB65559653CCF8BC837595 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A27A1DEDB2B555E7F5ECCA4 /* Theme.swift */; };
 		69DA1257B5848204D10965EF /* PaperBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB91FA759EC17490CD9892B /* PaperBackground.swift */; };
+		7C7DDE425EE1511B86C06237 /* TestDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C4C8B7425BAF1C70663535C /* TestDatabase.swift */; };
 		7DA91DFBFD17CA0C079142E3 /* Stamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34060B43428C97611E8532F4 /* Stamp.swift */; };
 		87DB96901A57C4300CA25B7C /* Distance.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5603EA63F132D1CF2E0BBA /* Distance.swift */; };
+		95AD9FF04B01CA91C846B5FD /* DistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50E81AFF23C93859674DBC3 /* DistanceTests.swift */; };
 		9726158DC21C77DBB75448BD /* HoleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C87D45D677F510D8534863B6 /* HoleDetailView.swift */; };
 		9CE74575B01074FDFC500E06 /* PaperCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58DC006704EB3894FA98CDC /* PaperCard.swift */; };
 		AD67093420786372B137F195 /* ClubAverages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F0AEAEB00F6F5EEF0CE661 /* ClubAverages.swift */; };
 		AED513456978BBBE0CF387BD /* GlassesStateMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E051EE56A58BB2C7F9009E15 /* GlassesStateMapper.swift */; };
+		B3BFD56BF49966147EE43E8C /* ClubAveragesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834A29B7FA85FCD58F7784FA /* ClubAveragesTests.swift */; };
 		B49B8267DE6AAD4FD181D2FD /* BatteryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35A3CB04BABA68C70A9DB968 /* BatteryMonitor.swift */; };
 		B6127BDB7C32100F76A455AA /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224DF50D0D03AB8F95BFA8A0 /* Round.swift */; };
 		B6F539EDFA096CDA5BB240C5 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE927BEC688564893260BEE1 /* Typography.swift */; };
@@ -49,18 +54,32 @@
 		C1082490B3E9BDBEC743C2FF /* GlassesServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A297529DB11A446C33D0138 /* GlassesServer.swift */; };
 		C233D47E9D7FA04782F24312 /* ActiveRoundMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1EEDC778425328B2C85D2B /* ActiveRoundMap.swift */; };
 		C2AA9321C5057098D782210F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3C1416B01A8D351562763700 /* Assets.xcassets */; };
+		C484E3007DAC72948353A765 /* GlassesStateMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */; };
 		C6522FA199AE44507D38DADD /* BagSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2B5E6DEB2E65AB3E9B4FF6 /* BagSetupView.swift */; };
 		C942995D31409E104529FD6A /* InRoundScorecardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842BC140AF421DC76E8BD211 /* InRoundScorecardSheet.swift */; };
 		CB5A9A9C16C208A86FEB4EE3 /* ScoreBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD3C05D57722A9BAB47D008 /* ScoreBadge.swift */; };
 		E2DD95E6606B16CA5F9708BC /* Shot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA158C6DE12A37EE04DDB8A /* Shot.swift */; };
 		E92720B1E160C818CD26CE54 /* RoundReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B17A3F3D410A32FD5F0025 /* RoundReviewView.swift */; };
+		FD6ADFAA4F78E1C44D942621 /* MissingShotPinSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E81FAE555CB03AF3150640 /* MissingShotPinSheet.swift */; };
 		FE00F9007082FC6220E47E2F /* CourseSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F2EB7B56EA81319C703297 /* CourseSyncClient.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		00831FBDA0BD5EF3C12CFEBA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 70437B6232E2297C6F46733D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FF93AC7EA9842DB04CE731FB;
+			remoteInfo = GolfCaddie;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		04E81FAE555CB03AF3150640 /* MissingShotPinSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingShotPinSheet.swift; sourceTree = "<group>"; };
 		0B123209BD00D13CDF3193DD /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		0BB91FA759EC17490CD9892B /* PaperBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperBackground.swift; sourceTree = "<group>"; };
 		1264865EE57007A986603213 /* PenaltySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenaltySheet.swift; sourceTree = "<group>"; };
+		14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStateMapperTests.swift; sourceTree = "<group>"; };
 		2051A514844C59772CDC6D6A /* HoleEditComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleEditComponents.swift; sourceTree = "<group>"; };
 		224DF50D0D03AB8F95BFA8A0 /* Round.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Round.swift; sourceTree = "<group>"; };
 		2BDB736FA47E930506C4C4B9 /* GolfState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfState.swift; sourceTree = "<group>"; };
@@ -71,6 +90,7 @@
 		3B6C5585634E087EC01A5E2B /* CourseDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDetector.swift; sourceTree = "<group>"; };
 		3C1416B01A8D351562763700 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3CEE490EE5025D93E41E72F2 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
+		435A866F4F4085EB7AAE374C /* DatabaseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExport.swift; sourceTree = "<group>"; };
 		4869F686A79319D1C3C34BD3 /* Penalty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Penalty.swift; sourceTree = "<group>"; };
 		4EEE08CB9110FAA5A5C67753 /* RoundController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundController.swift; sourceTree = "<group>"; };
 		4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSchemeHandler.swift; sourceTree = "<group>"; };
@@ -91,22 +111,27 @@
 		77D022ED10FCFF616D8B4F7B /* ClubConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubConfiguration.swift; sourceTree = "<group>"; };
 		7A27A1DEDB2B555E7F5ECCA4 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		7B2DC3DBCF0CEB37E7747278 /* TracePoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracePoint.swift; sourceTree = "<group>"; };
+		834A29B7FA85FCD58F7784FA /* ClubAveragesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubAveragesTests.swift; sourceTree = "<group>"; };
 		842BC140AF421DC76E8BD211 /* InRoundScorecardSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InRoundScorecardSheet.swift; sourceTree = "<group>"; };
+		8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
 		93B17A3F3D410A32FD5F0025 /* RoundReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundReviewView.swift; sourceTree = "<group>"; };
 		96B2CACE2697359A5D2E4BD4 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		9BA158C6DE12A37EE04DDB8A /* Shot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shot.swift; sourceTree = "<group>"; };
+		9C4C8B7425BAF1C70663535C /* TestDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabase.swift; sourceTree = "<group>"; };
 		A5F9D1D1F38C2FB8EA42882E /* GolfCaddieApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfCaddieApp.swift; sourceTree = "<group>"; };
 		AACE405237B270A6D4E74FBA /* HoleReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleReviewSheet.swift; sourceTree = "<group>"; };
 		AE927BEC688564893260BEE1 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		BC765D7FB5E6B8C9B0976AF0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BF5603EA63F132D1CF2E0BBA /* Distance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Distance.swift; sourceTree = "<group>"; };
 		C4E1A5239F7D8B0933F8ADF8 /* GolfCaddie.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GolfCaddie.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C50E81AFF23C93859674DBC3 /* DistanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceTests.swift; sourceTree = "<group>"; };
 		C58DC006704EB3894FA98CDC /* PaperCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperCard.swift; sourceTree = "<group>"; };
 		C87D45D677F510D8534863B6 /* HoleDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleDetailView.swift; sourceTree = "<group>"; };
 		D098D5E6FE4AFAD850ABD80F /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
 		D1215933A096A3A8231AEBEF /* Club.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Club.swift; sourceTree = "<group>"; };
 		D378A1B035D31197677B6907 /* ActiveRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRoundView.swift; sourceTree = "<group>"; };
 		E051EE56A58BB2C7F9009E15 /* GlassesStateMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStateMapper.swift; sourceTree = "<group>"; };
+		ED5D9E12804AF65F38F63102 /* GolfCaddieTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GolfCaddieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +146,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		02E53B39204FC70DA1017B0B /* GolfCaddieTests */ = {
+			isa = PBXGroup;
+			children = (
+				834A29B7FA85FCD58F7784FA /* ClubAveragesTests.swift */,
+				C50E81AFF23C93859674DBC3 /* DistanceTests.swift */,
+				14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */,
+				8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */,
+				20818151AD767AF86991A8E9 /* TestSupport */,
+			);
+			path = GolfCaddieTests;
+			sourceTree = "<group>";
+		};
+		20818151AD767AF86991A8E9 /* TestSupport */ = {
+			isa = PBXGroup;
+			children = (
+				9C4C8B7425BAF1C70663535C /* TestDatabase.swift */,
+			);
+			path = TestSupport;
+			sourceTree = "<group>";
+		};
 		4A8A58ED7DEB5873593ED1B3 /* Capture */ = {
 			isa = PBXGroup;
 			children = (
@@ -163,6 +208,7 @@
 				AACE405237B270A6D4E74FBA /* HoleReviewSheet.swift */,
 				3060BD727058056FCC94E4B4 /* HomeView.swift */,
 				842BC140AF421DC76E8BD211 /* InRoundScorecardSheet.swift */,
+				04E81FAE555CB03AF3150640 /* MissingShotPinSheet.swift */,
 				1264865EE57007A986603213 /* PenaltySheet.swift */,
 				5E397CFAB209E4AB0BA05F9E /* RootView.swift */,
 				D098D5E6FE4AFAD850ABD80F /* RoundListView.swift */,
@@ -176,6 +222,7 @@
 			isa = PBXGroup;
 			children = (
 				60CA06BAAF723DA6B32CADCE /* GolfCaddie */,
+				02E53B39204FC70DA1017B0B /* GolfCaddieTests */,
 				DDA3D7832E5E1661F9EAEC57 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -251,6 +298,7 @@
 			isa = PBXGroup;
 			children = (
 				C4E1A5239F7D8B0933F8ADF8 /* GolfCaddie.app */,
+				ED5D9E12804AF65F38F63102 /* GolfCaddieTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -259,6 +307,7 @@
 			isa = PBXGroup;
 			children = (
 				6647B81638FF6AD842CEF465 /* Database.swift */,
+				435A866F4F4085EB7AAE374C /* DatabaseExport.swift */,
 				3CEE490EE5025D93E41E72F2 /* Repositories.swift */,
 			);
 			path = Persistence;
@@ -267,6 +316,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0F58EFCCAB8DE021A09D8C66 /* GolfCaddieTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 86EA1B7AB0F89FF4C3164017 /* Build configuration list for PBXNativeTarget "GolfCaddieTests" */;
+			buildPhases = (
+				BA7BD277C40A9144942DB461 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				17FE26378DF78A93DA9AEDDE /* PBXTargetDependency */,
+			);
+			name = GolfCaddieTests;
+			packageProductDependencies = (
+			);
+			productName = GolfCaddieTests;
+			productReference = ED5D9E12804AF65F38F63102 /* GolfCaddieTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		FF93AC7EA9842DB04CE731FB /* GolfCaddie */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 68A1B87BCC51DCB2505A489E /* Build configuration list for PBXNativeTarget "GolfCaddie" */;
@@ -320,6 +387,7 @@
 			projectRoot = "";
 			targets = (
 				FF93AC7EA9842DB04CE731FB /* GolfCaddie */,
+				0F58EFCCAB8DE021A09D8C66 /* GolfCaddieTests */,
 			);
 		};
 /* End PBXProject section */
@@ -336,6 +404,18 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		BA7BD277C40A9144942DB461 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3BFD56BF49966147EE43E8C /* ClubAveragesTests.swift in Sources */,
+				95AD9FF04B01CA91C846B5FD /* DistanceTests.swift in Sources */,
+				C484E3007DAC72948353A765 /* GlassesStateMapperTests.swift in Sources */,
+				1DC14E4784DFB57E6E4177EE /* MigrationTests.swift in Sources */,
+				7C7DDE425EE1511B86C06237 /* TestDatabase.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F688B403172474472B63C334 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -352,6 +432,7 @@
 				FE00F9007082FC6220E47E2F /* CourseSyncClient.swift in Sources */,
 				039CA4A9AF343A2391067F34 /* CuratedCourse.swift in Sources */,
 				53D6829720D4A507EB1F1933 /* Database.swift in Sources */,
+				42BCC6C41C9D7A6F5B596A0C /* DatabaseExport.swift in Sources */,
 				87DB96901A57C4300CA25B7C /* Distance.swift in Sources */,
 				4562B70E81824125A7D522FD /* DoubleRule.swift in Sources */,
 				30A3DBD56C27A98821C9CBC8 /* EditableHoleMap.swift in Sources */,
@@ -367,6 +448,7 @@
 				3BEEE61E9A58354C243493D9 /* HomeView.swift in Sources */,
 				C942995D31409E104529FD6A /* InRoundScorecardSheet.swift in Sources */,
 				0B2C28A7130D25EC20912668 /* LocationManager.swift in Sources */,
+				FD6ADFAA4F78E1C44D942621 /* MissingShotPinSheet.swift in Sources */,
 				3DDA440A6367402D60919ACF /* Palette.swift in Sources */,
 				69DA1257B5848204D10965EF /* PaperBackground.swift in Sources */,
 				9CE74575B01074FDFC500E06 /* PaperCard.swift in Sources */,
@@ -390,6 +472,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		17FE26378DF78A93DA9AEDDE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FF93AC7EA9842DB04CE731FB /* GolfCaddie */;
+			targetProxy = 00831FBDA0BD5EF3C12CFEBA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		25F779538588C4C383B1EF1A /* Release */ = {
@@ -447,6 +537,25 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
+		};
+		560D68982C11E1BB0E6185AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.moisesvargasjr.golfcaddie.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GolfCaddie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GolfCaddie";
+			};
+			name = Debug;
 		};
 		7A3B39A4114F4487B88411A8 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -553,6 +662,25 @@
 			};
 			name = Release;
 		};
+		D045110C2DFFD509EF3A9A7D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.moisesvargasjr.golfcaddie.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GolfCaddie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GolfCaddie";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -561,6 +689,15 @@
 			buildConfigurations = (
 				7A3B39A4114F4487B88411A8 /* Debug */,
 				97386BA44A21F4227B643465 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		86EA1B7AB0F89FF4C3164017 /* Build configuration list for PBXNativeTarget "GolfCaddieTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				560D68982C11E1BB0E6185AF /* Debug */,
+				D045110C2DFFD509EF3A9A7D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

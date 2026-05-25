@@ -7,6 +7,10 @@ import SwiftUI
 struct InRoundScorecardSheet: View {
     let round: Round
     let currentHoleNumber: Int
+    let bag: [ClubID]
+    /// Curated course this round matched (nil ⇒ HoleDetailView hides anchor /
+    /// yardage UI — graceful degradation, same as post-round).
+    let curatedCourseId: String?
     let onDismiss: () -> Void
 
     @Environment(\.palette) private var palette
@@ -16,51 +20,67 @@ struct InRoundScorecardSheet: View {
     @State private var penaltiesByHole: [UUID: Int] = [:]
     @State private var loadError: String?
 
+    /// Confirmed holes only — the editable set. The live current hole is
+    /// deliberately excluded: HoleDetailView writes par via `HoleRepository
+    /// .setPar` directly (its doc comment notes it assumes "no live controller
+    /// hole to sync"), so editing the active hole through it would desync
+    /// `RoundController.currentHoleShots` / `state`. Past holes have no live
+    /// controller mirror, so editing them through HoleDetailView is safe.
+    private var confirmedHoles: [Hole] {
+        holes.filter { $0.confirmedAt != nil }
+    }
+
     var body: some View {
-        ZStack {
-            PaperBackground()
+        // Embedded NavigationStack so a tapped confirmed-hole cell can push
+        // HoleDetailView (the post-round editor used by RoundReviewView).
+        // Sheets don't inherit the parent stack, so we have to own one here.
+        NavigationStack {
+            ZStack {
+                PaperBackground()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    navRow
-                        .padding(.horizontal, 24)
-                        .padding(.top, 18)
-
-                    masthead
-                        .padding(.horizontal, 24)
-                        .padding(.top, 18)
-
-                    totals
-                        .padding(.horizontal, 24)
-                        .padding(.top, 20)
-
-                    if holes.contains(where: { $0.holeNumber <= 9 }) {
-                        scorecardTable(title: "Front nine.", range: 1...9)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 24)
-                    }
-                    if holes.contains(where: { $0.holeNumber >= 10 }) {
-                        scorecardTable(title: "Back nine.", range: 10...18)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 24)
-                    }
-
-                    if let loadError {
-                        Text(loadError)
-                            .font(AppFont.micro)
-                            .tracking(1.2)
-                            .foregroundStyle(palette.red)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        navRow
                             .padding(.horizontal, 24)
-                            .padding(.top, 12)
-                    }
+                            .padding(.top, 18)
 
-                    Spacer(minLength: 40)
+                        masthead
+                            .padding(.horizontal, 24)
+                            .padding(.top, 18)
+
+                        totals
+                            .padding(.horizontal, 24)
+                            .padding(.top, 20)
+
+                        if holes.contains(where: { $0.holeNumber <= 9 }) {
+                            scorecardTable(title: "Front nine.", range: 1...9)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 24)
+                        }
+                        if holes.contains(where: { $0.holeNumber >= 10 }) {
+                            scorecardTable(title: "Back nine.", range: 10...18)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 24)
+                        }
+
+                        if let loadError {
+                            Text(loadError)
+                                .font(AppFont.micro)
+                                .tracking(1.2)
+                                .foregroundStyle(palette.red)
+                                .padding(.horizontal, 24)
+                                .padding(.top, 12)
+                        }
+
+                        Spacer(minLength: 40)
+                    }
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear { reload() }
         }
         .presentationBackground(palette.paper)
         .themedRoot()
-        .onAppear { reload() }
     }
 
     private var navRow: some View {
@@ -172,9 +192,28 @@ struct InRoundScorecardSheet: View {
                     let isCurrent = hole.holeNumber == currentHoleNumber
                     Group {
                         if let par = hole.par, hole.confirmedAt != nil {
-                            ScoreBadge(score: score, par: par)
+                            // Tap a confirmed cell → push HoleDetailView for
+                            // post-confirm edits (par, shot pins, anchors).
+                            // Pass `confirmedHoles` so its prev/next can't
+                            // step into the live current hole (see comment on
+                            // `confirmedHoles`). `reload()` re-pulls totals
+                            // when the editor pops.
+                            NavigationLink {
+                                HoleDetailView(
+                                    holes: confirmedHoles,
+                                    bag: bag,
+                                    curatedCourseId: curatedCourseId,
+                                    startIndex: confirmedHoles.firstIndex(where: { $0.id == hole.id }) ?? 0,
+                                    onChanged: { reload() }
+                                )
+                            } label: {
+                                ScoreBadge(score: score, par: par)
+                            }
+                            .buttonStyle(.plain)
                         } else if isCurrent {
                             // In-progress current hole — show running score in flag color.
+                            // Not tappable: editing it through HoleDetailView would
+                            // desync `RoundController.currentHoleShots`/`state`.
                             Text(score > 0 ? "\(score)" : "·")
                                 .font(.custom(AppFont.monoName, size: 13).weight(.bold))
                                 .foregroundStyle(palette.flag)

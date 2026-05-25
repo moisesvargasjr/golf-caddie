@@ -10,6 +10,13 @@ import SwiftUI
 struct HoleReviewSheet: View {
     let hole: Hole
     let bag: [ClubID]
+    /// When true, presented AFTER the hole was already confirmed (the
+    /// glasses-advance retro-summary path added 2026-05-22). Swaps the
+    /// masthead and CTA labels so it reads as "look at what just happened"
+    /// rather than "decide to confirm." `onConfirm` is still the save+close
+    /// callback — the caller is responsible for NOT calling
+    /// `confirmHoleAndAdvance` again on it.
+    var isRetro: Bool = false
     let onConfirm: (Int?) -> Void
     let onCancel: () -> Void
 
@@ -118,7 +125,7 @@ struct HoleReviewSheet: View {
 
     private var masthead: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Stamp(text: "Confirm hole")
+            Stamp(text: isRetro ? "Hole summary" : "Confirm hole")
             HStack(alignment: .lastTextBaseline, spacing: 8) {
                 Text("Hole")
                     .font(.custom(AppFont.serifName, size: 18).italic().weight(.bold))
@@ -326,14 +333,16 @@ struct HoleReviewSheet: View {
             onConfirm(hasPar ? par : nil)
         } label: {
             HStack(spacing: 6) {
-                Text("Confirm")
+                Text(isRetro ? "Done" : "Confirm")
                     .font(AppFont.cta)
                     .italic()
                     .fontWeight(.regular)
                     .foregroundStyle(palette.paper.opacity(0.85))
-                Text("hole")
-                    .font(AppFont.cta)
-                    .foregroundStyle(palette.paper)
+                if !isRetro {
+                    Text("hole")
+                        .font(AppFont.cta)
+                        .foregroundStyle(palette.paper)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)

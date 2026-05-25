@@ -19,9 +19,13 @@ targets:
     info:
       path: GolfCaddie/Info.plist
       properties:
-        CFBundleDisplayName: GolfCaddie
+        CFBundleDisplayName: The Fairway Logbook
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
+        # No non-exempt encryption (standard URLSession/SQLite/system crypto only).
+        # Declared here so TestFlight upload doesn't prompt for export compliance
+        # on every build. https://developer.apple.com/documentation/security/complying_with_encryption_export_regulations
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -49,3 +53,37 @@ targets:
     dependencies:
       - package: GRDB
         product: GRDB
+  GolfCaddieTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GolfCaddieTests
+    dependencies:
+      - target: GolfCaddie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moisesvargasjr.golfcaddie.tests
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GolfCaddie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GolfCaddie"
+schemes:
+  GolfCaddie:
+    build:
+      targets:
+        GolfCaddie: all
+        GolfCaddieTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - GolfCaddieTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

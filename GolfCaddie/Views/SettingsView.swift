@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Lightweight settings screen exposing the two user-facing tweaks from the
 /// redesign: theme mode and distance units. The other prototype tweaks
@@ -17,6 +18,8 @@ struct SettingsView: View {
     @Binding var bag: [ClubID]
 
     @State private var showBagEditor = false
+    @State private var pendingExport: PendingExport?
+    @State private var exportError: String?
 
     var body: some View {
         NavigationStack {
@@ -63,6 +66,10 @@ struct SettingsView: View {
                         .tint(palette.flag)
                     }
 
+                    section(label: "Backup") {
+                        exportRoundsButton
+                    }
+
                     Spacer(minLength: 40)
                 }
                 .padding(.horizontal, 24)
@@ -91,8 +98,61 @@ struct SettingsView: View {
                     showBagEditor = false
                 }
             }
+            .sheet(item: $pendingExport) { export in
+                ShareActivityView(activityItems: [export.url])
+            }
+            .alert(
+                "Export failed",
+                isPresented: Binding(
+                    get: { exportError != nil },
+                    set: { if !$0 { exportError = nil } }
+                ),
+                actions: {
+                    Button("OK") { exportError = nil }
+                },
+                message: {
+                    Text(exportError ?? "")
+                }
+            )
         }
         .themedRoot()
+    }
+
+    // MARK: - Export
+
+    private var exportRoundsButton: some View {
+        Button {
+            runExport()
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Export Rounds")
+                        .font(AppFont.bodyLarge)
+                        .italic()
+                        .foregroundStyle(palette.ink)
+                    Text("Share a .sqlite snapshot of every round, hole, shot, and penalty. Save it to Files or AirDrop for backup.")
+                        .font(AppFont.micro)
+                        .tracking(1.0)
+                        .foregroundStyle(palette.ink3)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(palette.ink3)
+                    .padding(.top, 2)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func runExport() {
+        do {
+            let url = try Database.makeExport()
+            pendingExport = PendingExport(url: url)
+        } catch {
+            exportError = (error as NSError).localizedDescription
+        }
     }
 
     // MARK: - Subviews
@@ -174,6 +234,26 @@ struct SettingsView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 2))
     }
+}
+
+// MARK: - Helpers
+
+private struct PendingExport: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// Thin SwiftUI wrapper around UIActivityViewController for the share sheet.
+/// Lives here since Settings is the only consumer today; promote to its own
+/// file if a second screen needs to share files.
+private struct ShareActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

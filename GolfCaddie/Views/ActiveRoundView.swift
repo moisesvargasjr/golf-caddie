@@ -16,8 +16,15 @@ struct ActiveRoundView: View {
     @State private var endedRoundForReview: Round?
     @State private var showEndRoundConfirm = false
     @State private var showUndoConfirm = false
-    @State private var showCourseEdit = false
-    @State private var courseNameDraft = ""
+    @State private var showCoursePicker = false
+    @State private var curatedCourses: [CuratedCourse] = []
+    @State private var showMissingShotSheet = false
+    /// Snapshot of the missing-shot pin center, computed once when "+ MISS"
+    /// is tapped (NOT inside the sheet closure on every view diff). Keeps
+    /// the GRDB lookups in `missingShotInitialCenter` off whatever async
+    /// context SwiftUI uses for sheet content evaluation — that's what was
+    /// tripping the "unsafeForcedSync" concurrency check.
+    @State private var pendingMissingShotCenter: CLLocationCoordinate2D?
     @State private var mapFollowMode: Bool = true
     @State private var lyingPulse: Bool = false
     @State private var showScorecard: Bool = false
@@ -62,27 +69,34 @@ struct ActiveRoundView: View {
         } message: {
             Text("Your round will be saved. You can resume it from the review screen if you change your mind.")
         }
-        .alert("Undo last shot?", isPresented: $showUndoConfirm) {
+        .alert("Undo last action?", isPresented: $showUndoConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Undo", role: .destructive) {
-                performUndoLastShot()
+                performUndoLastAction()
             }
         } message: {
-            if let shot = controller.currentHoleShots.last {
-                let label = shot.club?.longName ?? "no club"
-                Text("Removes Shot \(shot.sequenceNumber) (\(label)) from this hole.")
-            } else {
-                Text("Removes the most recent shot.")
-            }
+            // Picks whichever of {newest shot, newest penalty} the controller
+            // would actually remove (most recent by timestamp) so the confirm
+            // text matches the deletion. Falls back to a generic message when
+            // the hole is empty — the button is disabled in that state anyway.
+            Text(undoConfirmMessage)
         }
-        .alert("Course", isPresented: $showCourseEdit) {
-            TextField("Course name", text: $courseNameDraft)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                controller.setCourseName(courseNameDraft)
-            }
-        } message: {
-            Text("Auto-detected from your location. Edit if it's wrong, or set it manually.")
+        // Mid-round retro-link to a curated course — recovery for "auto-detect
+        // missed at start" or "auto-detect picked the wrong course." Mirrors
+        // the post-round picker on RoundReviewView, but routes through the
+        // controller so the in-memory `curatedCourseId` and `state` refresh
+        // and the @Observable consumers (distance-to-green, anchor capture,
+        // par auto-fill, holeBearing) pick up the change immediately.
+        .sheet(isPresented: $showCoursePicker) {
+            CoursePickerSheet(
+                courses: curatedCourses,
+                current: controller.curatedCourseId,
+                onPick: { id in
+                    controller.setCuratedCourseId(id)
+                    showCoursePicker = false
+                },
+                onCancel: { showCoursePicker = false }
+            )
         }
     }
 
@@ -193,26 +207,84 @@ struct ActiveRoundView: View {
                 InRoundScorecardSheet(
                     round: round,
                     currentHoleNumber: currentHoleNumber,
+                    bag: bag,
+                    curatedCourseId: controller.curatedCourseId,
                     onDismiss: { showScorecard = false }
                 )
             }
+        }
+        // Catalog is small and read-only; load eagerly so tapping the hole
+        // pill / "Link course" prompt opens the picker without a fetch wait.
+        // `onAppear` (not `.task`) deliberately — GRDB's sync dispatch inside
+        // `CourseDataRepository.allCourses` trips Swift's concurrency check
+        // ("unsafeForcedSync called from Swift Concurrent context") when run
+        // inside a `.task` closure. Same pattern RoundReviewView uses for
+        // the same call.
+        .onAppear {
+            curatedCourses = (try? CourseDataRepository.allCourses()) ?? []
+        }
+        // Field-test 2026-05-22: when the player realizes mid-hole they
+        // forgot to tap Log Shot, this sheet lets them retroactively pin
+        // the location and pick a club. Appends at the end of the active
+        // hole's shots via the controller (keeps `currentHoleShots` in
+        // sync). For inserting at an arbitrary position, end the round and
+        // use HoleDetailView's full editor.
+        .sheet(isPresented: $showMissingShotSheet) {
+            // Reads the snapshot taken on the "+ MISS" tap. Fallback (0, 0)
+            // would only fire if the sheet were forced open without a tap,
+            // which the UI doesn't expose; user pans from there anyway.
+            MissingShotPinSheet(
+                bag: bag,
+                initialCenter: pendingMissingShotCenter ?? CLLocationCoordinate2D(latitude: 0, longitude: 0),
+                onAdd: { coord, club in
+                    insertMissingShot(at: coord, club: club)
+                },
+                onCancel: { showMissingShotSheet = false }
+            )
+        }
+        // Glasses-advance retro summary (field-test 2026-05-22): the phone
+        // Next button presents `HoleReviewSheet` pre-confirm; the glasses
+        // path skipped that and felt like a regression. We now pop the
+        // same sheet retroactively in `isRetro` mode — read-only-ish, par
+        // editable, "Done" closes it.
+        .sheet(item: glassesRetroHoleBinding) { hole in
+            HoleReviewSheet(
+                hole: hole,
+                bag: bag,
+                isRetro: true,
+                onConfirm: { par in
+                    saveRetroPar(hole: hole, par: par)
+                },
+                onCancel: {
+                    controller.clearMostRecentlyConfirmedHoleFromGlasses()
+                }
+            )
         }
     }
 
     // MARK: - Top overlays
 
+    // Tappable so it doubles as a discreet, always-available entry point to
+    // the course picker — the recovery path for "auto-detect picked the wrong
+    // course" (the just-in-time "Link course" CTA in `distanceCard` only
+    // surfaces when nothing is linked at all).
     private var holePill: some View {
-        PaperCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)) {
-            VStack(spacing: 2) {
-                Text("Hole \(currentHoleNumber)")
-                    .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
-                    .foregroundStyle(palette.ink)
-                Text(holePillCaption)
-                    .font(.custom(AppFont.monoName, size: 9).weight(.bold))
-                    .tracking(1.2)
-                    .foregroundStyle(palette.ink2)
+        Button {
+            showCoursePicker = true
+        } label: {
+            PaperCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)) {
+                VStack(spacing: 2) {
+                    Text("Hole \(currentHoleNumber)")
+                        .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
+                        .foregroundStyle(palette.ink)
+                    Text(holePillCaption)
+                        .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                        .tracking(1.2)
+                        .foregroundStyle(palette.ink2)
+                }
             }
         }
+        .buttonStyle(.plain)
     }
 
     private var cardStampButton: some View {
@@ -280,13 +352,27 @@ struct ActiveRoundView: View {
         return parPart
     }
 
+    // Stroke breakdown: shots logged + penalty strokes + their sum. Field-
+    // test 2026-05-22 found a single "LYING N" rolled up too much — users
+    // wanted to see the components separately. Labels in muted ink, values
+    // in ink (shots) / flag (pen, when > 0) / flag (total) so the eye lands
+    // on what changed.
     private var lyingStamp: some View {
-        PaperCard(padding: EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)) {
-            Text("LYING \(controller.shotsInCurrentHole + 1)")
-                .font(AppFont.stamp)
-                .tracking(1.2)
-                .foregroundStyle(palette.flag)
-                .scaleEffect(lyingPulse ? 1.08 : 1.0)
+        let shots = controller.shotsInCurrentHole
+        let pen = controller.currentHolePenaltyStrokes
+        let total = shots + pen
+        return PaperCard(padding: EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)) {
+            (
+                Text("SHOTS ").foregroundStyle(palette.ink3)
+                + Text("\(shots)").foregroundStyle(palette.ink)
+                + Text(" · PEN ").foregroundStyle(palette.ink3)
+                + Text("\(pen)").foregroundStyle(pen > 0 ? palette.flag : palette.ink3)
+                + Text(" · TOT ").foregroundStyle(palette.ink3)
+                + Text("\(total)").foregroundStyle(palette.flag)
+            )
+            .font(AppFont.stamp)
+            .tracking(1.2)
+            .scaleEffect(lyingPulse ? 1.08 : 1.0)
         }
     }
 
@@ -352,7 +438,27 @@ struct ActiveRoundView: View {
                                 .tabularNumerals()
                         }
                     }
+                } else if controller.curatedCourseId == nil {
+                    // No course linked yet — distance-to-green is gated on
+                    // `curatedCourseId`, so surface the picker right where the
+                    // missing reading would have been. Recovery path for
+                    // "auto-detect missed (or had no GPS) at startRound."
+                    Button {
+                        showCoursePicker = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Stamp(text: "Link course", color: palette.flag)
+                            Text("›")
+                                .font(.custom(AppFont.serifName, size: 14).italic().weight(.bold))
+                                .foregroundStyle(palette.flag)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
                 } else {
+                    // Course is linked, but distance still isn't computable —
+                    // green anchor is missing (no curated anchor + nothing
+                    // locally captured yet) or GPS has no fix.
                     Stamp(text: "No anchor", color: palette.ink3)
                         .padding(.top, 4)
                 }
@@ -392,7 +498,10 @@ struct ActiveRoundView: View {
                     }
                 }
                 Spacer()
-                penaltyStampButton
+                HStack(spacing: 8) {
+                    missingShotStampButton
+                    penaltyStampButton
+                }
             }
             .padding(.horizontal, 20)
 
@@ -412,7 +521,7 @@ struct ActiveRoundView: View {
                 actionIconButton(systemName: "arrow.uturn.backward") {
                     showUndoConfirm = true
                 }
-                .disabled(controller.currentHoleShots.isEmpty)
+                .disabled(controller.currentHoleShots.isEmpty && controller.currentHolePenalties.isEmpty)
 
                 logShotCTA
 
@@ -462,6 +571,27 @@ struct ActiveRoundView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 2)
                         .stroke(palette.flag, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var missingShotStampButton: some View {
+        Button {
+            // Snapshot the center NOW (MainActor, on user tap) so the sheet
+            // never has to recompute it from a SwiftUI diff context.
+            pendingMissingShotCenter = missingShotInitialCenter
+            showMissingShotSheet = true
+        } label: {
+            Text("+ MISS")
+                .font(AppFont.stamp)
+                .tracking(1.2)
+                .foregroundStyle(palette.ink)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .stroke(palette.ink, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -740,12 +870,34 @@ struct ActiveRoundView: View {
         }
     }
 
-    private func performUndoLastShot() {
+    private func performUndoLastAction() {
         actionError = nil
         do {
-            try controller.removeLastShot()
+            try controller.undoLastAction()
         } catch {
             actionError = "Couldn't undo: \(error.localizedDescription)"
+        }
+    }
+
+    /// Mirrors `RoundController.undoLastAction`'s tiebreak (newer timestamp
+    /// wins) so the confirm sentence names exactly what will be deleted.
+    private var undoConfirmMessage: String {
+        let lastShot = controller.currentHoleShots.last
+        let lastPenalty = controller.currentHolePenalties.last
+        switch (lastShot, lastPenalty) {
+        case (nil, nil):
+            return "Removes the most recent shot or penalty."
+        case let (shot?, nil):
+            let label = shot.club?.longName ?? "no club"
+            return "Removes Shot \(shot.sequenceNumber) (\(label)) from this hole."
+        case let (nil, penalty?):
+            return "Removes the \(penalty.type.displayName) penalty from this hole."
+        case let (shot?, penalty?):
+            if penalty.timestamp >= shot.timestamp {
+                return "Removes the \(penalty.type.displayName) penalty from this hole."
+            }
+            let label = shot.club?.longName ?? "no club"
+            return "Removes Shot \(shot.sequenceNumber) (\(label)) from this hole."
         }
     }
 
@@ -797,22 +949,76 @@ struct ActiveRoundView: View {
         }
     }
 
+    /// Best starting map center for the missing-shot pin. Preferred order:
+    /// live GPS fix → last logged shot's coordinate → curated/local green
+    /// anchor for the current hole → curated tee anchor → (0, 0). The user
+    /// pans from there, so being roughly on the hole is what matters.
+    private var missingShotInitialCenter: CLLocationCoordinate2D {
+        if let loc = location.latestLocation, loc.horizontalAccuracy > 0 {
+            return loc.coordinate
+        }
+        if let last = controller.currentHoleShots.last,
+           let lat = last.latitude, let lng = last.longitude {
+            return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        }
+        if let courseId = controller.curatedCourseId,
+           let hole = controller.currentHole {
+            let local = try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: hole.holeNumber)
+            let curated = (try? CourseDataRepository.course(byId: courseId))?
+                .holes.first(where: { $0.number == hole.holeNumber })
+            if let p = local?.green ?? curated?.greenAnchor {
+                return CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng)
+            }
+            if let p = local?.tee ?? curated?.teeAnchor {
+                return CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng)
+            }
+        }
+        return CLLocationCoordinate2D(latitude: 0, longitude: 0)
+    }
+
+    /// Bridges `controller.mostRecentlyConfirmedHoleFromGlasses` (a stored
+    /// `Hole?`) into the `Binding<Hole?>` `.sheet(item:)` needs. Set-to-nil
+    /// (which the sheet does on swipe-down) clears the controller pointer.
+    private var glassesRetroHoleBinding: Binding<Hole?> {
+        Binding(
+            get: { controller.mostRecentlyConfirmedHoleFromGlasses },
+            set: { newValue in
+                if newValue == nil {
+                    controller.clearMostRecentlyConfirmedHoleFromGlasses()
+                }
+            }
+        )
+    }
+
+    /// "Done" tap in the retro summary sheet — saves par to the already-
+    /// confirmed hole (deliberately bypassing `controller.setPar` since
+    /// the hole is no longer the live one; `HoleRepository.setPar` is the
+    /// right primitive). Clears the retro pointer so the sheet dismisses.
+    private func saveRetroPar(hole: Hole, par: Int?) {
+        do {
+            try HoleRepository.setPar(holeID: hole.id, par: par)
+        } catch {
+            actionError = "Couldn't update par: \(error.localizedDescription)"
+        }
+        controller.clearMostRecentlyConfirmedHoleFromGlasses()
+    }
+
+    private func insertMissingShot(at coord: CLLocationCoordinate2D, club: ClubID?) {
+        actionError = nil
+        do {
+            try controller.insertMissingShot(at: coord, club: club)
+            showMissingShotSheet = false
+        } catch {
+            actionError = "Add missing shot failed: \(error.localizedDescription)"
+        }
+    }
+
     private func addPenaltyToCurrentHole(type: PenaltyType) {
         actionError = nil
-        guard let hole = controller.currentHole else {
-            showPenaltySheet = false
-            return
-        }
-        let penalty = Penalty(
-            id: UUID(),
-            holeID: hole.id,
-            type: type,
-            strokeCount: 1,
-            timestamp: Date(),
-            notes: nil
-        )
         do {
-            try PenaltyRepository.insert(penalty)
+            // Routes through the controller so `currentHolePenalties`
+            // refreshes — the lie stamp and Undo enable state read it.
+            try controller.addPenaltyToCurrentHole(type: type)
             showPenaltySheet = false
         } catch {
             actionError = "Add penalty failed: \(error.localizedDescription)"

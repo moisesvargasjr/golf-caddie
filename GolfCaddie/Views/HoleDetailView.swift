@@ -36,6 +36,11 @@ struct HoleDetailView: View {
     @State private var exportFile: ExportFile?
     @State private var loadError: String?
     @State private var isExpanded: Bool = false
+    /// First-putt UUID of each putt-run the user has chosen to expand inline.
+    /// Display-only state; not persisted. Resets on view re-instantiation
+    /// (i.e. when the user opens a different round) — the default for every
+    /// run is collapsed.
+    @State private var expandedPuttRuns: Set<UUID> = []
 
     init(
         holes: [Hole],
@@ -128,13 +133,21 @@ struct HoleDetailView: View {
         return false
     }
 
-    /// Placeholder lie: GREEN if within ~10yd of green anchor, HOLE if final
-    /// shot of a confirmed hole, else FAIRWAY. The Shot model has no `lie`
-    /// field yet — a future migration is the upgrade path (see plan §4.3).
-    private func lie(for shot: Shot, at idx: Int) -> String {
+    /// Derived lie label — returns nil when there's no real signal to show.
+    /// The Shot model has no `lie` field, so we only label the cases we can
+    /// honestly infer: HOLE = the last shot of a confirmed hole (holed out);
+    /// GREEN = within ~10yd of the green anchor (curated/local) OR the shot
+    /// was a putt (you have to be on/near the green to use a putter — the
+    /// Texas-wedge edge case is rare enough to ignore). Anything else returns
+    /// nil; the row renders "—" so we stop pretending every shot was from the
+    /// fairway. A future stored `lie` field is the real upgrade path.
+    private func lie(for shot: Shot, at idx: Int) -> String? {
         let isLast = idx == shots.count - 1
         if isLast, hole?.confirmedAt != nil {
             return "HOLE"
+        }
+        if shot.club == .putter {
+            return "GREEN"
         }
         if let g = effectiveGreen, let lat = shot.latitude, let lng = shot.longitude {
             let m = Distance.meters(
@@ -144,7 +157,42 @@ struct HoleDetailView: View {
             let yds = Distance.yards(fromMeters: m)
             if yds < 10 { return "GREEN" }
         }
-        return "FAIRWAY"
+        return nil
+    }
+
+    /// Display-only grouping of the raw `shots` array: each entry is either
+    /// one regular shot or a run of consecutive putts. Drives the ledger so a
+    /// long string of tap-in putts collapses to one row instead of N. The
+    /// Shot rows themselves are unchanged on disk — this is purely how we
+    /// render them. A run can be tapped to expand inline; see
+    /// `expandedPuttRuns`.
+    private enum LedgerItem: Identifiable {
+        case shot(Shot, index: Int)
+        case puttRun([Shot], startIndex: Int)
+
+        var id: String {
+            switch self {
+            case let .shot(s, _): return "shot-\(s.id)"
+            case let .puttRun(putts, _):
+                return "putts-\(putts.first?.id.uuidString ?? "empty")"
+            }
+        }
+    }
+
+    private var ledgerItems: [LedgerItem] {
+        var items: [LedgerItem] = []
+        var i = 0
+        while i < shots.count {
+            if shots[i].club == .putter {
+                let start = i
+                while i < shots.count && shots[i].club == .putter { i += 1 }
+                items.append(.puttRun(Array(shots[start..<i]), startIndex: start))
+            } else {
+                items.append(.shot(shots[i], index: i))
+                i += 1
+            }
+        }
+        return items
     }
 
     // MARK: - Body
@@ -455,8 +503,13 @@ struct HoleDetailView: View {
                     }
                     .padding(.vertical, 14)
                 } else {
-                    ForEach(Array(shots.enumerated()), id: \.element.id) { idx, shot in
-                        ledgerRow(idx: idx, shot: shot)
+                    ForEach(ledgerItems) { item in
+                        switch item {
+                        case let .shot(s, idx):
+                            ledgerRow(idx: idx, shot: s)
+                        case let .puttRun(putts, startIdx):
+                            puttRunSection(putts: putts, startIndex: startIdx)
+                        }
                     }
                     ledgerFooter
                 }
@@ -531,7 +584,7 @@ struct HoleDetailView: View {
                 .tabularNumerals()
                 .frame(width: 64, alignment: .trailing)
 
-            Text(lie(for: shot, at: idx))
+            Text(lie(for: shot, at: idx) ?? "—")
                 .font(.custom(AppFont.monoName, size: 10).weight(.bold))
                 .tracking(1.2)
                 .foregroundStyle(palette.ink3)
@@ -542,6 +595,75 @@ struct HoleDetailView: View {
         .contextMenu {
             Button("Delete shot", role: .destructive) { deleteShot(shot) }
         }
+    }
+
+    /// Collapsed by default; tap toggles inline expansion (renders each putt
+    /// via the existing `ledgerRow` so club Menu / delete still work). The
+    /// "N Putt(s)" summary itself is read-only — to fix a mis-clubbed putt or
+    /// delete one, expand first.
+    @ViewBuilder
+    private func puttRunSection(putts: [Shot], startIndex: Int) -> some View {
+        let runID = putts.first?.id ?? UUID()
+        let isExpanded = expandedPuttRuns.contains(runID)
+        puttRunRow(putts: putts, startIndex: startIndex, isExpanded: isExpanded)
+        if isExpanded {
+            ForEach(Array(putts.enumerated()), id: \.element.id) { offset, putt in
+                ledgerRow(idx: startIndex + offset, shot: putt)
+            }
+        }
+    }
+
+    private func puttRunRow(putts: [Shot], startIndex: Int, isExpanded: Bool) -> some View {
+        let count = putts.count
+        let label = count == 1 ? "1 Putt" : "\(count) Putts"
+        let runID = putts.first?.id ?? UUID()
+        // Run lie: HOLE only if the LAST putt of the run is also the last
+        // shot of a confirmed hole (i.e. holed out with a putt). Otherwise
+        // GREEN — putters imply on/near the green (see `lie` doc comment).
+        let runEndsHole = (startIndex + count == shots.count) && (hole?.confirmedAt != nil)
+        let runLie = runEndsHole ? "HOLE" : "GREEN"
+
+        return Button {
+            if isExpanded {
+                expandedPuttRuns.remove(runID)
+            } else {
+                expandedPuttRuns.insert(runID)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text((startIndex + 1).roman)
+                    .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                    .foregroundStyle(palette.ink2)
+                    .frame(width: 40, alignment: .leading)
+
+                HStack(spacing: 6) {
+                    Text(label)
+                        .font(AppFont.bodyLarge)
+                        .foregroundStyle(palette.ink)
+                    Text(isExpanded ? "▾" : "▸")
+                        .font(.custom(AppFont.monoName, size: 11).weight(.bold))
+                        .foregroundStyle(palette.ink3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // YDS intentionally blank — the whole point of the collapse
+                // is that per-putt distances aren't useful at review time.
+                Text("—")
+                    .font(AppFont.monoRow)
+                    .foregroundStyle(palette.ink3)
+                    .frame(width: 64, alignment: .trailing)
+
+                Text(runLie)
+                    .font(.custom(AppFont.monoName, size: 10).weight(.bold))
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink3)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            .padding(.vertical, 10)
+            .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+            .contentShape(Rectangle()) // entire row tappable, not just the text
+        }
+        .buttonStyle(.plain)
     }
 
     private var ledgerFooter: some View {

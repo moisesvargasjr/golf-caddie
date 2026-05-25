@@ -2,13 +2,21 @@ import Foundation
 import GRDB
 
 enum Database {
-    static let shared: DatabaseQueue = {
+    /// The active queue all repositories read/write through. Settable so unit
+    /// tests can install an in-memory queue via `TestDatabase.install(_:)` and
+    /// restore in tearDown. Production code uses `Database.shared` (the
+    /// computed alias below) and is unaffected.
+    static var queue: DatabaseQueue = {
         do {
             return try makeQueue()
         } catch {
             fatalError("Database initialization failed: \(error)")
         }
     }()
+
+    /// Backward-compatible alias. Production call sites read this and get
+    /// whatever `queue` currently points to.
+    static var shared: DatabaseQueue { queue }
 
     private static func makeQueue() throws -> DatabaseQueue {
         let supportDir = try FileManager.default.url(
@@ -23,7 +31,9 @@ enum Database {
         return queue
     }
 
-    private static var migrator: DatabaseMigrator {
+    /// Exposed (non-private) so migration tests can construct an in-memory
+    /// queue and run the same migrator the app uses.
+    static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
 
         migrator.registerMigration("v1_initial_schema") { db in
