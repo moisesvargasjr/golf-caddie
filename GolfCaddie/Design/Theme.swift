@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - User preferences
 
@@ -58,6 +59,20 @@ struct ThemedRoot: ViewModifier {
             .environment(\.palette, palette)
             .environment(\.colorScheme, isDark ? .dark : .light)
             .tint(palette.flag)
+            .task(id: isDark) { Self.syncAppIcon(toDark: isDark) }
+    }
+
+    /// Mirror the resolved theme on the home-screen icon. `nil` = primary
+    /// (light) icon; `"AppIcon-Dark"` = the dark variant declared via
+    /// `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`. Skip the API call when
+    /// already matching to avoid the system's "icon changed" alert flash.
+    @MainActor
+    static func syncAppIcon(toDark: Bool) {
+        let app = UIApplication.shared
+        guard app.supportsAlternateIcons else { return }
+        let target: String? = toDark ? "AppIcon-Dark" : nil
+        if app.alternateIconName == target { return }
+        app.setAlternateIconName(target)
     }
 
     /// In `.auto`, force dark when the system is dark OR the clock says "late".
