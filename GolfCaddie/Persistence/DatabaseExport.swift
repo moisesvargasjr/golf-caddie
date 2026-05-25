@@ -31,7 +31,10 @@ extension Database {
         // single quote by doubling it. (Temp paths shouldn't contain
         // single quotes on iOS, but cheap to be safe.)
         let escapedPath = exportURL.path.replacingOccurrences(of: "'", with: "''")
-        try Database.queue.write { db in
+        // `write { }` wraps in a transaction — but VACUUM INTO refuses to run
+        // inside one ("cannot VACUUM from within a transaction"). Use the
+        // non-transactional writer so we can issue VACUUM directly.
+        try Database.queue.writeWithoutTransaction { db in
             try db.execute(sql: "VACUUM INTO '\(escapedPath)'")
         }
         return exportURL
