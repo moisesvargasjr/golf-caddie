@@ -14,23 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FF93AC7EA9842DB04CE731FB"
-               BuildableName = "GolfCaddie.app"
-               BlueprintName = "GolfCaddie"
-               ReferencedContainer = "container:GolfCaddie.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0F58EFCCAB8DE021A09D8C66"
-               BuildableName = "GolfCaddieTests.xctest"
-               BlueprintName = "GolfCaddieTests"
+               BlueprintIdentifier = "022610A1659A2A3A5B041F19"
+               BuildableName = "GolfCaddieWatch.app"
+               BlueprintName = "GolfCaddieWatch"
                ReferencedContainer = "container:GolfCaddie.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -44,24 +30,13 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FF93AC7EA9842DB04CE731FB"
-            BuildableName = "GolfCaddie.app"
-            BlueprintName = "GolfCaddie"
+            BlueprintIdentifier = "022610A1659A2A3A5B041F19"
+            BuildableName = "GolfCaddieWatch.app"
+            BlueprintName = "GolfCaddieWatch"
             ReferencedContainer = "container:GolfCaddie.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0F58EFCCAB8DE021A09D8C66"
-               BuildableName = "GolfCaddieTests.xctest"
-               BlueprintName = "GolfCaddieTests"
-               ReferencedContainer = "container:GolfCaddie.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -78,9 +53,8 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FF93AC7EA9842DB04CE731FB"
-            BuildableName = "GolfCaddie.app"
-            BlueprintName = "GolfCaddie"
+            BlueprintIdentifier = "022610A1659A2A3A5B041F19"
+            BuildableName = "GolfCaddieWatch.app"
             ReferencedContainer = "container:GolfCaddie.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -95,9 +69,8 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FF93AC7EA9842DB04CE731FB"
-            BuildableName = "GolfCaddie.app"
-            BlueprintName = "GolfCaddie"
+            BlueprintIdentifier = "022610A1659A2A3A5B041F19"
+            BuildableName = "GolfCaddieWatch.app"
             ReferencedContainer = "container:GolfCaddie.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

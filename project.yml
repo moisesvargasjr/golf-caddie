@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.moisesvargasjr
   deploymentTarget:
     iOS: "26.0"
+    watchOS: "11.0"
   developmentLanguage: en
   createIntermediateGroups: true
   generateEmptyDirectories: true
@@ -21,7 +22,7 @@ targets:
       properties:
         CFBundleDisplayName: The Fairway Logbook
         CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "3"
+        CFBundleVersion: "4"
         # No non-exempt encryption (standard URLSession/SQLite/system crypto only).
         # Declared here so TestFlight upload doesn't prompt for export compliance
         # on every build. https://developer.apple.com/documentation/security/complying_with_encryption_export_regulations
@@ -33,6 +34,12 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: "GolfCaddie keeps tracking your round in the background while your phone is in your pocket."
         UIBackgroundModes:
           - location
+        # Swing-detector spike: expose Documents/SpikeSessions in Files/Finder.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # Companion of a HealthKit-using watch app must carry the usage strings.
+        NSHealthShareUsageDescription: "The Apple Watch companion runs a workout session during swing-detection recording."
+        NSHealthUpdateUsageDescription: "The Apple Watch companion runs a workout session during swing-detection recording."
         CFBundleURLTypes:
           - CFBundleURLName: com.moisesvargasjr.golfcaddie
             CFBundleURLSchemes:
@@ -51,9 +58,50 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-Dark
+    entitlements:
+      path: GolfCaddie/GolfCaddie.entitlements
+      properties:
+        com.apple.developer.healthkit: true
     dependencies:
       - package: GRDB
         product: GRDB
+      - target: GolfCaddieWatch
+  GolfCaddieWatch:
+    # Logging-only watch app for the swing-detector spike (single-target
+    # watchOS app, embedded in GolfCaddie). Scaffolded via the Xcode wizard,
+    # mirrored here — project.yml stays the source of truth.
+    type: application
+    platform: watchOS
+    sources:
+      - path: GolfCaddieWatch
+    info:
+      path: GolfCaddieWatch/Info.plist
+      properties:
+        CFBundleDisplayName: GC Spike
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "4"
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.moisesvargasjr.golfcaddie
+        WKBackgroundModes:
+          - workout-processing
+        NSMotionUsageDescription: "Records wrist motion at 100 Hz to develop automatic shot detection."
+        NSHealthShareUsageDescription: "Runs a golf workout session so motion sensors stay active during recording."
+        NSHealthUpdateUsageDescription: "Runs a golf workout session so motion sensors stay active during recording."
+    entitlements:
+      path: GolfCaddieWatch/GolfCaddieWatch.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moisesvargasjr.golfcaddie.watchkitapp
+        SDKROOT: watchos
+        TARGETED_DEVICE_FAMILY: "4"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: XH3PSRWH49
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
   GolfCaddieTests:
     type: bundle.unit-test
     platform: iOS
@@ -71,6 +119,12 @@ targets:
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GolfCaddie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GolfCaddie"
 schemes:
+  GolfCaddieWatch:
+    build:
+      targets:
+        GolfCaddieWatch: all
+    run:
+      config: Debug
   GolfCaddie:
     build:
       targets:

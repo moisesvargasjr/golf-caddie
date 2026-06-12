@@ -30,9 +30,15 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>The Apple Watch companion runs a workout session during swing-detection recording.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>The Apple Watch companion runs a workout session during swing-detection recording.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>GolfCaddie keeps tracking your round in the background while your phone is in your pocket.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -46,6 +52,8 @@
 	<array>
 		<string>location</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>
