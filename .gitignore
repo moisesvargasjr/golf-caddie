@@ -26,3 +26,9 @@ Pods/
 
 # Carthage (not used, but defensive)
 Carthage/Build/
+
+# Python (swing-spike analysis tooling)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
