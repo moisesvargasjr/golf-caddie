@@ -70,6 +70,24 @@ struct SettingsView: View {
                         exportRoundsButton
                     }
 
+                    section(label: "Watch Spike") {
+                        NavigationLink {
+                            SpikeSessionsView()
+                        } label: {
+                            HStack {
+                                Text("Recorded Sessions")
+                                    .font(AppFont.bodyLarge)
+                                    .italic()
+                                    .foregroundStyle(palette.ink)
+                                Spacer()
+                                Image(systemName: "applewatch")
+                                    .font(.system(size: 18, weight: .regular))
+                                    .foregroundStyle(palette.ink3)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Spacer(minLength: 40)
                 }
                 .padding(.horizontal, 24)
