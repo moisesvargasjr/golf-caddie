@@ -1,0 +1,38 @@
+{
+  "t0": 35758.819475250006,
+  "reference_detections": [
+    {
+      "t": 35763.492,
+      "impact": 11.61,
+      "gyro": 25.0
+    },
+    {
+      "t": 35780.436,
+      "impact": 5.61,
+      "gyro": 27.7
+    },
+    {
+      "t": 35798.838,
+      "impact": 13.45,
+      "gyro": 23.3
+    },
+    {
+      "t": 35819.785,
+      "impact": 11.08,
+      "gyro": 24.7
+    },
+    {
+      "t": 35837.578,
+      "impact": 11.98,
+      "gyro": 25.7
+    }
+  ],
+  "params": {
+    "impact_thresh_g": 4.0,
+    "arc_thresh": 6.0,
+    "refractory_s": 0.6,
+    "impact_hp_hz": 20.0,
+    "arc_pre_s": 1.0,
+    "arc_post_s": 0.2
+  }
+}
