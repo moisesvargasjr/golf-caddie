@@ -78,8 +78,40 @@ final class RoundController {
     @ObservationIgnored
     private let glassesUndoCooldown: TimeInterval = 3.0
 
+    @ObservationIgnored
+    private var lastBreadcrumb: CLLocation?
+
     init(location: LocationManager) {
         self.location = location
+        location.onLocationUpdate = { [weak self] loc in
+            self?.recordBreadcrumb(loc)
+        }
+    }
+
+    /// Persist a throttled GPS breadcrumb for the active round — the trail the
+    /// fusion engine matches a watch SwingEvent's timestamp against. Throttle:
+    /// ≥1 s since the last stored point AND (moved ≥1 m OR ≥5 s elapsed). The
+    /// OR keeps a stationary breadcrumb fresh (so a shot logged while standing
+    /// still still fuses) without unbounded growth — ~1/s moving, ~1/5 s still.
+    private func recordBreadcrumb(_ location: CLLocation) {
+        guard case let .active(round, _) = state else { return }
+        guard location.horizontalAccuracy > 0 else { return }
+        if let last = lastBreadcrumb {
+            let elapsed = location.timestamp.timeIntervalSince(last.timestamp)
+            guard elapsed >= 1.0 else { return }
+            let moved = location.distance(from: last)
+            guard moved >= 1.0 || elapsed >= 5.0 else { return }
+        }
+        let point = TracePoint(
+            id: UUID(),
+            roundID: round.id,
+            timestamp: location.timestamp,
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            accuracy: location.horizontalAccuracy
+        )
+        try? TracePointRepository.insert(point)
+        lastBreadcrumb = location
     }
 
     var isActive: Bool {
@@ -142,6 +174,7 @@ final class RoundController {
         currentClub = nil
         lastMarkResult = nil
         curatedCourseId = nil
+        lastBreadcrumb = nil
         location.requestAlways()
         location.startTracking()
         // Fire-and-forget course auto-detection. startRound stays fully
@@ -164,6 +197,7 @@ final class RoundController {
         currentClub = nil
         lastMarkAt = nil
         curatedCourseId = nil
+        lastBreadcrumb = nil
     }
 
     func clearMostRecentlyEndedRound() {

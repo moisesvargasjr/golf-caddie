@@ -39,6 +39,12 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    /// Called on the main actor for every received fix. RoundController injects
+    /// this to persist throttled breadcrumbs during an active round; kept as a
+    /// closure so LocationManager stays round-agnostic.
+    @ObservationIgnored
+    var onLocationUpdate: ((CLLocation) -> Void)?
+
     @ObservationIgnored
     private let manager: CLLocationManager
 
@@ -163,6 +169,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
                last.horizontalAccuracy <= 5 {
                 self.resolvePreciseFix()
             }
+            self.onLocationUpdate?(last)
         }
     }
 

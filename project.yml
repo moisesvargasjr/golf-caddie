@@ -74,6 +74,9 @@ targets:
     platform: watchOS
     sources:
       - path: GolfCaddieWatch
+      # Cross-platform code shared with the iOS target (wire contract + the
+      # live detector). Foundation-only; the iOS target globs it via `GolfCaddie`.
+      - path: GolfCaddie/Shared
     info:
       path: GolfCaddieWatch/Info.plist
       properties:
