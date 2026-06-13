@@ -117,12 +117,15 @@ def write_session(path: str | Path, meta: dict, dm: np.ndarray, accel: np.ndarra
 # ---------------------------------------------------------------------------
 
 # (peak gyro rad/s, arc sigma s, impact peak g) per label; impact 0 = no strike.
+# Magnitudes follow the 2026-06-12 range test: full shots and chips carry a
+# large ball-strike transient; a practice swing has the arc but a small (here,
+# clean — no turf) impact; putts/noise have neither.
 _SYNTH_PROFILE = {
-    "full_shot": (12.0, 0.15, 8.0),
-    "practice_swing": (11.0, 0.15, 0.0),
-    "chip": (5.0, 0.12, 3.0),
-    "putt": (1.2, 0.20, 0.6),
-    "noise": (2.0, 0.80, 0.0),
+    "full_shot": (24.0, 0.15, 12.0),
+    "practice_swing": (20.0, 0.15, 1.5),
+    "chip": (10.0, 0.13, 8.0),
+    "putt": (3.0, 0.20, 0.5),
+    "noise": (3.0, 0.80, 0.3),
 }
 
 

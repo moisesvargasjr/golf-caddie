@@ -18,19 +18,40 @@ import spikelib
 
 
 def evaluate(sessions: list[spikelib.Session], params: detect.Params, pre: float, post: float) -> dict:
+    """One-to-one match each detection to its single nearest mark.
+
+    A mark is tapped just after its rep, so a detection (the impact) lands a
+    little BEFORE its mark — eligible matches are detections in
+    [mark - pre, mark + post]. Reps can be spaced closer than that window, so
+    we assign greedily by smallest |detection - mark| distance, each detection
+    claiming at most one mark and vice versa. This avoids the wide-window
+    artifact where one real strike is double-counted into an adjacent rep.
+    """
     per_label: dict[str, dict[str, int]] = {l: {"reps": 0, "shot_detected": 0} for l in spikelib.LABELS}
     unmatched_shots = 0
     for s in sessions:
         dets = [d for d in detect.detect(s, params) if d.is_shot]
-        windows = s.rep_windows(pre=pre, post=post)
-        claimed = set()
-        for w in windows:
-            per_label[w["label"]]["reps"] += 1
-            hits = [i for i, d in enumerate(dets) if w["t0"] <= d.t_peak <= w["t1"]]
-            if hits:
-                per_label[w["label"]]["shot_detected"] += 1
-                claimed.update(hits)
-        unmatched_shots += len(dets) - len(claimed)
+        marks = s.marks
+        for m in marks:
+            per_label[m["label"]]["reps"] += 1
+
+        # Candidate (mark, det) pairs within the eligibility window, sorted by
+        # temporal distance; greedily commit the closest, one claim each.
+        pairs = []
+        for mi, m in enumerate(marks):
+            for di, d in enumerate(dets):
+                if m["uptime"] - pre <= d.t_peak <= m["uptime"] + post:
+                    pairs.append((abs(d.t_peak - m["uptime"]), mi, di))
+        pairs.sort()
+        claimed_marks: set[int] = set()
+        claimed_dets: set[int] = set()
+        for _, mi, di in pairs:
+            if mi in claimed_marks or di in claimed_dets:
+                continue
+            claimed_marks.add(mi)
+            claimed_dets.add(di)
+            per_label[marks[mi]["label"]]["shot_detected"] += 1
+        unmatched_shots += len(dets) - len(claimed_dets)
     return {"per_label": per_label, "unmatched_shots": unmatched_shots}
 
 
@@ -63,8 +84,10 @@ def print_report(r: dict) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("sessions", nargs="+", help="session directories")
-    ap.add_argument("--window-pre", type=float, default=12.0, help="seconds before each mark")
-    ap.add_argument("--window-post", type=float, default=2.0, help="seconds after each mark")
+    # Mark is tapped just after the rep; the impact lands a few seconds before
+    # it. Keep the window tight so closely-spaced reps don't cross-attribute.
+    ap.add_argument("--window-pre", type=float, default=6.0, help="seconds before each mark")
+    ap.add_argument("--window-post", type=float, default=1.5, help="seconds after each mark")
     detect.add_param_args(ap)
     args = ap.parse_args()
     sessions = [spikelib.load_session(p) for p in args.sessions]
