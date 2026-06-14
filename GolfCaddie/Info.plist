@@ -43,6 +43,8 @@
 	<string>GolfCaddie keeps tracking your round in the background while your phone is in your pocket.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>GolfCaddie tracks your shot locations during a round.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>GolfCaddie uses your step count to tell practice swings apart from real shots.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
