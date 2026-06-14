@@ -1,9 +1,11 @@
 import Foundation
 import WatchConnectivity
 
-/// Receives swing-spike recording files from the watch and lands them in
-/// Documents/SpikeSessions/<sessionId>/, where UIFileSharingEnabled exposes
-/// them to Finder/Files and SpikeSessionsView can share them.
+/// The phone's single WCSession delegate. Two roles, one delegate object:
+///   - live shot logging: `didReceiveUserInfo` decodes a WatchToPhoneMessage
+///     (swing event / command) and hands it to LiveShotCoordinator;
+///   - validation spike: `didReceive file:` lands raw recording files in
+///     Documents/SpikeSessions/<sessionId>/ (UIFileSharingEnabled exposes them).
 final class SpikeSessionReceiver: NSObject {
     static let shared = SpikeSessionReceiver()
 
@@ -29,6 +31,13 @@ extension SpikeSessionReceiver: WCSessionDelegate {
 
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
+    }
+
+    /// Live swing events / commands from the watch (transferUserInfo, queued).
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        guard let data = userInfo[ShotContract.payloadKey] as? Data,
+              let message = try? WatchToPhoneMessage.decode(data) else { return }
+        LiveShotCoordinator.shared.receive(message)
     }
 
     func session(_ session: WCSession, didReceive file: WCSessionFile) {

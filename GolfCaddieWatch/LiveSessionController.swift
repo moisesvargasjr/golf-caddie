@@ -1,0 +1,187 @@
+import Foundation
+import SwiftUI
+import WatchKit
+
+/// The watch's round-session brain. Runs a workout session (keeps Core Motion
+/// alive) feeding ONE motion path into the live swing detector; each detection
+/// fires a haptic and emits a SwingEvent to the phone. In validation mode it
+/// ALSO records the raw binary files + ground-truth marks and transfers them,
+/// for continued FP/FN measurement against the offline detector.
+@MainActor
+final class LiveSessionController: ObservableObject {
+    @Published private(set) var running = false
+    @Published var validationMode = false
+    @Published private(set) var deliveredHz: Double = 0
+    @Published private(set) var detectionCount = 0
+    @Published private(set) var lastDetectionAt: Date?
+    @Published private(set) var startedAt: Date?
+    @Published private(set) var lastError: String?
+
+    /// Validation-mode ground-truth labelling (unused in production mode).
+    @Published var selectedLabel: RepLabel = .fullShot
+    @Published private(set) var repCounts: [RepLabel: Int] = [:]
+
+    private let workout = WorkoutKeeper()
+    private let recorder = MotionRecorder()
+    private var detector: LiveSwingDetector?
+
+    // Club state: the effective club is whichever of {phone, local Crown} has
+    // the higher epoch (resolves the cross-device race without clock compares).
+    @Published private(set) var localClub: (short: String, epoch: Int)?
+
+    private var meta: SessionMeta?
+    private var sessionDir: URL?
+    private var anchorTimer: Timer?
+    private var batteryTimer: Timer?
+
+    init() {
+        WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
+        WatchSession.shared.activate()
+        recorder.onRateSample = { [weak self] hz in self?.deliveredHz = hz }
+        workout.onFailure = { [weak self] message in self?.lastError = "Workout: \(message)" }
+    }
+
+    var batteryPercent: Int { Int((WKInterfaceDevice.current().batteryLevel * 100).rounded()) }
+
+    /// Club to stamp on a SwingEvent — local Crown selection wins iff its epoch
+    /// is higher than the phone's last-known, else the phone's.
+    var effectiveClubShort: String? {
+        let phone = WatchSession.shared.phoneState
+        if let local = localClub, local.epoch >= phone.clubEpoch { return local.short }
+        return phone.currentClubShortName
+    }
+
+    /// Crown picker (M6) calls this; bumps the local epoch above the phone's so
+    /// the change wins, and notifies the phone.
+    func selectClub(short: String) {
+        let nextEpoch = max(WatchSession.shared.phoneState.clubEpoch, localClub?.epoch ?? 0) + 1
+        localClub = (short, nextEpoch)
+        WatchSession.shared.send(.command(.clubChange(shortName: short, epoch: nextEpoch)))
+    }
+
+    func toggle() async {
+        if running { stop() } else { await start() }
+    }
+
+    func start() async {
+        guard !running else { return }
+        lastError = nil
+        do {
+            try await workout.requestAuthorization()
+
+            let det = LiveSwingDetector()
+            det.onDetection = { [weak self] detection in
+                // Fires on the motion queue — hop to main for UI + WC.
+                Task { @MainActor in self?.handleDetection(detection) }
+            }
+            detector = det
+            recorder.onAccel = { [weak det] t, x, y, z in det?.ingestAccel(t: t, x: x, y: y, z: z) }
+            recorder.onGyro = { [weak det] t, x, y, z in det?.ingestGyro(t: t, x: x, y: y, z: z) }
+
+            var dir: URL?
+            if validationMode {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyyMMdd-HHmmss"
+                let id = "spike-\(formatter.string(from: Date()))-\(UUID().uuidString.prefix(4).lowercased())"
+                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let d = docs.appendingPathComponent(id, isDirectory: true)
+                try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+                var m = SessionMeta(sessionId: id, device: .current())
+                m.startedAtWallClock = Date().timeIntervalSince1970
+                m.anchors.append(.now())
+                m.battery.append(.now())
+                meta = m
+                sessionDir = d
+                dir = d
+            }
+
+            try workout.start()
+            try recorder.start(recordRawTo: dir)
+
+            detectionCount = 0
+            repCounts = [:]
+            startedAt = Date()
+            running = true
+            scheduleTimers()
+            WKInterfaceDevice.current().play(.start)
+        } catch {
+            lastError = error.localizedDescription
+            workout.stop()
+            recorder.stop()
+            detector = nil
+        }
+    }
+
+    private func handleDetection(_ detection: LiveSwingDetector.Detection) {
+        detectionCount += 1
+        lastDetectionAt = Date()
+        // Map the detection's boot-relative timestamp to wall-clock for fusion.
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        let nowWall = Date().timeIntervalSince1970
+        let wallClock = nowWall - (nowUptime - detection.t)
+        let event = SwingEvent(
+            id: UUID(),
+            watchWallClock: wallClock,
+            watchUptime: detection.t,
+            club: effectiveClubShort,
+            confidence: min(1.0, detection.impactPeakG / 20.0),
+            source: .auto,
+            impactPeakG: detection.impactPeakG,
+            arcGyro: detection.arcGyro
+        )
+        WatchSession.shared.send(.swing(event))
+        WKInterfaceDevice.current().play(.notification)
+    }
+
+    /// Validation-mode ground-truth mark.
+    func mark() {
+        guard running, validationMode else { return }
+        let label = selectedLabel
+        let next = (repCounts[label] ?? 0) + 1
+        repCounts[label] = next
+        meta?.marks.append(GroundTruthMark(
+            label: label.rawValue, repIndex: next,
+            uptime: ProcessInfo.processInfo.systemUptime, wallClock: Date().timeIntervalSince1970
+        ))
+        WKInterfaceDevice.current().play(.success)
+    }
+
+    func stop() {
+        guard running else { return }
+        anchorTimer?.invalidate(); batteryTimer?.invalidate()
+        anchorTimer = nil; batteryTimer = nil
+
+        let counts = recorder.stop()
+        workout.stop()
+        detector = nil
+
+        if var m = meta, let dir = sessionDir {
+            m.anchors.append(.now())
+            m.battery.append(.now())
+            m.endedAtWallClock = Date().timeIntervalSince1970
+            m.counts = ["dm": counts.dm, "accel": counts.accel, "gyro": counts.gyro]
+            m.gyroSource = recorder.gyroSource
+            do {
+                let data = try JSONEncoder().encode(m)
+                try data.write(to: dir.appendingPathComponent("session.json"))
+                WatchSession.shared.send(sessionDir: dir, sessionId: m.sessionId)
+            } catch {
+                lastError = "Save failed: \(error.localizedDescription)"
+            }
+        }
+        meta = nil; sessionDir = nil
+        startedAt = nil
+        deliveredHz = 0
+        running = false
+        WKInterfaceDevice.current().play(.stop)
+    }
+
+    private func scheduleTimers() {
+        anchorTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.meta?.anchors.append(.now()) }
+        }
+        batteryTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.meta?.battery.append(.now()) }
+        }
+    }
+}

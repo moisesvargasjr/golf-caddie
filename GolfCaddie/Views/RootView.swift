@@ -24,6 +24,9 @@ struct RootView: View {
                 let new = RoundController(location: location)
                 try? new.restoreActiveRound()
                 controller = new
+                // Drain any swing events that queued before the controller
+                // existed (the WC delegate activates in GolfCaddieApp.init).
+                LiveShotCoordinator.shared.attach(controller: new, location: location)
             }
             if glassesServer == nil, let controller {
                 let server = GlassesServer(location: location)

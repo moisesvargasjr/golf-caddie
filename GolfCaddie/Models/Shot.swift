@@ -6,6 +6,7 @@ enum ShotSource: String, Codable {
     case actionButton
     case manual
     case glasses
+    case watchAuto // auto-detected by the watch swing detector, fused on the phone
 }
 
 struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable {

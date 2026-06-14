@@ -2,16 +2,12 @@ import SwiftUI
 
 @main
 struct GolfCaddieWatchApp: App {
-    @StateObject private var controller = SpikeSessionController()
+    @StateObject private var controller = LiveSessionController()
 
     var body: some Scene {
         WindowGroup {
-            TabView {
-                RecordingView()
-                ControlsView()
-            }
-            .tabViewStyle(.verticalPage)
-            .environmentObject(controller)
+            LiveRootView()
+                .environmentObject(controller)
         }
     }
 }

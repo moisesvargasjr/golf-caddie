@@ -348,6 +348,54 @@ final class RoundController {
         currentHoleShots.append(shot)
     }
 
+    /// Commit a reconciled auto-detected shot from the watch. The coordinate was
+    /// already fused on the phone (breadcrumb nearest the swing's timestamp);
+    /// pass nil when fusion found nothing (hadGPS=false). The shot keeps the
+    /// swing's own `timestamp` (when it actually happened) and the club carried
+    /// on the event, falling back to the round's `currentClub`. Routed through
+    /// the controller so `currentHoleShots`, the lie counter, and the glasses
+    /// HUD refresh. No-op-throws outside an active hole.
+    @discardableResult
+    func ingestAutoShot(at coordinate: CLLocationCoordinate2D?, accuracy: Double?,
+                        club: ClubID?, timestamp: Date) throws -> UUID {
+        guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
+        let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
+        let shot = Shot(
+            id: UUID(),
+            holeID: hole.id,
+            sequenceNumber: nextSeq,
+            timestamp: timestamp,
+            latitude: coordinate?.latitude,
+            longitude: coordinate?.longitude,
+            gpsAccuracy: accuracy,
+            hadGPS: coordinate != nil,
+            club: club ?? currentClub,
+            source: .watchAuto,
+            notes: nil
+        )
+        try ShotRepository.insert(shot)
+        currentHoleShots.append(shot)
+        return shot.id
+    }
+
+    /// Watch "add shot here now" (false-negative recovery) — logs at the live
+    /// fix with the current club, like the glasses fast path.
+    func addShotFromWatch() throws {
+        let loc = location.latestLocation
+        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
+        try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
+                           club: currentClub, timestamp: Date())
+    }
+
+    /// Watch putt counter (+1) — a putter shot at the live fix. Putts are not
+    /// auto-detected (per the handoff doc), so this manual tap is how they land.
+    func addPuttFromWatch() throws {
+        let loc = location.latestLocation
+        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
+        try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
+                           club: .putter, timestamp: Date())
+    }
+
     /// Add a 1-stroke penalty to the active hole from the phone Penalty
     /// sheet. Routes the insert through the controller so the in-memory
     /// `currentHolePenalties` refreshes — without that, the @Observable
