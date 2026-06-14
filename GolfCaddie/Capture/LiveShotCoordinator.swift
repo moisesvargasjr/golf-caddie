@@ -33,6 +33,12 @@ final class LiveShotCoordinator {
     /// reads this so the phone never echoes a stale epoch back.
     private(set) var lastWatchClubEpoch = 0
 
+    /// Prompt for Core Motion (step) access at round start, before the first
+    /// real query needs it mid-round.
+    func warmUpStepCounter() {
+        reconciler.steps.requestAuthorization()
+    }
+
     func attach(controller: RoundController, location: LocationManager) {
         self.controller = controller
         self.location = location

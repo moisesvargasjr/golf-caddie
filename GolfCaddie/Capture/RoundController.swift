@@ -177,6 +177,7 @@ final class RoundController {
         lastBreadcrumb = nil
         location.requestAlways()
         location.startTracking()
+        LiveShotCoordinator.shared.warmUpStepCounter()
         // Fire-and-forget course auto-detection. startRound stays fully
         // synchronous and behavior-identical — detection never blocks the
         // round starting (W1 discipline) and silently no-ops on any failure.

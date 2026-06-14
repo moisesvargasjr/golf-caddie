@@ -40,6 +40,8 @@ targets:
         # Companion of a HealthKit-using watch app must carry the usage strings.
         NSHealthShareUsageDescription: "The Apple Watch companion runs a workout session during swing-detection recording."
         NSHealthUpdateUsageDescription: "The Apple Watch companion runs a workout session during swing-detection recording."
+        # CMPedometer step-gate for collapsing practice-swing false positives.
+        NSMotionUsageDescription: "GolfCaddie uses your step count to tell practice swings apart from real shots."
         CFBundleURLTypes:
           - CFBundleURLName: com.moisesvargasjr.golfcaddie
             CFBundleURLSchemes:

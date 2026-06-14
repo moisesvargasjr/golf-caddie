@@ -9,6 +9,12 @@ protocol StepCounting {
     /// reconciler treats the interval as "walked" and never silently collapses
     /// two real strokes — false positives are flickable, lost strokes are not.
     func steps(from: Date, to: Date) async -> Int
+    /// Optional: trigger any permission prompt ahead of the first real query.
+    func requestAuthorization()
+}
+
+extension StepCounting {
+    func requestAuthorization() {}
 }
 
 /// A candidate the reconciler can order in time. The concrete payload (the
@@ -57,6 +63,14 @@ struct ShotReconciler {
 /// Fails safe: any unavailability/error → Int.max so nothing collapses.
 final class PedometerStepCounter: StepCounting {
     private let pedometer = CMPedometer()
+
+    /// Warm up Core Motion permission at a sensible moment (round start) so the
+    /// system prompt doesn't surface mid-round on the first real query. The
+    /// short historical query both triggers the prompt and is harmless.
+    func requestAuthorization() {
+        guard CMPedometer.isStepCountingAvailable() else { return }
+        pedometer.queryPedometerData(from: Date().addingTimeInterval(-60), to: Date()) { _, _ in }
+    }
 
     func steps(from: Date, to: Date) async -> Int {
         guard CMPedometer.isStepCountingAvailable(), to > from else { return Int.max }
