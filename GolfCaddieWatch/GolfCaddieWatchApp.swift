@@ -6,7 +6,7 @@ struct GolfCaddieWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LiveRootView()
+            WatchRootView()
                 .environmentObject(controller)
         }
     }

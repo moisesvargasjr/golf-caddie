@@ -397,6 +397,16 @@ final class RoundController {
                            club: .putter, timestamp: Date())
     }
 
+    /// Remove a specific shot on the active hole by id (the watch Strokes-page
+    /// per-row delete). Renumbers siblings and refreshes the observable list.
+    /// No-op if the shot isn't on the active hole.
+    func removeShot(id: UUID) throws {
+        guard case let .active(_, hole) = state else { return }
+        guard let shot = currentHoleShots.first(where: { $0.id == id }) else { return }
+        try ShotRepository.deleteAndRenumber(shot)
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
     /// Add a 1-stroke penalty to the active hole from the phone Penalty
     /// sheet. Routes the insert through the controller so the in-memory
     /// `currentHolePenalties` refreshes — without that, the @Observable

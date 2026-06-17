@@ -67,10 +67,17 @@ final class LiveShotCoordinator {
 
     private func handle(_ command: WatchCommand) {
         switch command {
-        case .addShotHereNow:
+        case let .addShot(clubShortName):
+            if let short = clubShortName, let club = ClubID.from(shortName: short) {
+                controller?.setCurrentClub(club)
+            }
             try? controller?.addShotFromWatch()
-        case .removeLastShot:
-            try? controller?.undoLastAction()
+        case let .removeStroke(id):
+            if let id, let uuid = UUID(uuidString: id) {
+                try? controller?.removeShot(id: uuid)
+            } else {
+                try? controller?.undoLastAction()
+            }
         case .puttPlusOne:
             try? controller?.addPuttFromWatch()
         case let .clubChange(shortName, epoch):

@@ -2,6 +2,14 @@ import Foundation
 import SwiftUI
 import WatchKit
 
+/// A detected swing awaiting confirmation on the watch (drives the DetectCard).
+struct DetectedSwing: Identifiable, Equatable {
+    let id = UUID()
+    let detectionUptime: Double
+    let impactPeakG: Double
+    let arcGyro: Double
+}
+
 /// The watch's round-session brain. Runs a workout session (keeps Core Motion
 /// alive) feeding ONE motion path into the live swing detector; each detection
 /// fires a haptic and emits a SwingEvent to the phone. In validation mode it
@@ -16,6 +24,10 @@ final class LiveSessionController: ObservableObject {
     @Published private(set) var lastDetectionAt: Date?
     @Published private(set) var startedAt: Date?
     @Published private(set) var lastError: String?
+
+    /// A detected swing awaiting on-watch confirmation (the DetectCard). nil
+    /// when no card is showing.
+    @Published private(set) var pending: DetectedSwing?
 
     /// Validation-mode ground-truth labelling (unused in production mode).
     @Published var selectedLabel: RepLabel = .fullShot
@@ -115,22 +127,41 @@ final class LiveSessionController: ObservableObject {
     private func handleDetection(_ detection: LiveSwingDetector.Detection) {
         detectionCount += 1
         lastDetectionAt = Date()
-        // Map the detection's boot-relative timestamp to wall-clock for fusion.
-        let nowUptime = ProcessInfo.processInfo.systemUptime
-        let nowWall = Date().timeIntervalSince1970
-        let wallClock = nowWall - (nowUptime - detection.t)
-        let event = SwingEvent(
-            id: UUID(),
-            watchWallClock: wallClock,
-            watchUptime: detection.t,
-            club: effectiveClubShort,
-            confidence: min(1.0, detection.impactPeakG / 20.0),
-            source: .auto,
+        WKInterfaceDevice.current().play(.notification)
+        // Raise the confirm card (one at a time). Confirm/timeout emits the
+        // event; "Not a shot" drops it. The phone-side step-gate is the backstop
+        // for any practice swing that auto-logs before the user dismisses.
+        guard pending == nil else { return }
+        pending = DetectedSwing(
+            detectionUptime: detection.t,
             impactPeakG: detection.impactPeakG,
             arcGyro: detection.arcGyro
         )
+    }
+
+    /// DetectCard "Log it" / countdown timeout — emit the swing to the phone.
+    func confirmPending() {
+        guard let p = pending else { return }
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        let nowWall = Date().timeIntervalSince1970
+        let wallClock = nowWall - (nowUptime - p.detectionUptime)
+        let event = SwingEvent(
+            id: UUID(),
+            watchWallClock: wallClock,
+            watchUptime: p.detectionUptime,
+            club: effectiveClubShort,
+            confidence: min(1.0, p.impactPeakG / 20.0),
+            source: .auto,
+            impactPeakG: p.impactPeakG,
+            arcGyro: p.arcGyro
+        )
         WatchSession.shared.send(.swing(event))
-        WKInterfaceDevice.current().play(.notification)
+        pending = nil
+    }
+
+    /// DetectCard "Not a shot" — discard without emitting.
+    func dismissPending() {
+        pending = nil
     }
 
     /// Validation-mode ground-truth mark.

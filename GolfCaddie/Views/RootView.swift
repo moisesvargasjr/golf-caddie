@@ -7,6 +7,7 @@ struct RootView: View {
     @State private var controller: RoundController?
     @State private var pendingURLs: [URL] = []
     @State private var glassesServer: GlassesServer?
+    @State private var watchPublisher = WatchStatePublisher()
     @AppStorage("glassesServerEnabled") private var glassesEnabled = false
 
     var body: some View {
@@ -27,6 +28,8 @@ struct RootView: View {
                 // Drain any swing events that queued before the controller
                 // existed (the WC delegate activates in GolfCaddieApp.init).
                 LiveShotCoordinator.shared.attach(controller: new, location: location)
+                // Push glance state to the watch.
+                watchPublisher.start(controller: new, location: location)
             }
             if glassesServer == nil, let controller {
                 let server = GlassesServer(location: location)

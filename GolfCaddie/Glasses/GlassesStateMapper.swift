@@ -262,6 +262,24 @@ enum GlassesStateMapper {
         return Int(Distance.yards(fromMeters: meters).rounded())
     }
 
+    /// The hole's green coordinate (local capture wins over curated), or nil if
+    /// no course is linked / no anchor exists. Shared by the live
+    /// distance-to-green and the watch per-stroke distances.
+    static func greenCoordinate(courseId: String?, holeNumber: Int) -> CLLocationCoordinate2D? {
+        guard let courseId else { return nil }
+        let local = try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: holeNumber)
+        let curatedGreen = (try? CourseDataRepository.course(byId: courseId))?
+            .holes.first { $0.number == holeNumber }?.greenAnchor
+        guard let green = local?.green ?? curatedGreen else { return nil }
+        return CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng)
+    }
+
+    /// Yards from an arbitrary coordinate to the hole's green; nil without a green.
+    static func yardsToGreen(from coordinate: CLLocationCoordinate2D, courseId: String?, holeNumber: Int) -> Int? {
+        guard let green = greenCoordinate(courseId: courseId, holeNumber: holeNumber) else { return nil }
+        return Int(Distance.yards(fromMeters: Distance.meters(from: coordinate, to: green)).rounded())
+    }
+
     /// Yards between two shots' coordinates; nil if either is missing or lacks
     /// GPS. Order-independent (distance is symmetric).
     private static func yards(between a: Shot?, and b: Shot?) -> Int? {
