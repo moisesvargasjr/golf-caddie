@@ -82,7 +82,7 @@ targets:
     info:
       path: GolfCaddieWatch/Info.plist
       properties:
-        CFBundleDisplayName: GC Spike
+        CFBundleDisplayName: Fairway
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "4"
         WKApplication: true
