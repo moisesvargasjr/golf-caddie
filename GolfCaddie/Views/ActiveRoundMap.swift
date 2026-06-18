@@ -10,12 +10,17 @@ struct ActiveRoundMap: View {
     /// Bearing in degrees from tee → green for the current hole, or nil when
     /// the hole has no curated/captured anchors (map falls back to north up).
     let holeHeading: Double?
+    /// Green anchor for the current hole; the map frames ball → green around it.
+    let green: CLLocationCoordinate2D?
+    /// "Auto-frame the hole" — true keeps the map fit to ball → green as you
+    /// walk; a manual pan/zoom flips it off, and the recenter control flips it on.
     @Binding var followMode: Bool
 
     var body: some View {
         ActiveRoundMapKit(
             shots: shots,
             holeHeading: holeHeading,
+            green: green,
             isFollowing: followMode,
             onFollowModeChange: { newValue in
                 if followMode != newValue {
@@ -29,6 +34,7 @@ struct ActiveRoundMap: View {
 private struct ActiveRoundMapKit: UIViewRepresentable {
     let shots: [Shot]
     let holeHeading: Double?
+    let green: CLLocationCoordinate2D?
     let isFollowing: Bool
     let onFollowModeChange: (Bool) -> Void
 
@@ -41,7 +47,6 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         map.delegate = context.coordinator
         map.preferredConfiguration = MKImageryMapConfiguration()
         map.showsUserLocation = true
-        map.userTrackingMode = .follow
         map.showsCompass = false  // design has its own corner stamp
         map.showsScale = false
         map.isRotateEnabled = false
@@ -49,29 +54,38 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
-        context.coordinator.onFollowModeChange = onFollowModeChange
-
-        if isFollowing, map.userTrackingMode != .follow {
-            map.setUserTrackingMode(.follow, animated: true)
+        let coord = context.coordinator
+        coord.onFollowModeChange = onFollowModeChange
+        coord.green = green
+        coord.holeHeading = holeHeading
+        coord.shotCoords = shots.compactMap { shot in
+            guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
+            return CLLocationCoordinate2D(latitude: lat, longitude: lng)
         }
 
-        applyHoleHeading(in: map, context: context)
         syncAnnotations(in: map)
         syncPolyline(in: map)
+
+        // Re-frame ball → green when auto-frame is on AND something that changes
+        // the framing changed (hole/green/heading, or the shot set). Walking is
+        // handled separately in didUpdate userLocation (throttled by distance).
+        let key = frameKey()
+        if isFollowing, coord.lastFrameKey != key {
+            coord.lastFrameKey = key
+            coord.reframe(map, animated: true)
+        }
+        // Returning to auto-frame after a manual pan: force a reframe.
+        if isFollowing, !coord.wasFollowing {
+            coord.reframe(map, animated: true)
+        }
+        coord.wasFollowing = isFollowing
     }
 
-    /// Rotate the camera so the hitting direction (tee → green) points "up".
-    /// `userTrackingMode = .follow` keeps the user centered but doesn't lock
-    /// heading; we set the camera heading whenever it changes, and skip the
-    /// nudge when nothing's different to avoid camera jitter.
-    private func applyHoleHeading(in map: MKMapView, context: Context) {
-        guard let target = holeHeading else { return }
-        if let last = context.coordinator.lastAppliedHeading,
-           abs(last - target) < 0.5 { return }
-        let camera = map.camera.copy() as! MKMapCamera
-        camera.heading = target
-        map.setCamera(camera, animated: true)
-        context.coordinator.lastAppliedHeading = target
+    /// Identity of the current framing inputs; a change triggers a re-fit.
+    private func frameKey() -> String {
+        let g = green.map { "\($0.latitude),\($0.longitude)" } ?? "-"
+        let h = holeHeading.map { String(Int($0)) } ?? "-"
+        return "\(g)|\(h)|\(shots.count)"
     }
 
     private func syncAnnotations(in map: MKMapView) {
@@ -123,17 +137,69 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var onFollowModeChange: (Bool) -> Void
-        /// Last heading we pushed to the camera, so we don't re-issue
-        /// `setCamera` every SwiftUI update tick.
-        var lastAppliedHeading: Double?
+
+        // Framing inputs, kept fresh by updateUIView so the location-driven
+        // reframe (didUpdate) can read them.
+        var green: CLLocationCoordinate2D?
+        var holeHeading: Double?
+        var shotCoords: [CLLocationCoordinate2D] = []
+
+        var lastFrameKey: String?
+        var wasFollowing = false
+        private var lastFrameUserCoord: CLLocationCoordinate2D?
+        private var programmaticChange = false
 
         init(onFollowModeChange: @escaping (Bool) -> Void) {
             self.onFollowModeChange = onFollowModeChange
         }
 
-        func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
-            let isFollowing = mode == .follow || mode == .followWithHeading
-            onFollowModeChange(isFollowing)
+        /// Fit the camera to ball (user) → green (+ shots), oriented green-up.
+        func reframe(_ map: MKMapView, animated: Bool) {
+            var coords = shotCoords
+            if let green { coords.append(green) }
+            let user = map.userLocation.location?.coordinate
+            if let user, CLLocationCoordinate2DIsValid(user) { coords.append(user) }
+            guard let camera = Self.cameraFitting(coords, heading: holeHeading ?? 0) else { return }
+            lastFrameUserCoord = user
+            programmaticChange = true
+            map.setCamera(camera, animated: animated)
+        }
+
+        /// Camera that frames `coords` with a tight margin, green-up. Distance is
+        /// driven by the span of ball → green, so it zooms in as you walk up; a
+        /// floor keeps a single point from zooming to the street.
+        static func cameraFitting(_ coords: [CLLocationCoordinate2D], heading: CLLocationDirection) -> MKMapCamera? {
+            guard !coords.isEmpty else { return nil }
+            let lats = coords.map(\.latitude), lngs = coords.map(\.longitude)
+            let minLat = lats.min()!, maxLat = lats.max()!, minLng = lngs.min()!, maxLng = lngs.max()!
+            let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2)
+            let diagonal = CLLocation(latitude: maxLat, longitude: minLng)
+                .distance(from: CLLocation(latitude: minLat, longitude: maxLng))
+            let distance = max(diagonal * 1.45, 160)
+            return MKMapCamera(lookingAtCenter: center, fromDistance: distance, pitch: 0, heading: heading)
+        }
+
+        // Re-fit as the user walks (only while auto-framing, throttled by distance).
+        func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+            guard wasFollowing, let here = userLocation.location else { return }
+            if let last = lastFrameUserCoord {
+                let moved = here.distance(from: CLLocation(latitude: last.latitude, longitude: last.longitude))
+                guard moved >= 12 else { return }
+            }
+            reframe(mapView, animated: true)
+        }
+
+        // A manual pan/zoom while auto-framing turns auto-frame off.
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            if programmaticChange { return }
+            let userGesture = (mapView.subviews.first?.gestureRecognizers ?? []).contains {
+                $0.state == .began || $0.state == .changed
+            }
+            if userGesture { onFollowModeChange(false) }
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            programmaticChange = false
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {

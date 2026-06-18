@@ -113,6 +113,7 @@ struct ActiveRoundView: View {
             ActiveRoundMap(
                 shots: controller.currentHoleShots,
                 holeHeading: holeBearing,
+                green: holeGreenCoordinate,
                 followMode: $mapFollowMode
             )
             .ignoresSafeArea()
@@ -804,6 +805,13 @@ struct ActiveRoundView: View {
     private func coord(of shot: Shot) -> CLLocationCoordinate2D? {
         guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
         return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    /// Green anchor for the current hole (local capture wins over curated), used
+    /// by the map to frame ball → green. Nil for non-curated rounds.
+    private var holeGreenCoordinate: CLLocationCoordinate2D? {
+        guard let hole = controller.currentHole else { return nil }
+        return GlassesStateMapper.greenCoordinate(courseId: controller.curatedCourseId, holeNumber: hole.holeNumber)
     }
 
     /// Distance-to-green for the current hole. Requires a curated course link

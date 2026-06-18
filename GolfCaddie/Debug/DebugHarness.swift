@@ -26,6 +26,11 @@ enum DebugHarness {
         guard startRound || count > 0 else { return }
 
         NSLog("[DebugHarness] start (startRound=\(startRound) injectSwings=\(count))")
+        // A fresh simulator has no saved bag, which gates the UI on Bag Setup.
+        // Seed the recommended default so the active round renders.
+        if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
+            try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
+        }
         if startRound, !controller.isActive {
             try? controller.startRound()
         }
