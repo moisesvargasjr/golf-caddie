@@ -59,6 +59,13 @@ final class LiveSwingDetector {
     /// Emitted on the caller's thread when a detection is confirmed.
     var onDetection: ((Detection) -> Void)?
 
+    /// Recent peak of the high-passed impact channel (g), reported ~10×/s — a
+    /// live "the watch is sensing motion" meter for the UI. Peak-hold with decay
+    /// so a brief spike stays visible.
+    var onActivity: ((Double) -> Void)?
+    private var activityPeak = 0.0
+    private var accelCount = 0
+
     init(params: Params = Params()) {
         self.p = params
         self.hpX = ButterworthHighPass4(fs: params.sampleRateHz, cutoffHz: params.impactHpHz)
@@ -81,6 +88,10 @@ final class LiveSwingDetector {
             clusterOpen = true
             clusterLastAboveT = t
         }
+        // Live activity meter: peak-hold with per-sample decay, reported ~10×/s.
+        activityPeak = Swift.max(activityPeak * 0.9, hp)
+        accelCount += 1
+        if accelCount % 10 == 0 { onActivity?(activityPeak) }
         finalizeIfReady(now: t)
     }
 

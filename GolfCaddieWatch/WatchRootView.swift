@@ -28,15 +28,42 @@ struct WatchRootView: View {
 
 private struct WatchHeader<Left: View>: View {
     @ViewBuilder var left: Left
-    var accentTime = false
+    var accentTime = false // retained for call-site compatibility; no longer draws a clock
     var body: some View {
         HStack {
             left
-            Spacer()
-            Text(Date.now, style: .time)
-                .font(WT.mono(15))
-                .foregroundStyle(accentTime ? WT.accent : WT.ink)
+            Spacer(minLength: 0)
         }
+    }
+}
+
+/// Persistent "the watch is sensing motion" meter while a session is running:
+/// a pulsing dot + a thin bar that fills toward the ball-strike threshold, so
+/// you can see motion register and how hard a real hit needs to be.
+private struct ListeningBar: View {
+    @EnvironmentObject private var controller: LiveSessionController
+    @State private var pulse = false
+
+    var body: some View {
+        let level = min(1.0, controller.liveImpact / max(0.1, controller.impactThreshold))
+        HStack(spacing: 6) {
+            Circle()
+                .fill(WT.green)
+                .frame(width: 6, height: 6)
+                .opacity(pulse ? 1 : 0.3)
+                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+            Text("LISTENING").font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink3)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(WT.ink.opacity(0.12))
+                    Capsule().fill(level >= 1 ? WT.accent : WT.green)
+                        .frame(width: geo.size.width * level)
+                }
+            }
+            .frame(height: 4)
+        }
+        .padding(.horizontal, 10)
+        .onAppear { pulse = true }
     }
 }
 
@@ -131,6 +158,8 @@ private struct WatchPlayView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             PageDots(page: page)
                 .padding(.bottom, 2)
+            // Persistent "listening" meter across all pages.
+            VStack { ListeningBar(); Spacer() }
             // Validation ground-truth MARK (M8 only) — top-right corner tap.
             if controller.validationMode {
                 VStack {
@@ -173,33 +202,33 @@ private struct YardageScreen: View {
     var body: some View {
         let s = session.phoneState
         let yards = s.distanceToGreenYards
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             WatchHeader(left: {
                 HStack(spacing: 6) {
-                    Text("Hole \(s.holeNumber)").font(WT.serif(16))
+                    Text("Hole \(s.holeNumber)").font(WT.serif(15))
                     Text("PAR \(s.par.map(String.init) ?? "–")")
-                        .font(WT.mono(11)).foregroundStyle(WT.ink3)
+                        .font(WT.mono(10)).foregroundStyle(WT.ink3)
                 }
             })
 
-            Text("TO GREEN").font(WT.mono(11)).tracking(3).foregroundStyle(WT.ink2)
-                .padding(.top, 2)
+            Text("TO GREEN").font(WT.mono(10)).tracking(3).foregroundStyle(WT.ink2)
             Text(yards.map(String.init) ?? "–––")
-                .font(WT.serif(86)).foregroundStyle(WT.ink)
+                .font(WT.serif(68)).foregroundStyle(WT.ink)
                 .minimumScaleFactor(0.5).lineLimit(1)
-                .shadow(color: .black.opacity(0.8), radius: 16, y: 2)
+                .shadow(color: .black.opacity(0.8), radius: 12, y: 2)
             if let y = yards {
-                HStack(spacing: 20) {
+                HStack(spacing: 16) {
                     fb("FRONT", max(0, y - 7))
-                    Rectangle().fill(WT.line).frame(width: 1, height: 22)
+                    Rectangle().fill(WT.line).frame(width: 1, height: 18)
                     fb("BACK", y + 9)
                 }
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
             ClubSelector()
-            Spacer(minLength: 16) // room for page dots
         }
         .padding(.horizontal, 6)
+        .padding(.top, 14)    // clear the listening bar
+        .padding(.bottom, 22) // clear the page dots
     }
 
     private func fb(_ label: String, _ v: Int) -> some View {
@@ -258,7 +287,7 @@ private struct ClubSelector: View {
         .focusable(true)
         .focused($focused)
         .digitalCrownRotation($crown, from: 0, through: Double(max(0, clubs.count - 1)),
-                              by: 1, sensitivity: .low, isContinuous: false)
+                              by: 1, sensitivity: .high, isContinuous: false)
         .onChange(of: crown) { _, newValue in
             let newIdx = Int(newValue.rounded())
             guard clubs.indices.contains(newIdx), newIdx != idx else { return }
@@ -294,7 +323,7 @@ private struct StrokesScreen: View {
                 Text("STROKES · H\(session.phoneState.holeNumber)")
                     .font(WT.mono(12)).tracking(1.4).foregroundStyle(WT.ink2)
             })
-            .padding(.horizontal, 8).padding(.bottom, 2)
+            .padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 2)
 
             List {
                 if strokes.isEmpty {
@@ -458,6 +487,7 @@ private struct ScoreScreen: View {
             .padding(.bottom, 16)
         }
         .padding(.horizontal, 8)
+        .padding(.top, 14)
     }
 }
 

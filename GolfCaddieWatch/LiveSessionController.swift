@@ -20,7 +20,12 @@ final class LiveSessionController: ObservableObject {
     @Published private(set) var running = false
     @Published var validationMode = false
     @Published private(set) var deliveredHz: Double = 0
+    /// Live peak impact (g) for the "listening" meter; 0 when idle.
+    @Published private(set) var liveImpact: Double = 0
     @Published private(set) var detectionCount = 0
+
+    /// Impact threshold a real ball-strike crosses — the meter's full-scale mark.
+    let impactThreshold = LiveSwingDetector.Params().impactThreshG
     @Published private(set) var lastDetectionAt: Date?
     @Published private(set) var startedAt: Date?
     @Published private(set) var lastError: String?
@@ -85,6 +90,9 @@ final class LiveSessionController: ObservableObject {
             det.onDetection = { [weak self] detection in
                 // Fires on the motion queue — hop to main for UI + WC.
                 Task { @MainActor in self?.handleDetection(detection) }
+            }
+            det.onActivity = { [weak self] g in
+                Task { @MainActor in self?.liveImpact = g }
             }
             detector = det
             recorder.onAccel = { [weak det] t, x, y, z in det?.ingestAccel(t: t, x: x, y: y, z: z) }
@@ -203,6 +211,7 @@ final class LiveSessionController: ObservableObject {
         meta = nil; sessionDir = nil
         startedAt = nil
         deliveredHz = 0
+        liveImpact = 0
         running = false
         WKInterfaceDevice.current().play(.stop)
     }
