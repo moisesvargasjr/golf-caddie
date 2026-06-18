@@ -17,6 +17,7 @@ struct ActiveRoundView: View {
     @State private var showEndRoundConfirm = false
     @State private var showUndoConfirm = false
     @State private var showCoursePicker = false
+    @State private var showHoleGrid = false
     @State private var curatedCourses: [CuratedCourse] = []
     @State private var showMissingShotSheet = false
     /// Snapshot of the missing-shot pin center, computed once when "+ MISS"
@@ -103,7 +104,7 @@ struct ActiveRoundView: View {
     private var idleBody: some View {
         HomeView(
             bag: $bag,
-            onStartRound: { startRound() },
+            onStartRound: { startRound(startingHole: $0) },
             actionError: actionError
         )
     }
@@ -125,7 +126,7 @@ struct ActiveRoundView: View {
             // Top overlays — hole pill on the left, action stamps on the right.
             VStack(spacing: 8) {
                 HStack(alignment: .top, spacing: 8) {
-                    holePill
+                    holeNav
                     Spacer(minLength: 4)
                     VStack(alignment: .trailing, spacing: 6) {
                         lyingStamp
@@ -191,6 +192,23 @@ struct ActiveRoundView: View {
                 onCancel: {
                     reviewingHole = nil
                 }
+            )
+        }
+        #if DEBUG
+        .onAppear {
+            if UserDefaults.standard.bool(forKey: "DebugShowHoleGrid") { showHoleGrid = true }
+        }
+        #endif
+        .sheet(isPresented: $showHoleGrid) {
+            HoleGridSheet(
+                currentHole: controller.currentHole?.holeNumber ?? 1,
+                holes: controller.holesForCurrentRound(),
+                onPick: { number in
+                    controller.goToHole(number)
+                    mapFollowMode = true
+                    showHoleGrid = false
+                },
+                onCancel: { showHoleGrid = false }
             )
         }
         .sheet(isPresented: $showPenaltySheet) {
@@ -269,9 +287,30 @@ struct ActiveRoundView: View {
     // the course picker — the recovery path for "auto-detect picked the wrong
     // course" (the just-in-time "Link course" CTA in `distanceCard` only
     // surfaces when nothing is linked at all).
+    /// Prev ‹ · hole pill (tap → grid) · › Next — pure navigation chevrons
+    /// (step one hole, wrapping) flanking the tappable hole number.
+    private var holeNav: some View {
+        HStack(spacing: 4) {
+            holeStepChevron("‹") { controller.stepHole(by: -1); mapFollowMode = true }
+            holePill
+            holeStepChevron("›") { controller.stepHole(by: 1); mapFollowMode = true }
+        }
+    }
+
+    private func holeStepChevron(_ glyph: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            PaperCard(padding: EdgeInsets(top: 6, leading: 9, bottom: 6, trailing: 9)) {
+                Text(glyph)
+                    .font(.custom(AppFont.serifName, size: 20).weight(.bold))
+                    .foregroundStyle(palette.ink)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private var holePill: some View {
         Button {
-            showCoursePicker = true
+            showHoleGrid = true
         } label: {
             PaperCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)) {
                 VStack(spacing: 2) {
@@ -857,10 +896,10 @@ struct ActiveRoundView: View {
         )
     }
 
-    private func startRound() {
+    private func startRound(startingHole: Int) {
         actionError = nil
         do {
-            try controller.startRound()
+            try controller.startRound(startingHole: startingHole)
             mapFollowMode = true
         } catch {
             actionError = "Couldn't start round: \(error.localizedDescription)"

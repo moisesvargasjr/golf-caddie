@@ -23,16 +23,18 @@ enum DebugHarness {
         let d = UserDefaults.standard
         let count = d.integer(forKey: "DebugInjectSwings")
         let startRound = d.bool(forKey: "DebugStartRound")
-        guard startRound || count > 0 else { return }
+        let seedBag = d.bool(forKey: "DebugSeedBag")
+        guard startRound || count > 0 || seedBag else { return }
 
         NSLog("[DebugHarness] start (startRound=\(startRound) injectSwings=\(count))")
         // A fresh simulator has no saved bag, which gates the UI on Bag Setup.
-        // Seed the recommended default so the active round renders.
+        // Seed the recommended default so Home / the active round render.
         if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
             try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
         }
         if startRound, !controller.isActive {
-            try? controller.startRound()
+            let startHole = d.integer(forKey: "DebugStartHole")
+            try? controller.startRound(startingHole: startHole > 0 ? startHole : 1)
         }
         guard count > 0 else { return }
 

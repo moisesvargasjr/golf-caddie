@@ -7,7 +7,8 @@ import SwiftUI
 /// Logbook (rounds list) and Settings.
 struct HomeView: View {
     @Binding var bag: [ClubID]
-    let onStartRound: () -> Void
+    let onStartRound: (Int) -> Void
+    @State private var startingHole = 1
     let actionError: String?
 
     @Environment(\.palette) private var palette
@@ -264,12 +265,44 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
             }
 
+            startHoleStepper
             beginCTA
         }
     }
 
+    /// Pick the starting hole (default 1). Ignore it for a normal front-nine
+    /// start; bump to 10 to begin on the back nine.
+    private var startHoleStepper: some View {
+        HStack {
+            Text("START ON HOLE")
+                .font(AppFont.stamp).tracking(1.4)
+                .foregroundStyle(palette.ink3)
+            Spacer()
+            HStack(spacing: 16) {
+                stepButton("‹") { if startingHole > 1 { startingHole -= 1 } }
+                Text("\(startingHole)")
+                    .font(.custom(AppFont.serifName, size: 22).italic().weight(.bold))
+                    .foregroundStyle(palette.ink)
+                    .frame(minWidth: 26)
+                stepButton("›") { if startingHole < 18 { startingHole += 1 } }
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.bottom, 2)
+    }
+
+    private func stepButton(_ glyph: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(glyph)
+                .font(.custom(AppFont.serifName, size: 26).weight(.bold))
+                .foregroundStyle(palette.ink)
+                .frame(width: 34, height: 34)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var beginCTA: some View {
-        Button(action: onStartRound) {
+        Button(action: { onStartRound(startingHole) }) {
             HStack(spacing: 6) {
                 Text("Begin")
                     .font(AppFont.cta)
@@ -385,7 +418,7 @@ private struct LastRoundSummary: Equatable {
     NavigationStack {
         HomeView(
             bag: .constant(ClubConfiguration.recommendedDefault.bag),
-            onStartRound: {},
+            onStartRound: { _ in },
             actionError: nil
         )
     }

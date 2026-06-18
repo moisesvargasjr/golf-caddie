@@ -134,7 +134,12 @@ final class RoundController {
         guard let round = try RoundRepository.activeRound() else { return }
         let holes = try HoleRepository.holesForRound(round.id)
         let hole: Hole
-        if let last = holes.last {
+        // Restore the hole the golfer was actually on (persisted across launches),
+        // not just the highest-numbered — they may have skipped around.
+        let savedID = UserDefaults.standard.string(forKey: Self.activeHoleKey(round.id)).flatMap(UUID.init)
+        if let savedID, let match = holes.first(where: { $0.id == savedID }) {
+            hole = match
+        } else if let last = holes.last {
             hole = last
         } else {
             hole = Hole(id: UUID(), roundID: round.id, holeNumber: 1, par: nil, confirmedAt: nil)
@@ -150,7 +155,12 @@ final class RoundController {
         location.startTracking()
     }
 
-    func startRound() throws {
+    /// Holes in a standard round; navigation wraps within 1...18.
+    static let holesPerRound = 18
+
+    static func activeHoleKey(_ roundID: UUID) -> String { "activeHole.\(roundID.uuidString)" }
+
+    func startRound(startingHole: Int = 1) throws {
         guard case .idle = state else { return }
         let round = Round(
             id: UUID(),
@@ -162,13 +172,14 @@ final class RoundController {
         let hole = Hole(
             id: UUID(),
             roundID: round.id,
-            holeNumber: 1,
+            holeNumber: max(1, min(Self.holesPerRound, startingHole)),
             par: nil,
             confirmedAt: nil
         )
         try RoundRepository.insert(round)
         try HoleRepository.insert(hole)
         state = .active(round: round, hole: hole)
+        UserDefaults.standard.set(hole.id.uuidString, forKey: Self.activeHoleKey(round.id))
         currentHoleShots = []
         currentHolePenalties = []
         currentClub = nil
@@ -199,6 +210,7 @@ final class RoundController {
         lastMarkAt = nil
         curatedCourseId = nil
         lastBreadcrumb = nil
+        UserDefaults.standard.removeObject(forKey: Self.activeHoleKey(round.id))
     }
 
     func clearMostRecentlyEndedRound() {
@@ -547,28 +559,54 @@ final class RoundController {
     }
 
     func confirmHoleAndAdvance(par: Int?) throws {
-        guard case let .active(round, currentHole) = state else { return }
+        guard case let .active(_, currentHole) = state else { return }
         var updated = currentHole
         updated.par = par
         updated.confirmedAt = Date()
         try HoleRepository.update(updated)
+        // Advance to the next hole number, wrapping 18 → 1 (so a back-9 start
+        // rolls onto the front 9). goToHole finds an existing row or creates it.
+        let next = (currentHole.holeNumber % Self.holesPerRound) + 1
+        goToHole(next)
+    }
 
-        let newHole = Hole(
-            id: UUID(),
-            roundID: round.id,
-            holeNumber: currentHole.holeNumber + 1,
-            par: nil,
-            confirmedAt: nil
-        )
-        try HoleRepository.insert(newHole)
-        state = .active(round: round, hole: newHole)
-        currentHoleShots = []
-        currentHolePenalties = []
+    /// Switch the active hole to `number` — for flexible navigation (prev/next
+    /// arrows, the hole grid). Returns to an existing hole row if one exists
+    /// (preserving its shots/par), else creates it. Does NOT confirm the hole
+    /// being left, so skipping ahead leaves it open to return to. Refreshes the
+    /// observable shot/penalty lists and persists the active hole for resume.
+    func goToHole(_ number: Int) {
+        guard case let .active(round, current) = state else { return }
+        guard (1...Self.holesPerRound).contains(number), number != current.holeNumber else { return }
+        let hole: Hole
+        if let existing = try? HoleRepository.hole(forRound: round.id, number: number) {
+            hole = existing
+        } else {
+            let new = Hole(id: UUID(), roundID: round.id, holeNumber: number, par: nil, confirmedAt: nil)
+            try? HoleRepository.insert(new)
+            hole = new
+        }
+        state = .active(round: round, hole: hole)
+        UserDefaults.standard.set(hole.id.uuidString, forKey: Self.activeHoleKey(round.id))
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        currentHolePenalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
         currentClub = nil
         lastMarkResult = nil
-        // Pre-fill the new hole's par from curated data (creation-time
-        // default; the golfer can still override at confirm/in the editor).
         autoFillParIfAvailable()
+    }
+
+    /// Step to the adjacent hole (wrapping 1...18) without confirming — the
+    /// prev/next arrows.
+    func stepHole(by delta: Int) {
+        guard case let .active(_, current) = state else { return }
+        let next = ((current.holeNumber - 1 + delta + Self.holesPerRound) % Self.holesPerRound) + 1
+        goToHole(next)
+    }
+
+    /// All hole rows for the active round (for the hole-grid overview).
+    func holesForCurrentRound() -> [Hole] {
+        guard case let .active(round, _) = state else { return [] }
+        return (try? HoleRepository.holesForRound(round.id)) ?? []
     }
 
     /// Edit par on ANY hole (incl. an already-confirmed one) from the

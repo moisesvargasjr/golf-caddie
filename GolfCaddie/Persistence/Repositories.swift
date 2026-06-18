@@ -100,6 +100,16 @@ enum HoleRepository {
         }
     }
 
+    /// The existing hole row for a (round, holeNumber), or nil if that hole
+    /// hasn't been visited yet. Used by flexible hole navigation to return to a
+    /// skipped hole without creating a duplicate row.
+    static func hole(forRound roundID: UUID, number: Int) throws -> Hole? {
+        try Database.shared.read { db in
+            try Hole.filter(Column("roundID") == roundID && Column("holeNumber") == number)
+                .fetchOne(db)
+        }
+    }
+
     static func hole(byID id: UUID) throws -> Hole? {
         try Database.shared.read { db in
             try Hole.filter(Column("id") == id).fetchOne(db)

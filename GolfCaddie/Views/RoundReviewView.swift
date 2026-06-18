@@ -263,7 +263,11 @@ struct RoundReviewView: View {
 
     private var scorecardTables: some View {
         VStack(alignment: .leading, spacing: 24) {
-            scorecardTable(title: "Front nine.", range: 1...9)
+            // Only render a nine that actually has holes, so a back-9-only (or
+            // front-9-only) round doesn't show an empty table.
+            if holes.contains(where: { $0.holeNumber <= 9 }) {
+                scorecardTable(title: "Front nine.", range: 1...9)
+            }
             if holes.contains(where: { $0.holeNumber >= 10 }) {
                 scorecardTable(title: "Back nine.", range: 10...18)
             }
