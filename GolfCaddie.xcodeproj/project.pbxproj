@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0148C1A22744756BE154B00D /* RoundController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEE08CB9110FAA5A5C67753 /* RoundController.swift */; };
 		0194CC3F7FFCED61C45BFD19 /* ShotReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BF9C5A95AE6CF9E14289EA /* ShotReconciler.swift */; };
+		03354B7348C4C12F34A294CB /* DebugHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7407F182A7691DE61DC2A6C /* DebugHarness.swift */; };
 		039CA4A9AF343A2391067F34 /* CuratedCourse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E62A706C5BFF12E6F84135A /* CuratedCourse.swift */; };
 		08784BB7FD830BA077986592 /* HoleEditComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2051A514844C59772CDC6D6A /* HoleEditComponents.swift */; };
 		09A1954BACE3929F39169BE7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B7798115CE09BD0ABC2935 /* SettingsView.swift */; };
@@ -204,6 +205,7 @@
 		E051EE56A58BB2C7F9009E15 /* GlassesStateMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStateMapper.swift; sourceTree = "<group>"; };
 		ED5D9E12804AF65F38F63102 /* GolfCaddieTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GolfCaddieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5BB7EE3CC8370B46679152F /* parity_reference.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = parity_reference.json; sourceTree = "<group>"; };
+		F7407F182A7691DE61DC2A6C /* DebugHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHarness.swift; sourceTree = "<group>"; };
 		FE1A6F5FDC821F350D55167B /* parity_accel.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = parity_accel.bin; sourceTree = "<group>"; };
 		FEE5998979B02B62A61428D5 /* GolfCaddieWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GolfCaddieWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -350,6 +352,7 @@
 		99CEE2CA727A53612DAA1890 /* Debug */ = {
 			isa = PBXGroup;
 			children = (
+				F7407F182A7691DE61DC2A6C /* DebugHarness.swift */,
 				1769CEC73832FC6AD02E9011 /* SpikeSessionReceiver.swift */,
 				0227A16CB2DE1B1E51C5713B /* SpikeSessionsView.swift */,
 			);
@@ -638,6 +641,7 @@
 				039CA4A9AF343A2391067F34 /* CuratedCourse.swift in Sources */,
 				53D6829720D4A507EB1F1933 /* Database.swift in Sources */,
 				42BCC6C41C9D7A6F5B596A0C /* DatabaseExport.swift in Sources */,
+				03354B7348C4C12F34A294CB /* DebugHarness.swift in Sources */,
 				87DB96901A57C4300CA25B7C /* Distance.swift in Sources */,
 				4562B70E81824125A7D522FD /* DoubleRule.swift in Sources */,
 				30A3DBD56C27A98821C9CBC8 /* EditableHoleMap.swift in Sources */,

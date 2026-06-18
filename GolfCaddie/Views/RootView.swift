@@ -30,6 +30,9 @@ struct RootView: View {
                 LiveShotCoordinator.shared.attach(controller: new, location: location)
                 // Push glance state to the watch.
                 watchPublisher.start(controller: new, location: location)
+                #if DEBUG
+                DebugHarness.runIfRequested(controller: new, location: location)
+                #endif
             }
             if glassesServer == nil, let controller {
                 let server = GlassesServer(location: location)
