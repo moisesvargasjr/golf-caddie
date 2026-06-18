@@ -21,6 +21,9 @@ struct WatchRootView: View {
             }
         }
         .foregroundStyle(WT.ink)
+        #if DEBUG
+        .onAppear { WatchPreviewDebug.apply(controller: controller) }
+        #endif
     }
 }
 
@@ -55,14 +58,15 @@ private struct ListeningBar: View {
             Text("LISTENING").font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink3)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(WT.ink.opacity(0.12))
+                    Capsule().fill(WT.ink.opacity(0.12)).frame(height: 4)
                     Capsule().fill(level >= 1 ? WT.accent : WT.green)
-                        .frame(width: geo.size.width * level)
+                        .frame(width: geo.size.width * level, height: 4)
                 }
+                .frame(maxHeight: .infinity, alignment: .center)
             }
-            .frame(height: 4)
         }
         .padding(.horizontal, 10)
+        .frame(height: 14)
         .onAppear { pulse = true }
     }
 }
@@ -147,34 +151,37 @@ private struct WatchStartScreen: View {
 
 private struct WatchPlayView: View {
     @EnvironmentObject private var controller: LiveSessionController
-    @State private var page = 0
+    @State private var page: Int = {
+        #if DEBUG
+        return WatchPreviewDebug.initialPage
+        #else
+        return 0
+        #endif
+    }()
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $page) {
-                YardageScreen().tag(0)
-                StrokesScreen().tag(1)
-                ScoreScreen().tag(2)
+        // Stack the listening meter, the paged content, and the dots so none of
+        // them overlap the page content (they used to, as ZStack overlays).
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 0) {
+                ListeningBar().padding(.top, 1)
+                TabView(selection: $page) {
+                    YardageScreen().tag(0)
+                    StrokesScreen().tag(1)
+                    ScoreScreen().tag(2)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(maxHeight: .infinity)
+                PageDots(page: page).frame(height: 10).padding(.vertical, 3)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            PageDots(page: page)
-                .padding(.bottom, 2)
-            // Persistent "listening" meter across all pages.
-            VStack { ListeningBar(); Spacer() }
             // Validation ground-truth MARK (M8 only) — top-right corner tap.
             if controller.validationMode {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button { controller.mark() } label: {
-                            Text("MARK").font(WT.mono(10)).padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(WT.accent.opacity(0.85), in: Capsule())
-                                .foregroundStyle(WT.onAccent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Spacer()
+                Button { controller.mark() } label: {
+                    Text("MARK").font(WT.mono(10)).padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(WT.accent.opacity(0.85), in: Capsule())
+                        .foregroundStyle(WT.onAccent)
                 }
-                .padding(.top, 2).padding(.trailing, 4)
+                .buttonStyle(.plain)
+                .padding(.trailing, 4)
             }
         }
     }
@@ -202,24 +209,19 @@ private struct YardageScreen: View {
     var body: some View {
         let s = session.phoneState
         let yards = s.distanceToGreenYards
-        VStack(spacing: 2) {
-            WatchHeader(left: {
-                HStack(spacing: 6) {
-                    Text("Hole \(s.holeNumber)").font(WT.serif(15))
-                    Text("PAR \(s.par.map(String.init) ?? "–")")
-                        .font(WT.mono(10)).foregroundStyle(WT.ink3)
-                }
-            })
-
-            Text("TO GREEN").font(WT.mono(10)).tracking(3).foregroundStyle(WT.ink2)
+        VStack(spacing: 1) {
+            // Compact single info line (saves two rows on a 40mm screen).
+            Text("HOLE \(s.holeNumber) · PAR \(s.par.map(String.init) ?? "–") · TO GREEN")
+                .font(WT.mono(10)).tracking(1.5).foregroundStyle(WT.ink2)
+                .lineLimit(1).minimumScaleFactor(0.7)
             Text(yards.map(String.init) ?? "–––")
-                .font(WT.serif(68)).foregroundStyle(WT.ink)
+                .font(WT.serif(54)).foregroundStyle(WT.ink)
                 .minimumScaleFactor(0.5).lineLimit(1)
-                .shadow(color: .black.opacity(0.8), radius: 12, y: 2)
+                .shadow(color: .black.opacity(0.8), radius: 10, y: 2)
             if let y = yards {
                 HStack(spacing: 16) {
                     fb("FRONT", max(0, y - 7))
-                    Rectangle().fill(WT.line).frame(width: 1, height: 18)
+                    Rectangle().fill(WT.line).frame(width: 1, height: 16)
                     fb("BACK", y + 9)
                 }
             }
@@ -227,8 +229,7 @@ private struct YardageScreen: View {
             ClubSelector()
         }
         .padding(.horizontal, 6)
-        .padding(.top, 14)    // clear the listening bar
-        .padding(.bottom, 22) // clear the page dots
+        .padding(.top, 1)
     }
 
     private func fb(_ label: String, _ v: Int) -> some View {
@@ -253,37 +254,33 @@ private struct ClubSelector: View {
         let club = clubs.indices.contains(idx) ? clubs[idx] : nil
         let suggested = suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0)
 
-        HStack(spacing: 10) {
-            VStack(spacing: 1) {
-                Text(clubs.indices.contains(idx - 1) ? clubs[idx - 1].short : "–")
-                    .font(WT.mono(12)).foregroundStyle(WT.ink3)
-                Text("▲▼").font(WT.mono(9)).foregroundStyle(WT.accent)
-                Text(clubs.indices.contains(idx + 1) ? clubs[idx + 1].short : "–")
-                    .font(WT.mono(12)).foregroundStyle(WT.ink3)
-            }
-            .frame(width: 26)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text(club?.short ?? "—").font(WT.serif(34)).foregroundStyle(WT.accent)
-                    Text(club?.name ?? "No clubs").font(WT.serif(16)).foregroundStyle(WT.ink)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                }
-                HStack(spacing: 6) {
-                    if let club { Text("avg \(club.avgYards) yd").font(WT.mono(11)).foregroundStyle(WT.ink2) }
+        HStack(spacing: 9) {
+            Text(club?.short ?? "—").font(WT.serif(32)).foregroundStyle(WT.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(club?.name ?? "No clubs").font(WT.serif(15)).foregroundStyle(WT.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                HStack(spacing: 5) {
+                    if let club { Text("avg \(club.avgYards)y").font(WT.mono(10)).foregroundStyle(WT.ink2) }
                     if suggested == idx {
-                        Text("SUGGESTED").font(WT.mono(9)).tracking(1)
+                        Text("SUGGESTED").font(WT.mono(8)).tracking(0.8)
                             .foregroundStyle(WT.onAccent)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(WT.green, in: RoundedRectangle(cornerRadius: 4))
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(WT.green, in: RoundedRectangle(cornerRadius: 3))
                     }
                 }
             }
             Spacer(minLength: 0)
+            // slim crown affordance
+            VStack(spacing: 0) {
+                Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold))
+                Image(systemName: "digitalcrown.press").font(.system(size: 11))
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(WT.accent)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(WT.surface, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(WT.line, lineWidth: 1))
+        .padding(.horizontal, 11).padding(.vertical, 7)
+        .background(WT.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WT.line, lineWidth: 1))
         .focusable(true)
         .focused($focused)
         .digitalCrownRotation($crown, from: 0, through: Double(max(0, clubs.count - 1)),
@@ -323,7 +320,7 @@ private struct StrokesScreen: View {
                 Text("STROKES · H\(session.phoneState.holeNumber)")
                     .font(WT.mono(12)).tracking(1.4).foregroundStyle(WT.ink2)
             })
-            .padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 2)
+            .padding(.horizontal, 8).padding(.bottom, 2)
 
             List {
                 if strokes.isEmpty {
@@ -484,10 +481,9 @@ private struct ScoreScreen: View {
                 Text("END TRACKING").font(WT.mono(12)).tracking(1.2).frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered).tint(WT.ink2)
-            .padding(.bottom, 16)
+            .padding(.bottom, 4)
         }
         .padding(.horizontal, 8)
-        .padding(.top, 14)
     }
 }
 

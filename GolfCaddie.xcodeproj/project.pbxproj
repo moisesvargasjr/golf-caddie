@@ -33,6 +33,7 @@
 		30A3DBD56C27A98821C9CBC8 /* EditableHoleMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F873F1576E56089D8747AF6 /* EditableHoleMap.swift */; };
 		360BE88E19AD6D1388D54519 /* LiveSwingDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BEF213A8B78A46E5D7EC1B /* LiveSwingDetector.swift */; };
 		36DD40C0E98308E43BAE13D1 /* LiveSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD897253F6B7CA504A07AC13 /* LiveSessionController.swift */; };
+		38254D2EAB87937F0909E027 /* WatchPreviewDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */; };
 		3BEEE61E9A58354C243493D9 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3060BD727058056FCC94E4B4 /* HomeView.swift */; };
 		3DDA440A6367402D60919ACF /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AAF43D52E594F84C303988 /* Palette.swift */; };
 		408A9E803461EA57CEDD2A13 /* CoursePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5284AA954CF7D6A22EDBF0DA /* CoursePickerSheet.swift */; };
@@ -151,6 +152,7 @@
 		3CEE490EE5025D93E41E72F2 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
 		435A866F4F4085EB7AAE374C /* DatabaseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExport.swift; sourceTree = "<group>"; };
 		4869F686A79319D1C3C34BD3 /* Penalty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Penalty.swift; sourceTree = "<group>"; };
+		4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPreviewDebug.swift; sourceTree = "<group>"; };
 		4EEE08CB9110FAA5A5C67753 /* RoundController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundController.swift; sourceTree = "<group>"; };
 		4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSchemeHandler.swift; sourceTree = "<group>"; };
 		51AAF43D52E594F84C303988 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				BD897253F6B7CA504A07AC13 /* LiveSessionController.swift */,
 				2E475F6959737E6990AB467F /* MotionRecorder.swift */,
 				3CD873D31FBEDA03AAC3EB7A /* SessionMeta.swift */,
+				4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */,
 				6C1EB3A36BF637FD4CBE5AB5 /* WatchRootView.swift */,
 				92F47E9B144E050165B3CCD7 /* WatchSession.swift */,
 				263F96D198BDF6B0C3CAF42A /* WatchTheme.swift */,
@@ -617,6 +620,7 @@
 				FD79038B752DBA657B0BDF4A /* MotionRecorder.swift in Sources */,
 				7AE2C148B6AD19CA9C482606 /* SessionMeta.swift in Sources */,
 				1A18A9F7BCBFC37158A638F5 /* SwingEventContract.swift in Sources */,
+				38254D2EAB87937F0909E027 /* WatchPreviewDebug.swift in Sources */,
 				B72205059ABB8B6809F16ACF /* WatchRootView.swift in Sources */,
 				28EEDA3023EC6BB27F37253A /* WatchSession.swift in Sources */,
 				CA86EFB30EB12E73215FC5DF /* WatchTheme.swift in Sources */,

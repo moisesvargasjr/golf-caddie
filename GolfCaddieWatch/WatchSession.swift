@@ -58,6 +58,10 @@ final class WatchSession: NSObject, ObservableObject {
     private func refreshOutstanding() {
         outstanding = WCSession.default.outstandingFileTransfers.count
     }
+
+    #if DEBUG
+    func debugSetPhoneState(_ state: PhoneStateUpdate) { phoneState = state }
+    #endif
 }
 
 extension WatchSession: WCSessionDelegate {

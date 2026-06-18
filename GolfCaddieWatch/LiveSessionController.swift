@@ -216,6 +216,17 @@ final class LiveSessionController: ObservableObject {
         WKInterfaceDevice.current().play(.stop)
     }
 
+    #if DEBUG
+    /// Force the play screens (no workout / motion) for simulator UI previews,
+    /// with a fixed half-threshold impact so the listening meter is visible.
+    func debugEnterPreview() {
+        guard !running else { return }
+        running = true
+        startedAt = Date()
+        liveImpact = impactThreshold * 0.5
+    }
+    #endif
+
     private func scheduleTimers() {
         anchorTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.meta?.anchors.append(.now()) }
