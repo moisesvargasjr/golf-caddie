@@ -56,6 +56,10 @@ enum WatchCommand: Codable, Equatable {
     case removeStroke(id: String?)
     case puttPlusOne
     case clubChange(shortName: String, epoch: Int)
+    /// Confirm the current hole and advance to the next (the watch "Next Hole").
+    case advanceHole
+    /// Step back one hole without confirming (recovery for an accidental advance).
+    case previousHole
 }
 
 /// The single `transferUserInfo` payload type — a tagged union so one decode

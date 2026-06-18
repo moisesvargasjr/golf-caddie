@@ -284,7 +284,7 @@ private struct ClubSelector: View {
         .focusable(true)
         .focused($focused)
         .digitalCrownRotation($crown, from: 0, through: Double(max(0, clubs.count - 1)),
-                              by: 1, sensitivity: .high, isContinuous: false)
+                              by: 1, sensitivity: .medium, isContinuous: false)
         .onChange(of: crown) { _, newValue in
             let newIdx = Int(newValue.rounded())
             guard clubs.indices.contains(newIdx), newIdx != idx else { return }
@@ -437,7 +437,8 @@ private struct ScoreScreen: View {
         let s = session.phoneState
         let shots = s.holeShotCount
         let rel = s.par.map { shots - $0 }
-        VStack(alignment: .leading, spacing: 4) {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 4) {
             WatchHeader(left: {
                 Text("SCORE").font(WT.mono(12)).tracking(1.6).foregroundStyle(WT.ink2)
             })
@@ -459,31 +460,50 @@ private struct ScoreScreen: View {
             }
 
             Divider().overlay(WT.line)
-            ScrollView {
-                ForEach(s.scorecard) { row in
-                    HStack {
-                        Text("Hole \(row.hole)").font(WT.mono(13)).foregroundStyle(WT.ink2).frame(width: 56, alignment: .leading)
-                        Text("par \(row.par.map(String.init) ?? "–")").font(WT.mono(11)).foregroundStyle(WT.ink3)
-                        Spacer()
-                        let d = row.par.map { row.strokes - $0 }
-                        Text("\(row.strokes)")
-                            .font(WT.mono(14))
-                            .foregroundStyle(d.map { $0 > 0 ? WT.accent : $0 < 0 ? WT.green : WT.ink } ?? WT.ink)
-                    }
-                    .padding(.vertical, 5)
-                    Divider().overlay(WT.line)
+            ForEach(s.scorecard) { row in
+                HStack {
+                    Text("Hole \(row.hole)").font(WT.mono(13)).foregroundStyle(WT.ink2).frame(width: 56, alignment: .leading)
+                    Text("par \(row.par.map(String.init) ?? "–")").font(WT.mono(11)).foregroundStyle(WT.ink3)
+                    Spacer()
+                    let d = row.par.map { row.strokes - $0 }
+                    Text("\(row.strokes)")
+                        .font(WT.mono(14))
+                        .foregroundStyle(d.map { $0 > 0 ? WT.accent : $0 < 0 ? WT.green : WT.ink } ?? WT.ink)
                 }
+                .padding(.vertical, 5)
+                Divider().overlay(WT.line)
             }
+
+            // Hole navigation: back (recover an accidental advance) + Next Hole
+            // (confirms this hole and advances). Goes to the phone over WC.
+            HStack(spacing: 6) {
+                Button {
+                    WatchSession.shared.send(.command(.previousHole))
+                    WKInterfaceDevice.current().play(.click)
+                } label: {
+                    Text("‹").font(WT.serif(20)).frame(width: 40, height: 40)
+                }
+                .buttonStyle(.bordered).tint(WT.ink2)
+                Button {
+                    WatchSession.shared.send(.command(.advanceHole))
+                    WKInterfaceDevice.current().play(.success)
+                } label: {
+                    Text("Next Hole ›").font(WT.serif(16)).frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.borderedProminent).tint(WT.accent)
+            }
+            .padding(.top, 2)
 
             Button {
                 controller.stop()
             } label: {
-                Text("END TRACKING").font(WT.mono(12)).tracking(1.2).frame(maxWidth: .infinity)
+                Text("END TRACKING").font(WT.mono(11)).tracking(1.2).frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered).tint(WT.ink2)
             .padding(.bottom, 4)
+          }
+          .padding(.horizontal, 8)
         }
-        .padding(.horizontal, 8)
     }
 }
 

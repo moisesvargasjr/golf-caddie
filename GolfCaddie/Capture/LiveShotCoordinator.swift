@@ -83,6 +83,14 @@ final class LiveShotCoordinator {
         case let .clubChange(shortName, epoch):
             lastWatchClubEpoch = max(lastWatchClubEpoch, epoch)
             try? controller?.setCurrentClubFromGlasses(shortName: shortName)
+        case .advanceHole:
+            // Confirm the current hole (keeping its par) and advance — mirrors
+            // the glasses advance and the phone "Next" button.
+            if let hole = controller?.currentHole {
+                try? controller?.confirmHoleAndAdvance(par: hole.par)
+            }
+        case .previousHole:
+            controller?.stepHole(by: -1)
         }
     }
 
