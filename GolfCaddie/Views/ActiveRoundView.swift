@@ -855,30 +855,19 @@ struct ActiveRoundView: View {
 
     /// Distance-to-green for the current hole. Requires a curated course link
     /// and a green anchor (curated or locally captured). Returns yards.
+    ///
+    /// Measured from the LIVE GPS fix — the same coordinate the watch
+    /// (`WatchStatePublisher`) and glasses (`GlassesStateMapper`) use — so all
+    /// three surfaces always show the same number. (It used to measure from the
+    /// last logged shot's position, which froze while walking up to the ball and
+    /// disagreed with the glasses — field test 2026-06-18.)
     private var distanceToGreenYards: Int? {
         guard let courseId = controller.curatedCourseId,
-              let hole = controller.currentHole
+              let hole = controller.currentHole,
+              let loc = location.latestLocation, loc.horizontalAccuracy > 0
         else { return nil }
-
-        let local = (try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: hole.holeNumber))?.green
-        let curated = (try? CourseDataRepository.course(byId: courseId))?
-            .holes.first(where: { $0.number == hole.holeNumber })?.greenAnchor
-        guard let green = local ?? curated else { return nil }
-
-        let fromCoord: CLLocationCoordinate2D? = {
-            if let last = controller.currentHoleShots.last,
-               let lat = last.latitude, let lng = last.longitude {
-                return CLLocationCoordinate2D(latitude: lat, longitude: lng)
-            }
-            return location.latestLocation?.coordinate
-        }()
-        guard let from = fromCoord else { return nil }
-
-        let m = Distance.meters(
-            from: from,
-            to: CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng)
-        )
-        return Int(Distance.yards(fromMeters: m).rounded())
+        return GlassesStateMapper.yardsToGreen(
+            from: loc.coordinate, courseId: courseId, holeNumber: hole.holeNumber)
     }
 
     /// `navigationDestination(isPresented:)` wants a `Binding<Bool>`. Bridge
