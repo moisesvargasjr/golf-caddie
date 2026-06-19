@@ -75,7 +75,10 @@ final class MotionRecorder {
             gyroFile = try Self.makeFile(directory.appendingPathComponent("gyro.bin"))
         }
 
-        manager.deviceMotionUpdateInterval = 0.01
+        // Raw accel stays at 100 Hz (the impact channel needs it); deviceMotion
+        // — which only feeds the swing-arc gyro channel on watchOS — runs at
+        // 50 Hz to cut the expensive sensor-fusion load (battery).
+        manager.deviceMotionUpdateInterval = 0.02
         manager.accelerometerUpdateInterval = 0.01
         manager.gyroUpdateInterval = 0.01
 

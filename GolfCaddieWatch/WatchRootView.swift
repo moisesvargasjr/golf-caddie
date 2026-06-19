@@ -209,34 +209,40 @@ private struct YardageScreen: View {
     var body: some View {
         let s = session.phoneState
         let yards = s.distanceToGreenYards
-        VStack(spacing: 1) {
+        VStack(spacing: 2) {
             // Compact single info line (saves two rows on a 40mm screen).
             Text("HOLE \(s.holeNumber) · PAR \(s.par.map(String.init) ?? "–") · TO GREEN")
-                .font(WT.mono(10)).tracking(1.5).foregroundStyle(WT.ink2)
+                .font(WT.mono(9)).tracking(1.4).foregroundStyle(WT.ink2)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(yards.map(String.init) ?? "–––")
-                .font(WT.serif(54)).foregroundStyle(WT.ink)
+                .font(WT.serif(38)).foregroundStyle(WT.ink)
                 .minimumScaleFactor(0.5).lineLimit(1)
-                .shadow(color: .black.opacity(0.8), radius: 10, y: 2)
+                .shadow(color: .black.opacity(0.8), radius: 8, y: 2)
+            // Front/back folded into one compact line (was a full row) so the
+            // club card + MARK button both fit the 40mm screen.
             if let y = yards {
-                HStack(spacing: 16) {
-                    fb("FRONT", max(0, y - 7))
-                    Rectangle().fill(WT.line).frame(width: 1, height: 16)
-                    fb("BACK", y + 9)
+                HStack(spacing: 10) {
+                    Text("FRONT \(max(0, y - 7))").font(WT.mono(11)).foregroundStyle(WT.ink2)
+                    Text("BACK \(y + 9)").font(WT.mono(11)).foregroundStyle(WT.ink2)
                 }
+                .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Spacer(minLength: 2)
             ClubSelector()
+            // Quick log — for putts/chips the detector doesn't catch, so they're
+            // one tap instead of pulling the phone out (field test 2026-06-18).
+            Button {
+                WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
+                WKInterfaceDevice.current().play(.success)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill").font(.system(size: 14))
+                    Text("MARK SHOT").font(WT.mono(12)).tracking(1.2)
+                }
+                .frame(maxWidth: .infinity, minHeight: 26)
+            }
+            .buttonStyle(.borderedProminent).tint(WT.accent)
         }
         .padding(.horizontal, 6)
-        .padding(.top, 1)
-    }
-
-    private func fb(_ label: String, _ v: Int) -> some View {
-        VStack(spacing: 1) {
-            Text(label).font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
-            Text("\(v)").font(WT.mono(17)).foregroundStyle(WT.ink)
-        }
     }
 }
 
@@ -255,7 +261,7 @@ private struct ClubSelector: View {
         let suggested = suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0)
 
         HStack(spacing: 9) {
-            Text(club?.short ?? "—").font(WT.serif(32)).foregroundStyle(WT.accent)
+            Text(club?.short ?? "—").font(WT.serif(28)).foregroundStyle(WT.accent)
             VStack(alignment: .leading, spacing: 1) {
                 Text(club?.name ?? "No clubs").font(WT.serif(15)).foregroundStyle(WT.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -278,7 +284,7 @@ private struct ClubSelector: View {
             }
             .foregroundStyle(WT.accent)
         }
-        .padding(.horizontal, 11).padding(.vertical, 7)
+        .padding(.horizontal, 11).padding(.vertical, 5)
         .background(WT.surface, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(WT.line, lineWidth: 1))
         .focusable(true)

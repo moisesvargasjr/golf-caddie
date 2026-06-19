@@ -21,7 +21,11 @@ final class WatchStatePublisher {
         self.controller = controller
         self.location = location
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        // 4 s, not 1 s: the per-second push (≈7,200 BLE wakes / round) was a
+        // major battery drain on the watch (field test 2026-06-18). Still only
+        // sends when the snapshot actually changed; distance-to-green updates
+        // every few seconds is plenty for a glance.
+        timer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
         tick()
