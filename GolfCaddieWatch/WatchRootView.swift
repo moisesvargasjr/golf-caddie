@@ -253,6 +253,10 @@ private struct ClubSelector: View {
     @ObservedObject private var session = WatchSession.shared
     @State private var crown = 0.0
     @FocusState private var focused: Bool
+    // Default LOCKED: the crown is inert until the card is tapped to ARM it, so a
+    // wrist bend can't scroll clubs mid-round (field test 2026-06-18). Tap again
+    // to lock. Only an armed selector drives selection.
+    @State private var armed = false
 
     var body: some View {
         let clubs = session.phoneState.clubs
@@ -266,8 +270,14 @@ private struct ClubSelector: View {
                 Text(club?.name ?? "No clubs").font(WT.serif(15)).foregroundStyle(WT.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 HStack(spacing: 5) {
-                    if let club { Text("avg \(club.avgYards)y").font(WT.mono(10)).foregroundStyle(WT.ink2) }
-                    if suggested == idx {
+                    if armed {
+                        Text("TAP TO LOCK").font(WT.mono(9)).tracking(0.6)
+                            .foregroundStyle(WT.accent)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                    } else if let club {
+                        Text("avg \(club.avgYards)y").font(WT.mono(10)).foregroundStyle(WT.ink2)
+                    }
+                    if !armed, suggested == idx {
                         Text("SUGGESTED").font(WT.mono(8)).tracking(0.8)
                             .foregroundStyle(WT.onAccent)
                             .padding(.horizontal, 4).padding(.vertical, 1)
@@ -276,30 +286,53 @@ private struct ClubSelector: View {
                 }
             }
             Spacer(minLength: 0)
-            // slim crown affordance
-            VStack(spacing: 0) {
-                Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold))
-                Image(systemName: "digitalcrown.press").font(.system(size: 11))
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            // Affordance reflects the lock state: a lock glyph when inert, the
+            // crown chevrons (lit) when armed.
+            if armed {
+                VStack(spacing: 0) {
+                    Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold))
+                    Image(systemName: "digitalcrown.press").font(.system(size: 11))
+                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+                }
+                .foregroundStyle(WT.accent)
+            } else {
+                Image(systemName: "lock.fill").font(.system(size: 12))
+                    .foregroundStyle(WT.ink3)
             }
-            .foregroundStyle(WT.accent)
         }
         .padding(.horizontal, 11).padding(.vertical, 5)
         .background(WT.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WT.line, lineWidth: 1))
-        .focusable(true)
+        .overlay(RoundedRectangle(cornerRadius: 16)
+            .stroke(armed ? WT.accent : WT.line, lineWidth: armed ? 2 : 1))
+        .contentShape(Rectangle())
+        .onTapGesture { toggleArmed(idx: idx) }
+        .focusable(armed)
         .focused($focused)
         .digitalCrownRotation($crown, from: 0, through: Double(max(0, clubs.count - 1)),
                               by: 1, sensitivity: .medium, isContinuous: false)
         .onChange(of: crown) { _, newValue in
+            guard armed else { return }
             let newIdx = Int(newValue.rounded())
             guard clubs.indices.contains(newIdx), newIdx != idx else { return }
             controller.selectClub(short: clubs[newIdx].short)
             WKInterfaceDevice.current().play(.click)
         }
-        .onAppear {
-            focused = true
+        #if DEBUG
+        .onAppear { if WatchPreviewDebug.armClub { armed = true } }
+        #endif
+    }
+
+    /// Tap toggles arm/lock. Arming syncs the crown to the current club and takes
+    /// focus; locking releases focus so the crown goes inert.
+    private func toggleArmed(idx: Int) {
+        armed.toggle()
+        if armed {
             crown = Double(idx)
+            focused = true
+            WKInterfaceDevice.current().play(.start)
+        } else {
+            focused = false
+            WKInterfaceDevice.current().play(.stop)
         }
     }
 

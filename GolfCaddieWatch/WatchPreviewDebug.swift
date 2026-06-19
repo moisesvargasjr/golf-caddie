@@ -9,6 +9,8 @@ enum WatchPreviewDebug {
     static var isActive: Bool { UserDefaults.standard.bool(forKey: "WatchPreview") }
     /// Initial play page for screenshots (0 Yardage / 1 Strokes / 2 Score).
     static var initialPage: Int { isActive ? UserDefaults.standard.integer(forKey: "WatchPreviewPage") : 0 }
+    /// Force the club selector into its armed (crown-active) state for screenshots.
+    static var armClub: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewArmClub") }
 
     @MainActor
     static func apply(controller: LiveSessionController) {
