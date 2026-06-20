@@ -14,6 +14,10 @@ struct SettingsView: View {
     @AppStorage("themeMode") private var themeRaw: String = ThemeMode.auto.rawValue
     @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
     @AppStorage("glassesServerEnabled") private var glassesEnabled = false
+    // Output-only by default (the watch is the input device). Flip on to make
+    // the glasses an input surface too — the fallback when the watch dies
+    // mid-round, so you're not stuck taking the phone out every stroke.
+    @AppStorage("glassesInputEnabled") private var glassesInputEnabled = false
 
     @Binding var bag: [ClubID]
 
@@ -64,6 +68,21 @@ struct SettingsView: View {
                             }
                         }
                         .tint(palette.flag)
+
+                        if glassesEnabled {
+                            Toggle(isOn: $glassesInputEnabled) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Glasses input")
+                                        .font(AppFont.bodyLarge)
+                                        .foregroundStyle(palette.ink)
+                                    Text("USE WHEN THE WATCH IS OFF/DEAD")
+                                        .font(AppFont.micro)
+                                        .tracking(1.2)
+                                        .foregroundStyle(palette.ink3)
+                                }
+                            }
+                            .tint(palette.flag)
+                        }
                     }
 
                     section(label: "Backup") {

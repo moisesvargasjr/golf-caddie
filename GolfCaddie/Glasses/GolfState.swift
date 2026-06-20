@@ -19,6 +19,10 @@ struct GolfState: Encodable {
     var gps: GPSDTO?
     var battery: Int?
     var holes: [HoleSummaryDTO]?
+    /// True when the user has flipped on "Glasses input" (Settings → Glasses) —
+    /// the watch-died fallback. The glasses stay output-only when false/absent
+    /// and re-enable tap-to-log/club/undo when true. Omitted when idle.
+    var glassesInputEnabled: Bool?
 
     static let idle = GolfState(contractVersion: 1, active: false)
 
@@ -33,7 +37,8 @@ struct GolfState: Encodable {
         scoring: ScoringDTO? = nil,
         gps: GPSDTO? = nil,
         battery: Int? = nil,
-        holes: [HoleSummaryDTO]? = nil
+        holes: [HoleSummaryDTO]? = nil,
+        glassesInputEnabled: Bool? = nil
     ) {
         self.contractVersion = contractVersion
         self.active = active
@@ -46,6 +51,7 @@ struct GolfState: Encodable {
         self.gps = gps
         self.battery = battery
         self.holes = holes
+        self.glassesInputEnabled = glassesInputEnabled
     }
 }
 

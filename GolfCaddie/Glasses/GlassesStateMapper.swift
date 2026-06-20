@@ -18,6 +18,7 @@ struct GlassesStateInputs {
     var lastLocationReceivedAt: Date?
     var locationUnavailable: Bool
     var batteryPercent: Int?
+    var glassesInputEnabled: Bool = false
 }
 
 // Pure read model: live RoundController + repositories → GolfState.
@@ -49,7 +50,8 @@ enum GlassesStateMapper {
             latestLocation: location.latestLocation,
             lastLocationReceivedAt: location.lastLocationReceivedAt,
             locationUnavailable: location.locationUnavailable,
-            batteryPercent: batteryPercent
+            batteryPercent: batteryPercent,
+            glassesInputEnabled: UserDefaults.standard.bool(forKey: "glassesInputEnabled")
         ))
     }
 
@@ -102,7 +104,8 @@ enum GlassesStateMapper {
                 locationUnavailable: inputs.locationUnavailable
             ),
             battery: inputs.batteryPercent,
-            holes: allHoles.map { holeSummary($0) }
+            holes: allHoles.map { holeSummary($0) },
+            glassesInputEnabled: inputs.glassesInputEnabled
         )
     }
 
