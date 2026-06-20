@@ -105,7 +105,7 @@ final class GlassesStateMapperTests: XCTestCase {
 
     // MARK: - lastShot
 
-    func test_lastShot_distanceUsesPreviousShotPair() throws {
+    func test_lastShot_isMostRecentSwungClub() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         let s1 = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: .driver)
@@ -115,16 +115,13 @@ final class GlassesStateMapperTests: XCTestCase {
             isActive: true, round: round, hole: hole, shots: [s1, s2]
         ))
 
-        // lastShot.club is the PRIOR shot's club (the one that traveled the
-        // distance), not the latest mark's selection. Here Driver drove ~121 yds.
-        XCTAssertEqual(state.lastShot?.club, "Dr")
+        // lastShot.club is the MOST RECENTLY swung club (the 7i here), not the
+        // prior one — and carries no distance (not knowable until the next shot).
+        XCTAssertEqual(state.lastShot?.club, "7i")
         XCTAssertEqual(state.lastShot?.sequenceNumber, 2)
-        XCTAssertNotNil(state.lastShot?.distanceYards)
-        // ~111 m ≈ 121 yards (±2 for haversine).
-        XCTAssertEqual(state.lastShot!.distanceYards!, 121, accuracy: 2)
     }
 
-    func test_lastShot_distanceNilWhenSingleShot() throws {
+    func test_lastShot_singleShotShowsThatClub() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         let s1 = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: .driver)
@@ -133,8 +130,8 @@ final class GlassesStateMapperTests: XCTestCase {
             isActive: true, round: round, hole: hole, shots: [s1]
         ))
 
+        XCTAssertEqual(state.lastShot?.club, "Dr")
         XCTAssertEqual(state.lastShot?.sequenceNumber, 1)
-        XCTAssertNil(state.lastShot?.distanceYards)
     }
 
     // MARK: - GPS

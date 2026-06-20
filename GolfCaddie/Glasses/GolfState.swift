@@ -69,10 +69,13 @@ struct HoleDTO: Encodable {
 }
 
 struct LastShotDTO: Encodable {
-    /// Club of the PRIOR shot — the one that traveled `distanceYards`.
-    /// For the first mark on a hole (no prior) this is nil.
+    /// The most recently swung club — "what you last hit". Nil only if the hole
+    /// has no shots. Deliberately carries NO distance: a club's carry isn't
+    /// knowable until the NEXT shot is logged (it's the GPS gap to the following
+    /// position), so any distance shown here would describe the club BEFORE this
+    /// one — which read as confusing on the HUD (field-test follow-up 2026-06-19).
+    /// `currentClub` is the upcoming selection; this is the last actual swing.
     var club: String?
-    var distanceYards: Int?
     var sequenceNumber: Int
 }
 
