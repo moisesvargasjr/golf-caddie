@@ -47,6 +47,14 @@ final class RoundController {
     /// it on `Round`. Nil ⇒ exactly today's behavior (graceful degradation).
     private(set) var curatedCourseId: String?
 
+    /// Casual mode: GPS yardage + map + a simple per-hole score stepper only —
+    /// no shot tracking, club picker, watch or glasses (the "hand a friend the
+    /// phone" experience). Adopts the global default at round start; toggleable
+    /// mid-round and persisted so a relaunch resumes the same mode.
+    private(set) var isCasualMode: Bool = false
+    private static let casualDefaultKey = "roundModeDefaultCasual"
+    private static let casualCurrentKey = "roundModeCurrentCasual"
+
     var shotsInCurrentHole: Int { currentHoleShots.count }
 
     /// Penalty STROKE count on the active hole (sum of per-row strokeCount,
@@ -146,6 +154,7 @@ final class RoundController {
             try HoleRepository.insert(hole)
         }
         state = .active(round: round, hole: hole)
+        isCasualMode = UserDefaults.standard.bool(forKey: Self.casualCurrentKey)
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
         currentHolePenalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
         // Hydrate the curated link from the persisted round (no re-match)
@@ -186,6 +195,9 @@ final class RoundController {
         lastMarkResult = nil
         curatedCourseId = nil
         lastBreadcrumb = nil
+        // Adopt the global default mode, and persist it as the round's current.
+        isCasualMode = UserDefaults.standard.bool(forKey: Self.casualDefaultKey)
+        UserDefaults.standard.set(isCasualMode, forKey: Self.casualCurrentKey)
         location.requestAlways()
         location.startTracking()
         LiveShotCoordinator.shared.warmUpStepCounter()
@@ -718,6 +730,19 @@ final class RoundController {
     /// (double-tap guard, GPS fusion) so it's a first-class stroke.
     func markPutt() async throws {
         try await markShotInternal(source: .button, club: .putter)
+    }
+
+    /// Flip the active round between full shot-tracking and casual GPS+score.
+    func setCasualMode(_ on: Bool) {
+        isCasualMode = on
+        UserDefaults.standard.set(on, forKey: Self.casualCurrentKey)
+    }
+
+    /// Casual "+1 stroke" — a detail-less manual stroke (no club). Hole score is
+    /// just the stroke count, so every existing scorecard/summary reads it
+    /// unchanged; `−` is the usual `undoLastAction()`.
+    func addCasualStroke() async throws {
+        try await markShotInternal(source: .manual, club: nil)
     }
 
     func markShotFromActionButton() async throws {

@@ -129,8 +129,12 @@ struct ActiveRoundView: View {
                     holeNav
                     Spacer(minLength: 4)
                     VStack(alignment: .trailing, spacing: 6) {
-                        lyingStamp
+                        // LYING N is shot-tracking detail — hidden in casual mode.
+                        if !controller.isCasualMode {
+                            lyingStamp
+                        }
                         HStack(spacing: 6) {
+                            modeToggleButton
                             cardStampButton
                             endStampButton
                         }
@@ -166,7 +170,8 @@ struct ActiveRoundView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 4)
 
-                if !controller.currentHoleShots.isEmpty {
+                // Shot strip is shot-tracking detail — hidden in casual mode.
+                if !controller.isCasualMode, !controller.currentHoleShots.isEmpty {
                     shotStrip
                         .padding(.horizontal, 12)
                         .padding(.top, 6)
@@ -175,10 +180,15 @@ struct ActiveRoundView: View {
                 Spacer()
             }
 
-            // Bottom paper sheet.
+            // Bottom paper sheet — casual mode swaps the tracking controls for a
+            // simple per-hole score stepper.
             VStack {
                 Spacer()
-                bottomSheet
+                if controller.isCasualMode {
+                    casualSheet
+                } else {
+                    bottomSheet
+                }
             }
             .ignoresSafeArea(edges: .bottom)
         }
@@ -598,6 +608,97 @@ struct ActiveRoundView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: Color.black.opacity(0.5), radius: 40, x: 0, y: -8)
+    }
+
+    // MARK: - Casual mode (GPS + simple score)
+
+    private var modeToggleButton: some View {
+        Button {
+            controller.setCasualMode(!controller.isCasualMode)
+        } label: {
+            Text(controller.isCasualMode ? "○ CASUAL" : "● TRACKING")
+                .font(AppFont.stamp)
+                .tracking(1.2)
+                .foregroundStyle(palette.ink)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .stroke(palette.ink, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var casualSheet: some View {
+        let score = controller.currentHoleShots.count
+        let par = controller.currentHole?.par
+        return VStack(spacing: 0) {
+            Rectangle().fill(palette.rule)
+                .frame(width: 40, height: 3)
+                .clipShape(Capsule())
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+
+            Text("STROKES THIS HOLE")
+                .font(AppFont.stamp).tracking(1.4)
+                .foregroundStyle(palette.ink3)
+
+            HStack(spacing: 28) {
+                casualStepButton(systemName: "minus", action: decCasual)
+                    .disabled(score == 0)
+                    .opacity(score == 0 ? 0.3 : 1)
+                VStack(spacing: 0) {
+                    Text("\(score)")
+                        .font(.custom(AppFont.serifName, size: 60).weight(.bold))
+                        .foregroundStyle(palette.ink)
+                        .contentTransition(.numericText())
+                    Text(par.map { "PAR \($0)" } ?? "PAR —")
+                        .font(AppFont.stamp).tracking(1.4)
+                        .foregroundStyle(palette.ink3)
+                }
+                .frame(minWidth: 96)
+                casualStepButton(systemName: "plus", action: incCasual)
+            }
+            .padding(.top, 10)
+
+            errorBanner
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 40)
+        .background(palette.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color.black.opacity(0.5), radius: 40, x: 0, y: -8)
+    }
+
+    private func casualStepButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(palette.ink)
+                .frame(width: 64, height: 64)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(palette.ink, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func incCasual() {
+        actionError = nil
+        Task {
+            do { try await controller.addCasualStroke() }
+            catch { actionError = "Failed: \(error.localizedDescription)" }
+        }
+    }
+
+    private func decCasual() {
+        actionError = nil
+        do { try controller.undoLastAction() }
+        catch { actionError = "Failed: \(error.localizedDescription)" }
     }
 
     private var penaltyStampButton: some View {

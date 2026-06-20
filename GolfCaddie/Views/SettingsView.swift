@@ -13,6 +13,8 @@ struct SettingsView: View {
 
     @AppStorage("themeMode") private var themeRaw: String = ThemeMode.auto.rawValue
     @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
+    // Default mode new rounds start in (toggleable mid-round on the round screen).
+    @AppStorage("roundModeDefaultCasual") private var defaultCasual = false
     @AppStorage("glassesServerEnabled") private var glassesEnabled = false
     // Output-only by default (the watch is the input device). Flip on to make
     // the glasses an input surface too — the fallback when the watch dies
@@ -37,6 +39,21 @@ struct SettingsView: View {
 
                     section(label: "Distance") {
                         unitsPicker
+                    }
+
+                    section(label: "Round mode") {
+                        Toggle(isOn: $defaultCasual) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Casual by default")
+                                    .font(AppFont.bodyLarge)
+                                    .foregroundStyle(palette.ink)
+                                Text("GPS + MAP + SIMPLE SCORE, NO SHOT TRACKING")
+                                    .font(AppFont.micro)
+                                    .tracking(1.2)
+                                    .foregroundStyle(palette.ink3)
+                            }
+                        }
+                        .tint(palette.flag)
                     }
 
                     section(label: "Equipment") {
