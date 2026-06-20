@@ -137,6 +137,12 @@ schemes:
         GolfCaddieTests: [test]
     run:
       config: Debug
+      # Metal API Validation aborts (SIGABRT) on MapKit's satellite renderer
+      # when the map gets a transient 0×0 drawable during a post-stroke camera
+      # reframe — worse on the iOS 27 beta (missing satellite.styl assets). It's
+      # a debug-only false positive (off in Release/TestFlight, so it never hits
+      # users); disable it so the debugger doesn't halt mid-round. 2026-06-20.
+      enableGPUValidationMode: disabled
     test:
       config: Debug
       targets:
