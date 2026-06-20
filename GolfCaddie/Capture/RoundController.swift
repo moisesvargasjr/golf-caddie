@@ -258,6 +258,12 @@ final class RoundController {
         // consumption — independent of, and before, the POI name lookup so a
         // missing MapKit POI doesn't also lose the curated match.
         resolveCuratedCourse(near: fix.coordinate, roundID: roundID)
+        // A curated match supplies its own (authoritative) name, so skip the
+        // POI lookup entirely — it's the mislabeling source (at the Welk it
+        // names the sibling "Fountains" course) and now redundant.
+        if case let .active(round, _) = state, round.id == roundID, round.courseName != nil {
+            return
+        }
         guard let name = await CourseDetector.detectCourseName(near: fix.coordinate)
         else { return }
         guard case let .active(round, _) = state,
@@ -285,11 +291,22 @@ final class RoundController {
     /// Set the resolved curated course: in-memory property + persist it on
     /// the round (survives relaunch/resume) + reassign state (same discipline
     /// as applyCourseName). Then auto-fill par for the active hole.
-    private func applyCuratedCourseId(_ id: String?) {
+    private func applyCuratedCourseId(_ id: String?, adoptName: Bool = false) {
         curatedCourseId = id
         if case let .active(round, hole) = state, round.curatedCourseId != id {
             var updated = round
             updated.curatedCourseId = id
+            // Prefer the curated course's OWN name as the display label. Apple's
+            // nearest-POI lookup mislabels multi-course facilities — at the Welk
+            // it picks the sibling "Fountains" course while we correctly link
+            // the Oaks (field test 2026-06-18). Adopt the curated name when the
+            // round has no name yet (fresh auto-detect) or the caller is fixing
+            // a wrong detect via manual re-link. Never clobbers a manual name on
+            // a plain auto-detect (guarded by courseName == nil there).
+            if let id, updated.courseName == nil || adoptName,
+               let course = try? CourseDataRepository.course(byId: id) {
+                updated.courseName = course.name
+            }
             try? RoundRepository.update(updated)
             state = .active(round: updated, hole: hole)
         }
@@ -307,7 +324,10 @@ final class RoundController {
     /// No-op outside an active round (the picker isn't reachable there).
     func setCuratedCourseId(_ id: String?) {
         guard case .active = state else { return }
-        applyCuratedCourseId(id)
+        // Manual (re)link is the "auto-detect picked the wrong course" recovery,
+        // so adopt the curated course's name as the label too — replacing a
+        // wrong POI name like "Fountains" with "The Oaks at the Welk".
+        applyCuratedCourseId(id, adoptName: true)
     }
 
     /// If a curated course is resolved, pre-fill par for the ACTIVE hole when

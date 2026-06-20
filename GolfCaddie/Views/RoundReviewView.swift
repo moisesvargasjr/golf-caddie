@@ -661,6 +661,13 @@ struct RoundReviewView: View {
         do {
             try RoundRepository.setCuratedCourseId(roundID: round.id, id: id)
             round.curatedCourseId = id
+            // Adopt the curated course's name as the label too (same as the
+            // in-round link) — replaces a wrong auto-detected POI name like
+            // "Fountains" with the real "The Oaks at the Welk".
+            if let id, let name = curatedCourses.first(where: { $0.id == id })?.name {
+                round.courseName = name
+                try RoundRepository.update(round)
+            }
             showCoursePicker = false
             reload()
         } catch {
