@@ -712,6 +712,14 @@ final class RoundController {
         try await markShotInternal(source: .button, club: currentClub)
     }
 
+    /// Quick one-tap putt from the phone round screen — a putter stroke at the
+    /// live fix, regardless of the currently-selected club (putts otherwise mean
+    /// scrolling the club picker to Putter). Goes through the normal mark path
+    /// (double-tap guard, GPS fusion) so it's a first-class stroke.
+    func markPutt() async throws {
+        try await markShotInternal(source: .button, club: .putter)
+    }
+
     func markShotFromActionButton() async throws {
         try await markShotInternal(source: .actionButton, club: nil)
     }

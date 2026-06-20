@@ -556,7 +556,7 @@ struct ActiveRoundView: View {
                 }
                 .padding(.top, 14)
 
-            // Action row: Undo · Log shot (primary) · Next hole.
+            // Action row: Undo · Log shot (primary) · +Putt · Next hole.
             HStack(spacing: 10) {
                 actionIconButton(systemName: "arrow.uturn.backward") {
                     showUndoConfirm = true
@@ -564,6 +564,8 @@ struct ActiveRoundView: View {
                 .disabled(controller.currentHoleShots.isEmpty && controller.currentHolePenalties.isEmpty)
 
                 logShotCTA
+
+                puttButton
 
                 nextHoleButton
             }
@@ -726,6 +728,22 @@ struct ActiveRoundView: View {
         .buttonStyle(.plain)
     }
 
+    private var puttButton: some View {
+        Button(action: markPutt) {
+            VStack(spacing: 1) {
+                Image(systemName: "circle.fill").font(.system(size: 9, weight: .bold))
+                Text("PUTT").font(AppFont.stamp).tracking(0.8)
+            }
+            .foregroundStyle(palette.ink)
+            .frame(width: 58, height: 50)
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(palette.ink, lineWidth: 1.2)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isMarkingShot)
+    }
     private var logShotCTA: some View {
         Button(action: markShot) {
             HStack(spacing: 4) {
@@ -948,6 +966,18 @@ struct ActiveRoundView: View {
         }
     }
 
+    private func markPutt() {
+        actionError = nil
+        Task {
+            isMarkingShot = true
+            do {
+                try await controller.markPutt()
+            } catch {
+                actionError = "Putt failed: \(error.localizedDescription)"
+            }
+            isMarkingShot = false
+        }
+    }
     private func markShot() {
         actionError = nil
         Task {
