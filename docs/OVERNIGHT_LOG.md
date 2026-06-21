@@ -31,7 +31,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 | B5  | Per-hole track segmentation + stop/dwell detection | ✅ done | phone 80 ✓ |
 | B8  | Track as shot-location source of truth | ✅ done | phone 82 ✓ |
 | B20 | Feature-flag spike/validation behind `#if DEBUG` | ✅ done | phone DEBUG ✓ · watch DEBUG ✓ · phone+watch Release ✓ |
-| B17 | Glasses polling cadence + staleness cue + battery | … | … |
+| B17 | Glasses polling cadence + staleness cue + battery | ✅ done | build ✓ · typecheck ✓ · ⚠ needs sim visual check |
 
 ---
 
@@ -185,3 +185,58 @@ spike code compiles out with no dangling references.
 
 **Notes for review:** the dual-role `SpikeSessionReceiver` is now misnamed in Release (it's just the
 live-WC delegate there); a rename is B21 hygiene, out of scope. No runtime behavior change in DEBUG.
+
+### B17 — Glasses polling cadence + reconnect staleness cue + battery render ✅ (needs visual check)
+**Repo:** `golf-caddie-glasses` · branch `overnight/foundations-0621` · commit `6adacab`.
+**What changed**
+- `src/app/api-client.ts`: `POLL_MS` 600 → **1500** (it was ~4× faster than the docs; the slower
+  cadence cuts phone + glasses battery and is still snappy because `render()` dedupes frames).
+- `src/app/screens/hud.ts`: `renderHud` gains an optional `staleSeconds`; renders a **sync-liveness
+  cue** when the feed is frozen (header `⚠ Xs`, a `⚠ NO SYNC · last seen Xs ago` banner, and the
+  green yardage marked `· stale`) and **phone battery** (unobtrusive `±Xm · NN%` in the header; a
+  prominent `⚠ Phone battery NN%` banner under 15%). Spacer-dropping keeps it within the 10-line canvas.
+- `src/app/router.ts`: computes `staleSeconds` from `lastGoodAt` while disconnected within the 7 s
+  reconnect grace and passes it to the HUD (before the full `Reconnecting…` takeover).
+- Docs: `ARCHITECTURE.md`, `IMPLEMENTATION_PLAN.md`, `IOS_INTEGRATION_CONTRACT.md` all updated to the
+  one ~1.5 s cadence; ARCHITECTURE failure table documents the staleness cue + battery.
+
+**Tests:** `npm run build` (tsc --noEmit && vite build) and `npm run typecheck` both pass.
+
+**Needs sim visual check:** confirm the staleness cue appears within ~1 poll of a dropped link
+(inject a fetch failure in the mock/sim) and clears on recovery, and that battery renders + the <15%
+warning shows. Coupling note: B17 deliberately implements only the *reconnect-grace* freshness cue;
+the *mid-session stall* case (B22) was out of scope tonight and can reuse this same mechanism.
+
+---
+
+## Final summary (morning read)
+
+**All 7 scoped items shipped, each its own green commit.** Nothing else was started.
+
+Review order (matches commit order):
+1. **golf-caddie** branch `overnight/foundations-0621` — `git log main..HEAD`:
+   `docs` → **B2** (idempotent watch→phone commands) → **B3** (shot provenance + isPutt/confidence,
+   adds DB migration v4) → **B4** (watch SYNCING-N chip) → **B5** (TrackSegmenter: per-hole slices +
+   stop detection) → **B8** (live shots use the track, retire captureBestFix ramp) → **B20**
+   (spike/validation behind `#if DEBUG`).
+2. **golf-caddie-glasses** branch `overnight/foundations-0621` — **B17** (poll cadence + staleness +
+   battery), commit `6adacab`.
+
+Verification: phone test target **82 passing** (was 60; +22 across B2/B3/B5/B8). `GolfCaddieWatch`
+builds (DEBUG). For B20, **`-configuration Release` builds clean for both `GolfCaddie` and
+`GolfCaddieWatch`** — the spike code provably compiles out. Glasses: build + typecheck pass.
+Toolchain note in the header: builds require **Xcode-beta (27.0)** via `DEVELOPER_DIR` because the
+only installed sim runtimes are iOS/watchOS 27.
+
+Needs your eyes / a device or sim before trusting end-to-end (build-green but not runtime-verified here):
+- **B4** SYNCING-N chip — phone-unreachable → chip appears, drains on reconnect, no double-apply.
+- **B17** staleness cue + battery on the real G2 / evenhub sim.
+- **B19's** measured battery figure and **B22** (glasses mid-session stall) were *not* in scope.
+
+Decisions/notes for you:
+- **B3 `confidence`** is modeled + persisted but intentionally left `nil` on every live/manual path —
+  it's reconstruction's field (B6/B7). **B5 `TrackSegmenter`** is built and unit-tested but nothing
+  calls it on the live path yet; it's the substrate B6/B7 consume.
+- **B5 stop-detection T/R** are runtime-tunable via `UserDefaults`
+  (`stopDetect.minDwellSeconds` / `stopDetect.radiusMeters`) for field tuning without a rebuild.
+- Commits are **local only** (no push), per the kickoff's local-review plan.
