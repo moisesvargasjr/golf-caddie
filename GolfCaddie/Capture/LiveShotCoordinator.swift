@@ -7,6 +7,33 @@ extension SwingEvent: TimedCandidate {
     var candidateTime: Date { Date(timeIntervalSince1970: watchWallClock) }
 }
 
+/// Bounded FIFO set of recently-seen ids — the phone's at-most-once guard for
+/// watch→phone commands (B2). `insert(_:)` returns `true` the first time an id
+/// is seen (apply it) and `false` on any repeat (a duplicate to ignore). Only
+/// the last `capacity` ids are retained: a command older than that can't
+/// realistically still be in flight for redelivery, so the set never grows
+/// unbounded. Pure value type → unit-testable without the coordinator.
+struct RecentIDSet: Equatable {
+    private var order: [UUID] = []
+    private var seen: Set<UUID> = []
+    let capacity: Int
+
+    init(capacity: Int = 64) { self.capacity = max(1, capacity) }
+
+    /// Record `id`. Returns true if newly inserted, false if already present.
+    mutating func insert(_ id: UUID) -> Bool {
+        guard !seen.contains(id) else { return false }
+        seen.insert(id)
+        order.append(id)
+        if order.count > capacity {
+            seen.remove(order.removeFirst())
+        }
+        return true
+    }
+
+    func contains(_ id: UUID) -> Bool { seen.contains(id) }
+}
+
 /// Bridge between the phone's WCSession delegate and the RoundController for
 /// live auto-logging. Owns the debounce + reconciliation + fusion pipeline:
 ///
@@ -28,6 +55,10 @@ final class LiveShotCoordinator {
     private var bufferedBeforeAttach: [WatchToPhoneMessage] = []
     private var debounce: Timer?
     private let debounceInterval: TimeInterval = 3.0
+
+    /// Command ids already applied — so an at-least-once redelivery (retried
+    /// `transferUserInfo`) or a duplicated send applies its effect only once (B2).
+    private var appliedCommandIDs = RecentIDSet()
 
     /// Most recent club epoch seen from the watch — M6's StateUpdate publisher
     /// reads this so the phone never echoes a stale epoch back.
@@ -60,8 +91,10 @@ final class LiveShotCoordinator {
             pending.append(event)
             restartDebounce()
         case .command:
-            guard let command = message.command else { return }
-            handle(command)
+            guard let identified = message.command else { return }
+            // Apply at most once: ignore a command id we've already handled.
+            guard appliedCommandIDs.insert(identified.id) else { return }
+            handle(identified.command)
         }
     }
 

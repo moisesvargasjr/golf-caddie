@@ -62,6 +62,16 @@ enum WatchCommand: Codable, Equatable {
     case previousHole
 }
 
+/// A `WatchCommand` plus a stable `id`, so the phone can apply it **at most
+/// once** even when the transport delivers it more than once — a retried
+/// `transferUserInfo` or a user re-tap after a flaky link. Mirrors
+/// `SwingEvent.id`'s idempotency discipline (a logical command keeps its id
+/// across resends; a genuinely new tap gets a fresh id and so applies again).
+struct IdentifiedCommand: Codable, Equatable {
+    var id: UUID
+    var command: WatchCommand
+}
+
 /// The single `transferUserInfo` payload type — a tagged union so one decode
 /// path handles both event and command traffic.
 struct WatchToPhoneMessage: Codable, Equatable {
@@ -69,14 +79,18 @@ struct WatchToPhoneMessage: Codable, Equatable {
 
     var kind: Kind
     var swing: SwingEvent?
-    var command: WatchCommand?
+    var command: IdentifiedCommand?
 
     static func swing(_ event: SwingEvent) -> WatchToPhoneMessage {
         WatchToPhoneMessage(kind: .swing, swing: event, command: nil)
     }
 
-    static func command(_ command: WatchCommand) -> WatchToPhoneMessage {
-        WatchToPhoneMessage(kind: .command, swing: nil, command: command)
+    /// Wrap a command for transport. A fresh `id` is minted per call (one user
+    /// action = one id); pass an explicit `id` to reproduce a logical command on
+    /// a resend (the same envelope re-sent keeps its id, so the phone dedups it).
+    static func command(_ command: WatchCommand, id: UUID = UUID()) -> WatchToPhoneMessage {
+        WatchToPhoneMessage(kind: .command, swing: nil,
+                            command: IdentifiedCommand(id: id, command: command))
     }
 
     func encoded() throws -> Data { try JSONEncoder().encode(self) }

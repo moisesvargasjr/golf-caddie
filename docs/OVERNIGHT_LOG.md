@@ -11,6 +11,11 @@ Environment discovered:
 - `xcodegen` 2.45.4 + `project.yml` present — run `xcodegen generate` if Swift files are added/removed.
 - Glasses repo at `~/source/golf-caddie-glasses` (TypeScript/Vite).
 - RAM-constrained Mac → builds run strictly one at a time.
+- **Build toolchain gotcha:** the only installed sim runtimes are iOS/watchOS **27.0**, which
+  the default `xcode-select` Xcode (**26.5**) cannot target (0 eligible sim destinations). All
+  builds/tests use `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` (Xcode 27.0).
+  iPhone 17 Pro sim id `63965C6A-DE24-4AEF-881E-397A252D5AEB`; Apple Watch Series 11 (46mm)
+  id `55B69EA8-A228-4AD5-834E-6C03ADFCBE41`.
 
 Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 
@@ -20,7 +25,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 
 | Item | Title | Status | Tests |
 |---|---|---|---|
-| B2  | Transport idempotency (UUID on watch→phone commands) | … | … |
+| B2  | Transport idempotency (UUID on watch→phone commands) | ✅ done | phone 66 ✓ · watch build ✓ |
 | B3  | Honest shot provenance + model fields | … | … |
 | B4  | Watch→phone delivery feedback ("syncing N" chip) | … | … |
 | B5  | Per-hole track segmentation + stop/dwell detection | … | … |
@@ -32,4 +37,21 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 
 ## Per-item detail
 
-(filled in as each item lands)
+### B2 — Transport idempotency on watch→phone commands ✅
+**What changed**
+- `GolfCaddie/Shared/SwingEventContract.swift`: new `IdentifiedCommand` struct (`id` + `command`);
+  `WatchToPhoneMessage.command` now carries an `IdentifiedCommand` instead of a bare `WatchCommand`.
+  The `.command(_:id:)` factory mints a fresh UUID per call (one tap = one id) but accepts an
+  explicit id so a logical resend keeps its id. Watch senders are source-compatible (no changes).
+- `GolfCaddie/Capture/LiveShotCoordinator.swift`: new pure `RecentIDSet` (bounded FIFO, `insert`
+  returns false on a repeat); the `.command` ingest branch ignores an id already applied → at-most-once.
+- `GolfCaddieTests/WatchCommandIdempotencyTests.swift` (new): `RecentIDSet` unit tests
+  (insert/contains/capacity-eviction), wire round-trip (stable id survives encode/decode; distinct
+  ids per send), and end-to-end (same command id ingested twice → 1 shot; fresh id → 2 shots).
+
+**Tests:** `xcodebuild test -scheme GolfCaddie` → 66 passed (was 60; +6). `xcodebuild build
+-scheme GolfCaddieWatch` → BUILD SUCCEEDED (contract compiles into the watch target).
+
+**Notes for review:** at-most-once is keyed on the command id, so a *user re-tap* (a new id) is a
+genuine second action and still applies — correct per spec. Swing events keep their existing
+reconciler-based collapse (out of B2's scope). No schema change.
