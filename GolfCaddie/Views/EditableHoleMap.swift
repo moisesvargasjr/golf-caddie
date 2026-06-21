@@ -282,6 +282,8 @@ private struct EditableHoleMapKit: UIViewRepresentable {
             case .manual: return .systemGray
             case .glasses: return .systemGreen
             case .watchAuto: return .systemPurple
+            case .watchManual: return .systemIndigo
+            case .reconstructed: return .systemYellow
             }
         }
     }

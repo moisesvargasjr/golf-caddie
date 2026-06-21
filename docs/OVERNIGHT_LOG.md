@@ -26,7 +26,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 | Item | Title | Status | Tests |
 |---|---|---|---|
 | B2  | Transport idempotency (UUID on watch→phone commands) | ✅ done | phone 66 ✓ · watch build ✓ |
-| B3  | Honest shot provenance + model fields | … | … |
+| B3  | Honest shot provenance + model fields | ✅ done | phone 72 ✓ · watch build ✓ |
 | B4  | Watch→phone delivery feedback ("syncing N" chip) | … | … |
 | B5  | Per-hole track segmentation + stop/dwell detection | … | … |
 | B8  | Track as shot-location source of truth | … | … |
@@ -55,3 +55,31 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 **Notes for review:** at-most-once is keyed on the command id, so a *user re-tap* (a new id) is a
 genuine second action and still applies — correct per spec. Swing events keep their existing
 reconciler-based collapse (out of B2's scope). No schema change.
+
+### B3 — Honest shot provenance + model fields ✅
+**What changed**
+- `GolfCaddie/Models/Shot.swift`: `ShotSource` gains `.watchManual` (deliberate watch tap) and
+  `.reconstructed` (B6/B7 pins). `Shot` gains `isPutt: Bool = false` and `confidence: Double? = nil`
+  (defaulted, so existing call sites compile unchanged). Doc note distinguishes pin-`confidence`
+  from the detector's impact-strength `SwingEvent.confidence`.
+- `GolfCaddie/Persistence/Database.swift`: migration `v4_shot_putt_confidence` — additive
+  `ALTER shot ADD isPutt (NOT NULL default 0)` + `ADD confidence (nullable)`. New sources are
+  string values in the existing `source` column → no schema change there.
+- `GolfCaddie/Capture/RoundController.swift`: `ingestAutoShot` takes `source`/`isPutt` (defaulting
+  to `.watchAuto`/false, so the detector path is byte-identical). `addShotFromWatch` → `.watchManual`;
+  `addPuttFromWatch` → `.watchManual` + `isPutt`; phone `markPutt` → `isPutt` (via a new
+  `markShotInternal(isPutt:)` param). All 6 `Shot(` sites audited: button/actionButton/manual/
+  glasses/watchAuto now truthful; post-round add-missing-shot stays `.manual`.
+- `GolfCaddie/Views/EditableHoleMap.swift`: pin `markerColor` handles the two new sources
+  (watchManual → indigo, reconstructed → yellow, echoing DESIGN's low-confidence amber).
+- Tests: `MigrationTests` migration-list pin updated to include v4; new `ShotProvenanceTests`
+  (column existence, field/source round-trip through GRDB, default isPutt/nil-confidence on old-style
+  rows, and the three entry-point provenance assertions).
+
+**Tests:** phone 72 passed (was 66; +6). `GolfCaddieWatch` builds (B3 touches no watch-target
+sources; confirmed anyway).
+
+**Notes for review:** `confidence` is wired into the model + persistence but no live path sets it
+yet — it's reconstruction's field (B6/B7), kept `nil` for live/manual shots by design. Phone
+`markPutt`'s `isPutt` tag isn't unit-tested (its path awaits a 5 s `captureBestFix`; the watch putt
+path proves the same flag). DB export (`VACUUM INTO`) carries the new columns automatically.

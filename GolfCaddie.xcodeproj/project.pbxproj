@@ -39,6 +39,7 @@
 		408A9E803461EA57CEDD2A13 /* CoursePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5284AA954CF7D6A22EDBF0DA /* CoursePickerSheet.swift */; };
 		40C1D692B140407E028E5C1D /* PenaltySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1264865EE57007A986603213 /* PenaltySheet.swift */; };
 		416805C2E1F5D4342873E424 /* Repositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CEE490EE5025D93E41E72F2 /* Repositories.swift */; };
+		429650F51F88ED31AAACBA73 /* ShotProvenanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4791A4B1CE59C4B0A85F203B /* ShotProvenanceTests.swift */; };
 		42BCC6C41C9D7A6F5B596A0C /* DatabaseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435A866F4F4085EB7AAE374C /* DatabaseExport.swift */; };
 		44EBA2F49E8D0BC42F3D1F21 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B123209BD00D13CDF3193DD /* Haptics.swift */; };
 		4562B70E81824125A7D522FD /* DoubleRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD0F2CBF0FA371E6D67C122 /* DoubleRule.swift */; };
@@ -154,6 +155,7 @@
 		3CD873D31FBEDA03AAC3EB7A /* SessionMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMeta.swift; sourceTree = "<group>"; };
 		3CEE490EE5025D93E41E72F2 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
 		435A866F4F4085EB7AAE374C /* DatabaseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExport.swift; sourceTree = "<group>"; };
+		4791A4B1CE59C4B0A85F203B /* ShotProvenanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShotProvenanceTests.swift; sourceTree = "<group>"; };
 		4869F686A79319D1C3C34BD3 /* Penalty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Penalty.swift; sourceTree = "<group>"; };
 		4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPreviewDebug.swift; sourceTree = "<group>"; };
 		4EEE08CB9110FAA5A5C67753 /* RoundController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundController.swift; sourceTree = "<group>"; };
@@ -236,6 +238,7 @@
 				14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */,
 				D971A6F753D38667A1738891 /* LiveSwingDetectorTests.swift */,
 				8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */,
+				4791A4B1CE59C4B0A85F203B /* ShotProvenanceTests.swift */,
 				2A3B9A55AF8B0E6E38607DC6 /* ShotReconcilerTests.swift */,
 				1F44C2D883B910A964ED558B /* TracePointRepositoryTests.swift */,
 				BCE6B9DDFAAC23537DB021F9 /* WatchCommandIdempotencyTests.swift */,
@@ -610,6 +613,7 @@
 				C484E3007DAC72948353A765 /* GlassesStateMapperTests.swift in Sources */,
 				225506DA8A1DF9251C9D4942 /* LiveSwingDetectorTests.swift in Sources */,
 				1DC14E4784DFB57E6E4177EE /* MigrationTests.swift in Sources */,
+				429650F51F88ED31AAACBA73 /* ShotProvenanceTests.swift in Sources */,
 				CBB6B38E8C04976ED996FBEB /* ShotReconcilerTests.swift in Sources */,
 				7C7DDE425EE1511B86C06237 /* TestDatabase.swift in Sources */,
 				8DB18581CE5F8E81598E66AE /* TracePointRepositoryTests.swift in Sources */,
