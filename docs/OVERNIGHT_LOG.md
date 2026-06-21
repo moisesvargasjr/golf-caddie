@@ -28,7 +28,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 | B2  | Transport idempotency (UUID on watch→phone commands) | ✅ done | phone 66 ✓ · watch build ✓ |
 | B3  | Honest shot provenance + model fields | ✅ done | phone 72 ✓ · watch build ✓ |
 | B4  | Watch→phone delivery feedback ("syncing N" chip) | ✅ done | watch build ✓ · phone 72 ✓ · ⚠ needs sim/device visual check |
-| B5  | Per-hole track segmentation + stop/dwell detection | … | … |
+| B5  | Per-hole track segmentation + stop/dwell detection | ✅ done | phone 80 ✓ |
 | B8  | Track as shot-location source of truth | … | … |
 | B20 | Feature-flag spike/validation behind `#if DEBUG` | … | … |
 | B17 | Glasses polling cadence + staleness cue + battery | … | … |
@@ -103,3 +103,29 @@ builds; phone target unchanged (72 still pass).
 (airplane-mode the phone mid-round / kill the phone app), shows the queue count, and clears on
 reconnect with no double-applied actions. Mechanism relies on `outstandingUserInfoTransfers`, which
 counts swings *and* commands — intentional ("SYNCING N" = the whole watch→phone backlog).
+
+### B5 — Per-hole track segmentation + stop/dwell detection ✅
+**What changed**
+- `GolfCaddie/Capture/TrackSegmenter.swift` (new): pure, DB-free core + a DB-backed convenience.
+  - `StopDetectionConfig` — the two field-test knobs `T` (`minDwellSeconds`, 8 s) and `R`
+    (`radiusMeters`, 5 m). `.default` reads optional `UserDefaults` overrides
+    (`stopDetect.minDwellSeconds`/`.radiusMeters`) so they're adjustable **without recompiling**.
+  - `TrackStop` — a candidate shot location (centroid, arrival/departure, sampleCount, 0…1
+    `prominence` monotonic in dwell). Returned in track/time order.
+  - `timeWindow(forHole:roundStart:holes:now:)` — slices the round-scoped track per hole by confirm
+    times (previous hole's confirm → this hole's confirm, or `now` for the active hole; hole 1 starts
+    at round start). Bounded by confirm timestamps, not tee/green (always available — Emerald Isle
+    has no tee anchor).
+  - `detectStops(in:config:)` — canonical stay-point detection (anchor + radius extension + dwell gate).
+  - `stops(forHole:in:config:now:)` — composes the above over persisted data.
+- Tests: `GolfCaddieTests/TrackSegmenterTests.swift` (new) — two-dwells-with-a-walk, pure walk → none,
+  sub-threshold dwell → none, single-dwell centroid, <2 points, windowing bounds (incl. active hole →
+  now, degenerate → nil), and DB-backed per-hole attribution (a hole-1 dwell and a hole-2 dwell each
+  land only on their own hole).
+
+**Tests:** phone 80 pass (was 72; +8). No watch-target files touched.
+
+**Notes for review:** stop detection is anchored on the cluster's first point — a slow drift can
+clip a long dwell, and a very slow amble (< R/T ≈ 0.6 m/s) could false-positive; both are acceptable
+for v1 and tunable via the T/R knobs. `prominence` saturates at 60 s. This is the substrate B6/B7
+consume (N strokes → N most-prominent stops); nothing calls it on the live path yet.
