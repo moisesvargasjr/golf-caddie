@@ -29,7 +29,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 | B3  | Honest shot provenance + model fields | ✅ done | phone 72 ✓ · watch build ✓ |
 | B4  | Watch→phone delivery feedback ("syncing N" chip) | ✅ done | watch build ✓ · phone 72 ✓ · ⚠ needs sim/device visual check |
 | B5  | Per-hole track segmentation + stop/dwell detection | ✅ done | phone 80 ✓ |
-| B8  | Track as shot-location source of truth | … | … |
+| B8  | Track as shot-location source of truth | ✅ done | phone 82 ✓ |
 | B20 | Feature-flag spike/validation behind `#if DEBUG` | … | … |
 | B17 | Glasses polling cadence + staleness cue + battery | … | … |
 
@@ -129,3 +129,23 @@ counts swings *and* commands — intentional ("SYNCING N" = the whole watch→ph
 clip a long dwell, and a very slow amble (< R/T ≈ 0.6 m/s) could false-positive; both are acceptable
 for v1 and tunable via the T/R knobs. `prominence` saturates at 60 s. This is the substrate B6/B7
 consume (N strokes → N most-prominent stops); nothing calls it on the live path yet.
+
+### B8 — Track as shot-location source of truth (retire the dual GPS-capture path) ✅
+**What changed**
+- `GolfCaddie/Capture/RoundController.swift`: `markShotInternal` (the phone Mark / +PUTT / casual /
+  Action-button path) now reads the continuous `location.latestLocation` instead of awaiting
+  `location.captureBestFix()` (the up-to-5 s ramp). This is the FT4 #6 "phone shot-mark latency"
+  fix and unifies every live-logging path (phone/watch/glasses) on one mechanism — `latestLocation`,
+  gated by `horizontalAccuracy > 0`, with `gpsAccuracy` recorded honestly. `markShotInternal` keeps
+  its `async` signature (no caller churn); it simply no longer suspends.
+- `captureBestFix` is **kept** for `detectAndApplyCourseName` only — a fire-and-forget once-per-round
+  course lookup where waiting for a good fix is appropriate and off the live path.
+- Tests: `GolfCaddieTests/LiveMarkPathTests.swift` (new) — `markShot` logs a `.button` shot from the
+  track (graceful `hadGPS=false` with no sim fix), and `markPutt` tags a `.putter` `isPutt` putt via
+  the phone path (the B3 case deferred because of the old 5 s wait — now cheap post-B8).
+
+**Tests:** phone test target (see status board; +2). No watch-target files touched.
+
+**Notes for review:** no live shot path now uses `captureBestFix` (confirmed by grep). Locations are
+the live track fix; B5–B7 reconstruction refines pin locations from the full track afterward. W1
+discipline preserved — nothing on the live path blocks on a GPS ramp.

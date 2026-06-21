@@ -773,17 +773,24 @@ final class RoundController {
             Haptics.error()
             return
         }
-        let fix = await location.captureBestFix()
+        // Location comes from the continuous best-accuracy track (`latestLocation`),
+        // NOT a per-shot `captureBestFix` ramp (B8). During a round, tracking is
+        // always running so `latestLocation` is fresh — and this removes the
+        // up-to-5 s stall the field test felt standing on the phone Mark button
+        // (FT4 #6). It unifies all live logging (phone/watch/glasses) on one
+        // mechanism; reconstruction (B5–B7) refines locations from the track later.
+        let loc = location.latestLocation
+        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,
             sequenceNumber: nextSeq,
             timestamp: Date(),
-            latitude: fix?.coordinate.latitude,
-            longitude: fix?.coordinate.longitude,
-            gpsAccuracy: fix?.horizontalAccuracy,
-            hadGPS: fix != nil,
+            latitude: hasFix ? loc?.coordinate.latitude : nil,
+            longitude: hasFix ? loc?.coordinate.longitude : nil,
+            gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
+            hadGPS: hasFix,
             club: club,
             source: source,
             notes: nil,
@@ -791,9 +798,9 @@ final class RoundController {
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
-        lastMarkResult = .success(shotID: shot.id, accuracy: fix?.horizontalAccuracy)
+        lastMarkResult = .success(shotID: shot.id, accuracy: hasFix ? loc?.horizontalAccuracy : nil)
 
-        if fix != nil {
+        if hasFix {
             Haptics.success()
         } else {
             Haptics.warning()
