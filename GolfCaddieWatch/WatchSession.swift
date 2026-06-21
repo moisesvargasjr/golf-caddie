@@ -11,7 +11,14 @@ final class WatchSession: NSObject, ObservableObject {
     static let shared = WatchSession()
 
     @Published private(set) var phoneState = PhoneStateUpdate.inactive
+    /// Outstanding *file* transfers (validation-session bins) — drives the spike
+    /// RESEND affordance on the start screen.
     @Published private(set) var outstanding = 0
+    /// Outstanding watch→phone *messages* (swings + commands) still queued for
+    /// delivery — drives the play-screen "SYNCING N" chip (B4). When the phone
+    /// is unreachable (in the bag / dead) this stays > 0 so a backlog is visible
+    /// rather than falsely reassuring; it drains to 0 once the link recovers.
+    @Published private(set) var outstandingMessages = 0
     @Published private(set) var lastTransferError: String?
     @Published private(set) var deliveredCount = 0
 
@@ -23,9 +30,13 @@ final class WatchSession: NSObject, ObservableObject {
     }
 
     /// Send a swing event / command. Encoded once; the queue handles delivery.
+    /// Refreshes the outstanding-message count so the "SYNCING N" chip reflects
+    /// the just-queued transfer immediately (it clears via `didFinish
+    /// userInfoTransfer` once the phone acknowledges).
     func send(_ message: WatchToPhoneMessage) {
         guard WCSession.isSupported(), let data = try? message.encoded() else { return }
         WCSession.default.transferUserInfo([ShotContract.payloadKey: data])
+        refreshOutstanding()
     }
 
     var debugStatus: String {
@@ -57,6 +68,7 @@ final class WatchSession: NSObject, ObservableObject {
 
     private func refreshOutstanding() {
         outstanding = WCSession.default.outstandingFileTransfers.count
+        outstandingMessages = WCSession.default.outstandingUserInfoTransfers.count
     }
 
     #if DEBUG
@@ -83,6 +95,18 @@ extension WatchSession: WCSessionDelegate {
             } else {
                 self.deliveredCount += 1
             }
+            self.refreshOutstanding()
+        }
+    }
+
+    /// A queued swing/command transfer finished (delivered or errored). Drains
+    /// the "SYNCING N" backlog as the phone acknowledges each one (B4). The
+    /// effect is idempotent on the phone (B2), so the system's at-least-once
+    /// redelivery on reconnect can't double-apply.
+    nonisolated func session(_ session: WCSession, didFinish userInfoTransfer: WCSessionUserInfoTransfer, error: Error?) {
+        let failure = error?.localizedDescription
+        Task { @MainActor in
+            if let failure { self.lastTransferError = failure }
             self.refreshOutstanding()
         }
     }

@@ -85,6 +85,29 @@ private struct GpsDot: View {
     }
 }
 
+/// Watch→phone delivery backlog (B4). Shown on the play screen only while
+/// messages are still queued for an unreachable phone, so a silent backlog is
+/// never mistaken for "delivered". Drains itself as the link recovers. A pulsing
+/// amber dot keeps it glanceable without competing with the LISTENING meter.
+private struct SyncChip: View {
+    let count: Int
+    @State private var pulse = false
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(WT.accent)
+                .frame(width: 5, height: 5)
+                .opacity(pulse ? 1 : 0.35)
+                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
+            Text("SYNCING \(count)").font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink2)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .background(WT.accent.opacity(0.12), in: Capsule())
+        .onAppear { pulse = true }
+    }
+}
+
 // MARK: - Start
 
 private struct WatchStartScreen: View {
@@ -151,6 +174,7 @@ private struct WatchStartScreen: View {
 
 private struct WatchPlayView: View {
     @EnvironmentObject private var controller: LiveSessionController
+    @ObservedObject private var session = WatchSession.shared
     @State private var page: Int = {
         #if DEBUG
         return WatchPreviewDebug.initialPage
@@ -164,6 +188,12 @@ private struct WatchPlayView: View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 ListeningBar().padding(.top, 1)
+                // Delivery backlog (B4) — only present when something is queued,
+                // so it costs no space on a healthy link. Outside the TabView so
+                // it's visible on every page.
+                if session.outstandingMessages > 0 {
+                    SyncChip(count: session.outstandingMessages).padding(.bottom, 1)
+                }
                 TabView(selection: $page) {
                     YardageScreen().tag(0)
                     StrokesScreen().tag(1)

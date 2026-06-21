@@ -27,7 +27,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 |---|---|---|---|
 | B2  | Transport idempotency (UUID on watch→phone commands) | ✅ done | phone 66 ✓ · watch build ✓ |
 | B3  | Honest shot provenance + model fields | ✅ done | phone 72 ✓ · watch build ✓ |
-| B4  | Watch→phone delivery feedback ("syncing N" chip) | … | … |
+| B4  | Watch→phone delivery feedback ("syncing N" chip) | ✅ done | watch build ✓ · phone 72 ✓ · ⚠ needs sim/device visual check |
 | B5  | Per-hole track segmentation + stop/dwell detection | … | … |
 | B8  | Track as shot-location source of truth | … | … |
 | B20 | Feature-flag spike/validation behind `#if DEBUG` | … | … |
@@ -83,3 +83,23 @@ sources; confirmed anyway).
 yet — it's reconstruction's field (B6/B7), kept `nil` for live/manual shots by design. Phone
 `markPutt`'s `isPutt` tag isn't unit-tested (its path awaits a 5 s `captureBestFix`; the watch putt
 path proves the same flag). DB export (`VACUUM INTO`) carries the new columns automatically.
+
+### B4 — Watch→phone delivery feedback ("syncing N" chip) ✅ (needs visual check)
+**What changed**
+- `GolfCaddieWatch/WatchSession.swift`: new `@Published outstandingMessages` = count of queued
+  watch→phone userInfo transfers (`WCSession.outstandingUserInfoTransfers.count`), separate from the
+  existing file-transfer `outstanding` (spike RESEND). `send(_:)` refreshes it right after
+  `transferUserInfo`; new `session(_:didFinish userInfoTransfer:error:)` delegate drains it as the
+  phone acknowledges each transfer (and records errors). No semantic auto-retry — the backlog is
+  surfaced, not silently resent (B2 already makes the system's at-least-once redelivery safe).
+- `GolfCaddieWatch/WatchRootView.swift`: new `SyncChip` (pulsing amber dot + "SYNCING N"), shown in
+  `WatchPlayView` only when `outstandingMessages > 0`, placed outside the TabView so it's visible on
+  every page and costs no space on a healthy link.
+
+**Tests:** none added (per kickoff — B4 is runtime/visual, not unit-testable here). `GolfCaddieWatch`
+builds; phone target unchanged (72 still pass).
+
+**Needs on-device/sim visual check:** confirm the chip appears when the phone is unreachable
+(airplane-mode the phone mid-round / kill the phone app), shows the queue count, and clears on
+reconnect with no double-applied actions. Mechanism relies on `outstandingUserInfoTransfers`, which
+counts swings *and* commands — intentional ("SYNCING N" = the whole watch→phone backlog).
