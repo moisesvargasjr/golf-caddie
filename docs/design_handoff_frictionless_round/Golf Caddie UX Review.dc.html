@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    @keyframes dashdraw { to { stroke-dashoffset: 0; } }
+  </style>
+</helmet>
+
+<div style="background: #E3D9BF; min-height: 100vh; width: 100%; font-family: Georgia, 'Newsreader', serif; color: #1E3A29; padding: 0 0 120px 0;">
+
+  <!-- ===================== MASTHEAD ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 56px 40px 0 40px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px double #1E3A29; padding-bottom: 18px;">
+      <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #5C6B54;">Design Review · Vol. 1</div>
+      <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #5C6B54;">June 2026 · 4 Surfaces</div>
+    </div>
+    <h1 style="font-family: Georgia, serif; font-style: italic; font-weight: 400; font-size: 72px; line-height: 0.98; margin: 26px 0 10px 0; letter-spacing: -1px; color: #13251A;">The Fairway Logbook</h1>
+    <div style="font-family: 'Courier Prime', monospace; font-size: 13px; letter-spacing: 5px; text-transform: uppercase; color: #C07C1E; font-weight: 700;">Cross-Device UX Review &amp; Redesign</div>
+    <p style="font-size: 19px; line-height: 1.55; max-width: 720px; margin: 22px 0 0 0; color: #2E4636;">A frictionless on-course system across <em>iPhone</em>, <em>Apple&nbsp;Watch</em>, and <em>Even&nbsp;Realities&nbsp;G2</em> glasses — plus the course-data desk that feeds them. This issue diagnoses where the round breaks down today and proposes the fixes, screen by screen.</p>
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 32px;"></div>
+  </div>
+
+  <!-- ===================== THESIS / EXEC SUMMARY ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 44px 40px 0 40px;">
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: start;">
+      <div>
+        <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 12px;">The one thing to fix</div>
+        <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 34px; line-height: 1.18; margin: 0 0 18px 0; color: #13251A;">Stop asking the golfer to stand on the spot and tap.</h2>
+        <p style="font-size: 18px; line-height: 1.6; margin: 0 0 16px 0; color: #2E4636;">Your sharpest friction — <em>“I forget to mark the stroke from where I hit, so the club-distance feature is a wash”</em> — is the exact gap between <strong>18Birdies</strong> (manual) and <strong>Arccos</strong> (automatic). Arccos closes it with a sensor in every grip. You don't have that hardware, but you have three things that, combined, get you most of the way there:</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin: 22px 0 0 0;">
+          <div style="display: flex; gap: 14px; align-items: baseline; background: #F4EDDA; border: 1px solid #D2C6A6; border-left: 4px solid #C07C1E; padding: 14px 18px;">
+            <span style="font-family: 'Courier Prime', monospace; font-weight: 700; color: #C07C1E;">1</span>
+            <span style="font-size: 16px; line-height: 1.5;"><strong>A continuous GPS breadcrumb</strong> the phone already records — the track itself knows where you walked and stopped.</span>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: baseline; background: #F4EDDA; border: 1px solid #D2C6A6; border-left: 4px solid #C07C1E; padding: 14px 18px;">
+            <span style="font-family: 'Courier Prime', monospace; font-weight: 700; color: #C07C1E;">2</span>
+            <span style="font-size: 16px; line-height: 1.5;"><strong>The watch's swing detection</strong> — a timestamp for each impact, even when the phone's in your pocket.</span>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: baseline; background: #F4EDDA; border: 1px solid #D2C6A6; border-left: 4px solid #C07C1E; padding: 14px 18px;">
+            <span style="font-family: 'Courier Prime', monospace; font-weight: 700; color: #C07C1E;">3</span>
+            <span style="font-size: 16px; line-height: 1.5;"><strong>Known hole geometry</strong> — tee and green anchors from your course-data desk bound the start and end of every hole.</span>
+          </div>
+        </div>
+        <p style="font-size: 18px; line-height: 1.6; margin: 22px 0 0 0; color: #2E4636;">Cross-reference the three and <strong>marking becomes confirming</strong>. You play the hole, and when you hole out the app says “we tracked 4 shots” on a map you fix in five seconds. Forgetting can no longer cost you the data.</p>
+      </div>
+
+      <div style="background: #13251A; color: #EDE4CE; padding: 30px 28px; align-self: stretch;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #D8941F; font-weight: 700; margin-bottom: 18px;">Verdict at a glance</div>
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+          <div style="border-bottom: 1px solid #2E4636; padding-bottom: 16px;">
+            <div style="font-family: Georgia, serif; font-style: italic; font-size: 21px; margin-bottom: 4px;">iPhone</div>
+            <div style="font-size: 15px; line-height: 1.45; color: #C9C0A6;">Beautiful, but the on-course screen optimizes for marking, not glancing. Make yardage the hero; make marking retroactive.</div>
+          </div>
+          <div style="border-bottom: 1px solid #2E4636; padding-bottom: 16px;">
+            <div style="font-family: Georgia, serif; font-style: italic; font-size: 21px; margin-bottom: 4px;">Apple Watch</div>
+            <div style="font-size: 15px; line-height: 1.45; color: #C9C0A6;">Your best input device — lean into it. Make the confirm card auto-accept so a missed tap costs nothing.</div>
+          </div>
+          <div style="border-bottom: 1px solid #2E4636; padding-bottom: 16px;">
+            <div style="font-family: Georgia, serif; font-style: italic; font-size: 21px; margin-bottom: 4px;">G2 Glasses</div>
+            <div style="font-size: 15px; line-height: 1.45; color: #C9C0A6;">Output-only is correct. One job: the yardage number, bigger. Mirror the phone's hierarchy exactly.</div>
+          </div>
+          <div>
+            <div style="font-family: Georgia, serif; font-style: italic; font-size: 21px; margin-bottom: 4px;">Course Desk</div>
+            <div style="font-size: 15px; line-height: 1.45; color: #C9C0A6;">Functional. Tighten the green-marking step; the anchors it produces are what make reconstruction work.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== COHESION MAP ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section I · Cohesion</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">Who does what, and what shows where</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 36px 0; color: #2E4636;">Everything must work phone-only. The watch and glasses don't add features — they remove the need to take the phone out. Three rings, one source of truth.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+      <div style="background: #F4EDDA; border: 1px solid #D2C6A6; padding: 22px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #C07C1E; font-weight: 700;">Source of truth</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 26px; color: #13251A;">iPhone</div>
+        <div style="font-size: 14px; line-height: 1.5; color: #46583E;">Records the track. Owns the map, the round, the scorecard, and the end-of-hole reconstruction. Frictionless on its own.</div>
+        <div style="margin-top: auto; padding-top: 12px; font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">MAP · REVIEW · SCORE</div>
+      </div>
+      <div style="background: #F4EDDA; border: 1px solid #D2C6A6; padding: 22px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #C07C1E; font-weight: 700;">Primary input</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 26px; color: #13251A;">Watch</div>
+        <div style="font-size: 14px; line-height: 1.5; color: #46583E;">Detects swings, confirms club, advances holes — all without the phone leaving your pocket. A missed tap is harmless.</div>
+        <div style="margin-top: auto; padding-top: 12px; font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">DETECT · CONFIRM · CLUB</div>
+      </div>
+      <div style="background: #F4EDDA; border: 1px solid #D2C6A6; padding: 22px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #C07C1E; font-weight: 700;">Primary glance</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 26px; color: #13251A;">G2 Glasses</div>
+        <div style="font-size: 14px; line-height: 1.5; color: #46583E;">The full at-a-glance HUD: to-green, stroke, armed club, last shot, par. Read-only — carries everything so you rarely look at watch or phone.</div>
+        <div style="margin-top: auto; padding-top: 12px; font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">YARDAGE · CLUB · STROKE</div>
+      </div>
+      <div style="background: #EFE7D0; border: 1px dashed #B6A981; padding: 22px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #5C6B54; font-weight: 700;">Pre-round, at the desk</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 26px; color: #13251A;">Course Desk</div>
+        <div style="font-size: 14px; line-height: 1.5; color: #46583E;">Web tool. Sets par, tee &amp; green anchors. These anchors are what let the phone bound and reconstruct each hole.</div>
+        <div style="margin-top: auto; padding-top: 12px; font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">PAR · ANCHORS · PUBLISH</div>
+      </div>
+    </div>
+
+    <!-- explainer: what front/middle/back means -->
+    <div style="margin-top: 18px; background: #EFE7D0; border: 1px solid #D2C6A6; padding: 22px 26px; display: grid; grid-template-columns: 230px 1fr; gap: 28px; align-items: center;">
+      <div>
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">One number: to the green</div>
+        <!-- mini green diagram -->
+        <div style="position: relative; width: 100%; height: 96px; background: radial-gradient(circle at 50% 55%, #7DA255 0%, #5E7C40 78%); border-radius: 50%/42%; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:8px; height:8px; background:#C8202A; border-radius:50%;"></div>
+          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -150%); font-family:Georgia,serif; font-size:30px; color:#fff; font-weight:700; text-shadow:0 1px 3px rgba(0,0,0,0.45);">147</div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:1px; color:#13251A; font-weight:700;">MIDDLE OF GREEN</div>
+        </div>
+      </div>
+      <div style="font-size: 16px; line-height: 1.55; color: #2E4636;">Your curated courses store a single <strong>middle-of-green</strong> marker per hole — so that's the number, everywhere. One distance to the center of the green, identical on phone, watch, and glasses. It's exactly what your friends open 18Birdies for, and it needs no extra curation. <em>Front/back edges would mean marking three points per green by hand — deliberately out of scope until the course data supports it.</em></div>
+    </div>
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== HERO: RECONSTRUCTION ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section II · The Hero Fix</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">Marking becomes confirming</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 14px 0; color: #2E4636;">Today the round depends on a tap at every shot. The fix: the phone records your walk passively, and you settle the hole <strong>once at the end</strong> — never on the spot. There are two ways in, and they converge on the same card. With a watch, shots are pre-detected and you just confirm. <strong>Phone-only, your score is the input</strong> — you enter the number you'd write down anyway, and the app lays that many pins along your track.</p>
+
+    <!-- before/after model strip -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 28px 0 36px 0;">
+      <div style="background: #F2E4DD; border: 1px solid #D8B7AC; padding: 20px 22px;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #9E3B2E; font-weight: 700; margin-bottom: 10px;">Today · capture model</div>
+        <div style="font-size: 15px; line-height: 1.55; color: #4A3A36;">Walk to ball → <strong>remember to open phone</strong> → <strong>stand on exact spot</strong> → tap Log Shot → pick club. Miss one step and the hole's distances are gone. The data is only as good as your memory mid-swing.</div>
+      </div>
+      <div style="background: #E7EFE3; border: 1px solid #AFC6A4; padding: 20px 22px;">
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #2E6B3E; font-weight: 700; margin-bottom: 10px;">Proposed · confirm model</div>
+        <div style="font-size: 15px; line-height: 1.55; color: #2E4636;">Just play; the phone records the walk in your pocket. At hole-out you confirm once — <strong>with a watch</strong> the shots are already detected; <strong>phone-only</strong>, you enter your score and the app drops that many pins on the track. Either way, nothing to remember mid-swing.</div>
+      </div>
+    </div>
+
+    <!-- annotated phone mockup: reconstruction -->
+    <div style="display: grid; grid-template-columns: 360px 1fr; gap: 52px; align-items: center; background: #F4EDDA; border: 1px solid #D2C6A6; padding: 40px; margin-bottom: 16px;">
+      <!-- PHONE -->
+      <div style="justify-self: center; width: 320px; height: 660px; background: #13251A; border-radius: 46px; padding: 12px; box-shadow: 0 24px 60px rgba(19,37,26,0.34); position: relative;">
+        <div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); width: 104px; height: 26px; background: #000; border-radius: 14px; z-index: 5;"></div>
+        <div style="width: 100%; height: 100%; border-radius: 36px; overflow: hidden; position: relative; background: #4F6E3A;">
+          <!-- satellite-ish fairway -->
+          <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 12%, #5E7C44 0%, #46612F 45%, #38502A 100%);"></div>
+          <div style="position: absolute; inset: 0; background: repeating-linear-gradient(64deg, rgba(255,255,255,0.04) 0 14px, rgba(0,0,0,0.05) 14px 28px);"></div>
+          <!-- green at top -->
+          <div style="position: absolute; top: 60px; left: 50%; transform: translateX(-50%); width: 120px; height: 88px; background: radial-gradient(circle, #7DA255 0%, #5E7C40 70%); border-radius: 50%; opacity: 0.92;"></div>
+          <div style="position: absolute; top: 96px; left: 50%; transform: translateX(-46%); width: 2px; height: 26px; background: #F4EDDA;"></div>
+          <div style="position: absolute; top: 90px; left: 50%; transform: translateX(-30%); width: 12px; height: 9px; background: #C8202A;"></div>
+
+          <!-- breadcrumb track + pins (SVG) -->
+          <svg viewBox="0 0 296 636" style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="none">
+            <path d="M150 560 C 120 470, 196 420, 168 330 C 150 270, 120 250, 140 160" fill="none" stroke="#F4EDDA" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round" opacity="0.85"/>
+            <!-- shot pins -->
+            <g font-family="Courier Prime, monospace" font-weight="700" font-size="13">
+              <circle cx="150" cy="560" r="15" fill="#13251A" stroke="#F4EDDA" stroke-width="2.5"/><text x="150" y="565" text-anchor="middle" fill="#F4EDDA">1</text>
+              <circle cx="168" cy="330" r="15" fill="#13251A" stroke="#F4EDDA" stroke-width="2.5"/><text x="168" y="335" text-anchor="middle" fill="#F4EDDA">2</text>
+              <circle cx="140" cy="160" r="15" fill="#C07C1E" stroke="#F4EDDA" stroke-width="2.5"/><text x="140" y="165" text-anchor="middle" fill="#13251A">3</text>
+            </g>
+          </svg>
+
+          <!-- top hole strip -->
+          <div style="position: absolute; top: 56px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; font-family: 'Courier Prime', monospace; color: #F4EDDA; font-size: 12px; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">
+            <span style="font-weight: 700;">HOLE 7 · PAR 4</span>
+            <span>+2</span>
+          </div>
+
+          <!-- bottom confirmation card -->
+          <div style="position: absolute; left: 12px; right: 12px; bottom: 12px; background: #F4EDDA; border-radius: 20px; padding: 18px 18px 16px 18px; box-shadow: 0 -6px 24px rgba(0,0,0,0.28);">
+            <div style="font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 6px;">Hole 7 · recorded</div>
+            <div style="font-family: Georgia, serif; font-style: italic; font-size: 23px; color: #13251A; line-height: 1.1; margin-bottom: 12px;">We tracked 4 shots.</div>
+            <div style="display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #2E4636;"><span>1 · Driver</span><span style="font-family: 'Courier Prime', monospace;">241y</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #2E4636;"><span>2 · 8-iron</span><span style="font-family: 'Courier Prime', monospace;">148y</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #C07C1E; font-weight: 700;"><span>3 · Wedge · tap to set club</span><span style="font-family: 'Courier Prime', monospace;">32y</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #2E4636;"><span>4 · Putt</span><span style="font-family: 'Courier Prime', monospace;">—</span></div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <div style="flex: 1; text-align: center; border: 1px solid #B6A981; border-radius: 12px; padding: 11px; font-size: 13px; color: #5C6B54;">Edit pins</div>
+              <div style="flex: 2; text-align: center; background: #1E3A29; color: #F4EDDA; border-radius: 12px; padding: 11px; font-size: 13px; font-weight: 700;">Looks right →</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- annotation list -->
+      <div style="display: flex; flex-direction: column; gap: 22px;">
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #C07C1E; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">A</div>
+          <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">The dotted track is the evidence</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">The breadcrumb the phone already records, drawn tee-to-green. Stops along it become candidate shot pins — no tap required.</div></div>
+        </div>
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #C07C1E; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">B</div>
+          <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">Pins are draggable, not sacred</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">An amber pin is the one the app is least sure about. Drag to nudge, long-press to delete, tap the map to add one it missed.</div></div>
+        </div>
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #C07C1E; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">C</div>
+          <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">Club distances fall out for free</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">Distance between confirmed pins → attributed to the club on that shot. The “wash” becomes a reliable per-club average, Arccos-style, with zero in-swing effort.</div></div>
+        </div>
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #1E3A29; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</div>
+          <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">Ignoring it is a valid answer</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">If you never open the card, the defaults are kept. You still get your score and yardages. Shot data degrades gracefully instead of vanishing.</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">FIG. 1 — END-OF-HOLE RECONSTRUCTION · WITH WATCH (SHOTS AUTO-DETECTED)</div>
+
+    <!-- PHONE-ONLY PATH -->
+    <div style="margin-top: 44px;">
+      <div style="display:inline-block; background:#13251A; color:#EDE4CE; font-family:'Courier Prime',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:700; padding:7px 16px; margin-bottom:16px;">No watch? The phone-only path</div>
+      <h3 style="font-family: Georgia, serif; font-weight: 400; font-size: 28px; line-height: 1.15; margin: 0 0 8px 0; color: #13251A;">Your score is the only thing you enter</h3>
+      <p style="font-size: 17px; line-height: 1.6; max-width: 760px; margin: 0 0 28px 0; color: #2E4636;">Without a watch there's no swing to detect — so the app doesn't pretend to. You finish the hole and enter your score, exactly like 18Birdies. That single number is the whole interaction; the reconstructed shots stay <strong>collapsed behind one tap</strong>, so a score-only round never sees a pin. Expand it only when you want club data — the app has already laid the shots along the track it recorded, ready to nudge.</p>
+
+      <div style="display: grid; grid-template-columns: 360px 1fr; gap: 52px; align-items: center; background: #F4EDDA; border: 1px solid #D2C6A6; padding: 40px;">
+        <!-- PHONE -->
+        <div style="justify-self: center; width: 320px; height: 660px; background: #13251A; border-radius: 46px; padding: 12px; box-shadow: 0 24px 60px rgba(19,37,26,0.34); position: relative;">
+          <div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); width: 104px; height: 26px; background: #000; border-radius: 14px; z-index: 5;"></div>
+          <div style="width: 100%; height: 100%; border-radius: 36px; overflow: hidden; position: relative; background: #4F6E3A;">
+            <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 12%, #5E7C44 0%, #46612F 45%, #38502A 100%);"></div>
+            <div style="position: absolute; inset: 0; background: repeating-linear-gradient(64deg, rgba(255,255,255,0.04) 0 14px, rgba(0,0,0,0.05) 14px 28px);"></div>
+            <!-- green -->
+            <div style="position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: 120px; height: 88px; background: radial-gradient(circle, #7DA255 0%, #5E7C40 70%); border-radius: 50%; opacity: 0.92;"></div>
+            <div style="position: absolute; top: 84px; left: 50%; transform: translateX(-46%); width: 2px; height: 24px; background: #F4EDDA;"></div>
+            <div style="position: absolute; top: 78px; left: 50%; transform: translateX(-30%); width: 12px; height: 9px; background: #C8202A;"></div>
+
+            <!-- track only (pins collapsed/hidden by default) -->
+            <svg viewBox="0 0 296 636" style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="none">
+              <path d="M150 556 C 120 470, 196 420, 168 332 C 150 272, 130 230, 146 150" fill="none" stroke="#F4EDDA" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round" opacity="0.85"/>
+              <circle cx="150" cy="556" r="5" fill="#F4EDDA"/>
+              <circle cx="146" cy="150" r="5" fill="#F4EDDA"/>
+            </svg>
+
+            <div style="position: absolute; top: 56px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; font-family: 'Courier Prime', monospace; color: #F4EDDA; font-size: 12px; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">
+              <span style="font-weight: 700;">HOLE 7 · PAR 4</span>
+              <span>+1</span>
+            </div>
+
+            <!-- bottom score-entry card -->
+            <div style="position: absolute; left: 12px; right: 12px; bottom: 12px; background: #F4EDDA; border-radius: 20px; padding: 18px; box-shadow: 0 -6px 24px rgba(0,0,0,0.28);">
+              <div style="font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Hole 7 · how many strokes?</div>
+              <!-- stepper -->
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
+                <div style="width:50px;height:50px;border-radius:50%;background:rgba(30,58,41,0.08); border:1px solid #C7BB99; display:flex;align-items:center;justify-content:center; font-size:26px; color:#1E3A29;">–</div>
+                <div style="text-align:center;"><div style="font-family:Georgia,serif; font-size:50px; line-height:0.9; color:#13251A;">5</div><div style="font-family:'Courier Prime',monospace; font-size:9px; letter-spacing:1px; color:#5C6B54;">STROKES</div></div>
+                <div style="width:50px;height:50px;border-radius:50%;background:#1E3A29; color:#F4EDDA; display:flex;align-items:center;justify-content:center; font-size:26px;">＋</div>
+              </div>
+              <!-- collapsed disclosure row -->
+              <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid #DCD0AE; border-radius:12px; padding:10px 14px; margin-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:9px;"><span style="color:#C07C1E; font-size:12px;">▸</span><span style="font-size:12.5px; color:#46583E;">5 shots on your track · 2 putts</span></div>
+                <span style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:1px; color:#5C6B54;">REVIEW</span>
+              </div>
+              <div style="text-align: center; background: #1E3A29; color: #F4EDDA; border-radius: 12px; padding: 13px; font-size: 14px; font-weight: 700;">Save score →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- annotations -->
+        <div style="display: flex; flex-direction: column; gap: 22px;">
+          <div style="display: flex; gap: 16px; align-items: flex-start;">
+            <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #C07C1E; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">A</div>
+            <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">One input you'd make anyway</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">The score stepper is the same one your friends use in 18Birdies. Entering “5” is the whole interaction — it doubles as the stroke count for reconstruction.</div></div>
+          </div>
+          <div style="display: flex; gap: 16px; align-items: flex-start;">
+            <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #C07C1E; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">B</div>
+            <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">The count snaps pins to your stops</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">The track has natural pauses where you stood over the ball. Your score tells the app how many to keep, so 5 strokes → 5 pins distributed along the walk. No guessing, no per-shot tapping.</div></div>
+          </div>
+          <div style="display: flex; gap: 16px; align-items: flex-start;">
+            <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #7DA255; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">C</div>
+            <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">Collapsed by default</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">The reconstructed shots fold into one quiet <strong>“5 shots on your track · Review”</strong> row. A score-only round never expands it — the map stays clean, showing just your walk.</div></div>
+          </div>
+          <div style="display: flex; gap: 16px; align-items: flex-start;">
+            <div style="font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 13px; color: #fff; background: #1E3A29; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</div>
+            <div><div style="font-family: Georgia, serif; font-style: italic; font-size: 20px; color: #13251A; margin-bottom: 3px;">Expand only when you want club data</div><div style="font-size: 15px; line-height: 1.5; color: #46583E;">Tap <strong>Review</strong> and the pins appear on the map — stops on the green already split off as putts, each shot ready for a club. Tap <strong>Save score</strong> instead and you're done: full scorecard, yardages intact, nothing to fuss with. Frictionless floor, rich ceiling.</div></div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px; margin-top: 16px;">FIG. 1b — PHONE-ONLY · SCORE ENTRY DRIVES RECONSTRUCTION</div>
+    </div>
+
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== SECTION III · iPhone on-course ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section III · iPhone, On-Course</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">Make the yardage the hero</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 32px 0; color: #2E4636;">Your friends open 18Birdies for one number: distance to the middle of the green. Today's on-course screen is dense and built around the Log&nbsp;Shot button — but if marking is now retroactive, that button stops being the star. The screen can breathe and put the number first, legible in full sun, readable at a glance from the cart.</p>
+
+    <div style="display: grid; grid-template-columns: 320px 320px 1fr; gap: 36px; align-items: start; background: #F4EDDA; border: 1px solid #D2C6A6; padding: 40px; margin-bottom: 16px;">
+
+      <!-- BEFORE phone -->
+      <div>
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #9E3B2E; font-weight: 700; margin-bottom: 14px; text-align: center;">Today</div>
+        <div style="width: 280px; height: 580px; margin: 0 auto; background: #13251A; border-radius: 42px; padding: 11px; box-shadow: 0 18px 44px rgba(19,37,26,0.3); position: relative;">
+          <div style="width: 100%; height: 100%; border-radius: 32px; overflow: hidden; position: relative; background: #46612F;">
+            <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 18%, #5E7C44 0%, #3F5A2C 100%);"></div>
+            <!-- cluttered stack of translucent cards -->
+            <div style="position: absolute; top: 16px; left: 12px; right: 12px; background: rgba(244,237,218,0.62); border-radius: 12px; padding: 8px 12px; font-family: 'Courier Prime', monospace; font-size: 11px; color: #1E3A29; display: flex; justify-content: space-between;"><span>HOLE 7 · PAR 4</span><span>SI 5</span></div>
+            <div style="position: absolute; top: 64px; left: 12px; right: 12px; background: rgba(244,237,218,0.62); border-radius: 12px; padding: 12px; text-align: center;">
+              <div style="font-size: 12px; color: #46583E;">To green &nbsp; <span style="font-weight:700;">147</span></div>
+            </div>
+            <div style="position: absolute; top: 132px; left: 12px; right: 12px; background: rgba(244,237,218,0.62); border-radius: 12px; padding: 10px; font-size: 11px; color: #46583E; text-align:center;">Casual / Tracking mode</div>
+            <!-- club row -->
+            <div style="position: absolute; bottom: 96px; left: 12px; right: 12px; display: flex; gap: 5px; overflow: hidden;">
+              <div style="flex:1; background: rgba(244,237,218,0.5); border-radius: 8px; padding: 8px 0; text-align:center; font-size: 10px;">7i</div>
+              <div style="flex:1; background: rgba(244,237,218,0.5); border-radius: 8px; padding: 8px 0; text-align:center; font-size: 10px;">8i</div>
+              <div style="flex:1; background: #C07C1E; color:#fff; border-radius: 8px; padding: 8px 0; text-align:center; font-size: 10px;">9i</div>
+              <div style="flex:1; background: rgba(244,237,218,0.5); border-radius: 8px; padding: 8px 0; text-align:center; font-size: 10px;">PW</div>
+              <div style="flex:1; background: rgba(244,237,218,0.5); border-radius: 8px; padding: 8px 0; text-align:center; font-size: 10px;">GW</div>
+            </div>
+            <!-- big log shot button -->
+            <div style="position: absolute; bottom: 16px; left: 12px; right: 12px; background: #1E3A29; color: #F4EDDA; border-radius: 14px; padding: 16px; text-align: center; font-size: 15px; font-weight: 700;">＋ Log Shot Here</div>
+          </div>
+        </div>
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display:flex; gap:8px; align-items:baseline; font-size: 13px; color:#9E3B2E;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">×</span><span style="line-height:1.4;">Yardage is small and tied with three other translucent cards for attention.</span></div>
+          <div style="display:flex; gap:8px; align-items:baseline; font-size: 13px; color:#9E3B2E;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">×</span><span style="line-height:1.4;">The screen's biggest element is an action you must remember to perform on the spot.</span></div>
+          <div style="display:flex; gap:8px; align-items:baseline; font-size: 13px; color:#9E3B2E;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">×</span><span style="line-height:1.4;">Translucent paper over satellite loses contrast in bright sun.</span></div>
+        </div>
+      </div>
+
+      <!-- AFTER phone -->
+      <div>
+        <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #2E6B3E; font-weight: 700; margin-bottom: 14px; text-align: center;">Proposed</div>
+        <div style="width: 280px; height: 580px; margin: 0 auto; background: #13251A; border-radius: 42px; padding: 11px; box-shadow: 0 18px 44px rgba(19,37,26,0.3); position: relative;">
+          <div style="width: 100%; height: 100%; border-radius: 32px; overflow: hidden; position: relative; background: #38502A;">
+            <div style="position: absolute; inset: 0; background: radial-gradient(120% 70% at 50% 10%, #547038 0%, #324827 100%);"></div>
+            <!-- top hole bar, solid for legibility -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; background: #13251A; padding: 14px 16px 12px 16px; display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-family: 'Courier Prime', monospace; font-size: 12px; letter-spacing: 1px; color: #F4EDDA; font-weight: 700;">HOLE 7 · PAR 4</span>
+              <span style="font-family: 'Courier Prime', monospace; font-size: 12px; color: #D8941F; font-weight: 700;">+2</span>
+            </div>
+            <!-- HERO yardage -->
+            <div style="position: absolute; top: 120px; left: 0; right: 0; text-align: center;">
+              <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; color: #DCE6CF; text-transform: uppercase; margin-bottom: -4px;">to green</div>
+              <div style="font-family: Georgia, serif; font-weight: 400; font-size: 150px; line-height: 1; color: #F8F2DF; text-shadow: 0 3px 14px rgba(0,0,0,0.45);">147</div>
+              <div style="display: inline-flex; gap: 8px; align-items:center; margin-top: 10px; background: rgba(19,37,26,0.55); border-radius: 30px; padding: 7px 18px;">
+                <span style="color:#D8941F; font-size:11px;">▸</span>
+                <span style="font-family: Georgia, serif; font-style:italic; font-size: 15px; color: #F4EDDA;">8-iron</span>
+              </div>
+            </div>
+            <!-- passive recording pill -->
+            <div style="position: absolute; bottom: 84px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(19,37,26,0.5); border-radius: 30px; padding: 9px;">
+              <span style="width: 9px; height: 9px; border-radius: 50%; background: #D8941F; display:inline-block;"></span>
+              <span style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 1px; color: #EDE4CE;">RECORDING YOUR WALK</span>
+            </div>
+            <!-- minimal bottom bar -->
+            <div style="position: absolute; bottom: 16px; left: 16px; right: 16px; display: flex; gap: 10px;">
+              <div style="flex: 1; background: #F4EDDA; border-radius: 14px; padding: 13px; text-align: center; font-size: 13px; color: #1E3A29; font-weight: 700;">Scorecard</div>
+              <div style="flex: 1; background: rgba(244,237,218,0.22); border: 1px solid rgba(244,237,218,0.5); border-radius: 14px; padding: 13px; text-align: center; font-size: 13px; color: #F4EDDA;">Mark here</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display:flex; gap:8px; align-items:baseline; font-size: 13px; color:#2E6B3E;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">✓</span><span style="line-height:1.4; color:#2E4636;">One number owns the screen — readable from arm's length, in sun.</span></div>
+          <div style="display:flex; gap:8px; align-items:baseline; font-size: 13px; color:#2E6B3E;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">✓</span><span style="line-height:1.4; color:#2E4636;">“Recording” reassures passively; “Mark here” survives only as an optional precision tool.</span></div>
+          <div style="display:flex; gap:8px; align-items:baseline; font-size: 13px; color:#2E6B3E;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">✓</span><span style="line-height:1.4; color:#2E4636;">Solid ink chrome top &amp; bottom restores contrast over any satellite image.</span></div>
+        </div>
+      </div>
+
+      <!-- recommendations column -->
+      <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 30px;">
+        <div style="background: #EFE7D0; border-left: 4px solid #C07C1E; padding: 16px 18px;">
+          <div style="font-family: Georgia, serif; font-style: italic; font-size: 19px; color: #13251A; margin-bottom: 4px;">Auto-advance holes</div>
+          <div style="font-size: 14px; line-height: 1.5; color: #46583E;">When the track crosses into the next tee box, advance automatically and show a quiet “Hole 8 — not you? tap to fix.” Wrong-hole errors fix themselves.</div>
+        </div>
+        <div style="background: #EFE7D0; border-left: 4px solid #C07C1E; padding: 16px 18px;">
+          <div style="font-family: Georgia, serif; font-style: italic; font-size: 19px; color: #13251A; margin-bottom: 4px;">Always-there Undo</div>
+          <div style="font-size: 14px; line-height: 1.5; color: #46583E;">A persistent, no-confirm “Undo last” reachable by thumb. Recovering from a mis-tap should never need a menu.</div>
+        </div>
+        <div style="background: #EFE7D0; border-left: 4px solid #C07C1E; padding: 16px 18px;">
+          <div style="font-family: Georgia, serif; font-style: italic; font-size: 19px; color: #13251A; margin-bottom: 4px;">Thumb-zone layout</div>
+          <div style="font-size: 14px; line-height: 1.5; color: #46583E;">All actions live in the bottom third — one-handed, phone in one hand and a club in the other. Nothing critical up top.</div>
+        </div>
+        <div style="background: #13251A; color: #EDE4CE; padding: 16px 18px;">
+          <div style="font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #D8941F; font-weight: 700; margin-bottom: 6px;">Keep</div>
+          <div style="font-size: 14px; line-height: 1.5; color: #DCD3B9;">The Georgia/serif voice, the crimson flag, the paper cards. The aesthetic isn't the problem — the hierarchy is.</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">FIG. 2 — ON-COURSE SCREEN · BEFORE / AFTER</div>
+
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== SECTION IV · iPhone off-course ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section IV · iPhone, Off-Course</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">Home, scorecard &amp; the review desk</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 32px 0; color: #2E4636;">The masthead Home is the best-looking screen in the app — keep it. It just needs to resume a round in one tap and surface the reconstruction review. The scorecard is the 18Birdies parity feature: fast score entry that doubles as the place reconstruction gets confirmed.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; background: #F4EDDA; border: 1px solid #D2C6A6; padding: 36px; margin-bottom: 16px;">
+
+      <!-- Home -->
+      <div>
+        <div style="width: 250px; height: 520px; margin: 0 auto; background: #13251A; border-radius: 40px; padding: 10px; box-shadow: 0 16px 38px rgba(19,37,26,0.28);">
+          <div style="width: 100%; height: 100%; border-radius: 30px; overflow: hidden; background: #F4EDDA; position: relative; padding: 22px 18px;">
+            <div style="font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #5C6B54; text-align:center;">Est. 2026 · Personal Logbook</div>
+            <div style="font-family: Georgia, serif; font-style: italic; font-size: 32px; line-height: 1.0; text-align: center; color: #13251A; margin: 10px 0; border-bottom: 2px double #1E3A29; padding-bottom: 12px;">The Fairway<br/>Logbook</div>
+            <!-- resume card -->
+            <div style="background: #1E3A29; color: #F4EDDA; border-radius: 14px; padding: 14px; margin-top: 14px;">
+              <div style="font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 1px; color: #D8941F; text-transform:uppercase;">In progress · Hole 7</div>
+              <div style="font-family: Georgia, serif; font-style:italic; font-size: 19px; margin: 3px 0 8px 0;">Dos Osos · +2</div>
+              <div style="background: #D8941F; color:#13251A; text-align:center; border-radius: 9px; padding: 9px; font-size: 13px; font-weight:700;">Resume round →</div>
+            </div>
+            <div style="font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #5C6B54; margin: 16px 0 8px 0;">Recent rounds</div>
+            <div style="display:flex; justify-content:space-between; font-size: 13px; color:#2E4636; border-bottom: 1px solid #D2C6A6; padding-bottom: 7px; margin-bottom: 7px;"><span style="font-style:italic; font-family:Georgia,serif;">Pasatiempo</span><span style="font-family:'Courier Prime',monospace;">86</span></div>
+            <div style="display:flex; justify-content:space-between; font-size: 13px; color:#2E4636;"><span style="font-style:italic; font-family:Georgia,serif;">Dos Osos</span><span style="font-family:'Courier Prime',monospace;">82</span></div>
+            <div style="position:absolute; bottom: 20px; left: 18px; right: 18px; text-align:center; background: rgba(30,58,41,0.08); border: 1px solid #C7BB99; border-radius: 12px; padding: 11px; font-size: 13px; color:#1E3A29; font-weight:700;">＋ Start new round</div>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top: 12px; font-family:'Courier Prime',monospace; font-size: 10px; letter-spacing:1px; color:#5C6B54;">HOME · RESUME-FIRST</div>
+      </div>
+
+      <!-- Scorecard -->
+      <div>
+        <div style="width: 250px; height: 520px; margin: 0 auto; background: #13251A; border-radius: 40px; padding: 10px; box-shadow: 0 16px 38px rgba(19,37,26,0.28);">
+          <div style="width: 100%; height: 100%; border-radius: 30px; overflow: hidden; background: #F4EDDA; position: relative; padding: 20px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom: 2px double #1E3A29; padding-bottom: 8px;">
+              <span style="font-family:Georgia,serif; font-style:italic; font-size: 20px; color:#13251A;">Scorecard</span>
+              <span style="font-family:'Courier Prime',monospace; font-size: 11px; color:#C07C1E; font-weight:700;">+2 · F9</span>
+            </div>
+            <!-- header row -->
+            <div style="display:grid; grid-template-columns: 26px 1fr 1fr 1fr; gap: 0; font-family:'Courier Prime',monospace; font-size:9px; letter-spacing:1px; color:#5C6B54; text-transform:uppercase; margin-top: 10px; padding: 0 2px 5px 2px; border-bottom: 1px solid #C7BB99;">
+              <span>H</span><span style="text-align:center;">Par</span><span style="text-align:center;">Score</span><span style="text-align:center;">Putts</span>
+            </div>
+            <div style="display:flex; flex-direction:column;">
+              <div style="display:grid; grid-template-columns: 26px 1fr 1fr 1fr; align-items:center; padding: 8px 2px; border-bottom: 1px solid #E2D8BC; font-size: 14px; color:#2E4636;"><span style="font-family:'Courier Prime',monospace; color:#5C6B54;">5</span><span style="text-align:center; font-family:'Courier Prime',monospace;">4</span><span style="text-align:center; font-family:Georgia,serif;">5</span><span style="text-align:center; font-family:'Courier Prime',monospace;">2</span></div>
+              <div style="display:grid; grid-template-columns: 26px 1fr 1fr 1fr; align-items:center; padding: 8px 2px; border-bottom: 1px solid #E2D8BC; font-size: 14px; color:#2E4636;"><span style="font-family:'Courier Prime',monospace; color:#5C6B54;">6</span><span style="text-align:center; font-family:'Courier Prime',monospace;">3</span><span style="text-align:center; font-family:Georgia,serif;">3</span><span style="text-align:center; font-family:'Courier Prime',monospace;">1</span></div>
+              <!-- active row -->
+              <div style="display:grid; grid-template-columns: 26px 1fr 1fr 1fr; align-items:center; padding: 8px 2px; background:#FBEFD3; border: 1px solid #D8941F; border-radius: 8px; font-size: 14px; color:#13251A;"><span style="font-family:'Courier Prime',monospace; font-weight:700;">7</span><span style="text-align:center; font-family:'Courier Prime',monospace;">4</span><span style="text-align:center; font-family:Georgia,serif; font-weight:700;">6</span><span style="text-align:center; font-family:'Courier Prime',monospace;">2</span></div>
+            </div>
+            <!-- big stepper -->
+            <div style="position:absolute; bottom: 18px; left: 16px; right: 16px;">
+              <div style="font-family:'Courier Prime',monospace; font-size: 9px; letter-spacing:1px; color:#5C6B54; text-transform:uppercase; text-align:center; margin-bottom: 8px;">Hole 7 score</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div style="width:54px; height:54px; border-radius:50%; background:rgba(30,58,41,0.08); border:1px solid #C7BB99; display:flex; align-items:center; justify-content:center; font-size:28px; color:#1E3A29;">–</div>
+                <div style="font-family:Georgia,serif; font-size: 52px; color:#13251A; line-height:1;">6</div>
+                <div style="width:54px; height:54px; border-radius:50%; background:#1E3A29; color:#F4EDDA; display:flex; align-items:center; justify-content:center; font-size:28px;">＋</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top: 12px; font-family:'Courier Prime',monospace; font-size: 10px; letter-spacing:1px; color:#5C6B54;">SCORECARD · TAP-TO-COUNT</div>
+      </div>
+
+      <!-- recommendations -->
+      <div style="display:flex; flex-direction:column; gap: 16px; padding-top: 8px;">
+        <div style="background:#EFE7D0; border-left:4px solid #C07C1E; padding: 15px 17px;">
+          <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#13251A; margin-bottom:3px;">Resume is the first thing</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#46583E;">If a round is live, the masthead leads with a single amber Resume button. No hunting.</div>
+        </div>
+        <div style="background:#EFE7D0; border-left:4px solid #C07C1E; padding: 15px 17px;">
+          <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#13251A; margin-bottom:3px;">Score entry is two taps, huge targets</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#46583E;">Big −/＋ around a serif numeral. Putts optional. This alone matches what your friends use 18Birdies for.</div>
+        </div>
+        <div style="background:#EFE7D0; border-left:4px solid #C07C1E; padding: 15px 17px;">
+          <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#13251A; margin-bottom:3px;">Review = the reconstruction inbox</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#46583E;">Any hole the app is unsure about gets a small amber dot on the scorecard. Tap it to open Fig. 1 and fix pins after the round, at the bar.</div>
+        </div>
+        <div style="background:#13251A; color:#EDE4CE; padding: 15px 17px;">
+          <div style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#D8941F; font-weight:700; margin-bottom:5px;">Settings</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#DCD3B9;">Bag setup stays where it is — just reachable from a round too, since wrong-club fixes start there.</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">FIG. 3 — HOME &amp; SCORECARD</div>
+
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== SECTION V · Watch ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section V · Apple Watch</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">Your best input device — make it cost nothing</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 32px 0; color: #2E4636;">The watch is where reconstruction earns its accuracy: it timestamps every swing from your wrist while the phone sits in your pocket. The current 5-second confirm card is good — but it asks for an action. Flip it: <strong>auto-accept the detection on a timeout</strong>, so a swing you ignore is still recorded. The card becomes a chance to correct, not a checkpoint to clear.</p>
+
+    <div style="background: #1B1B1B; border: 1px solid #333; padding: 40px; margin-bottom: 16px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 28px 20px;">
+
+      <!-- Watch: Yardage glance w/ armed club -->
+      <div style="text-align:center;">
+        <div style="width: 180px; height: 220px; margin: 0 auto; background: #000; border-radius: 44px; border: 7px solid #2A2A2A; box-shadow: 0 14px 34px rgba(0,0,0,0.5); position: relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-family:'Courier Prime',monospace; font-size: 10px; letter-spacing:2px; color:#7E8B72; text-transform:uppercase; position:absolute; top:22px;">H7 · to green</div>
+          <div style="font-family:Georgia,serif; font-size: 80px; color:#F4EDDA; line-height:1;">147</div>
+          <!-- armed club chip -->
+          <div style="margin-top:10px; display:inline-flex; align-items:center; gap:6px; border:1px solid #D8941F; border-radius:20px; padding:5px 14px;">
+            <span style="color:#D8941F; font-size:11px;">▸</span>
+            <span style="font-family:Georgia,serif; font-style:italic; font-size:16px; color:#F4EDDA;">8-iron</span>
+          </div>
+          <div style="position:absolute; bottom:18px; display:flex; gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#D8941F;"></span><span style="width:6px;height:6px;border-radius:50%;background:#4A4A4A;"></span><span style="width:6px;height:6px;border-radius:50%;background:#4A4A4A;"></span><span style="width:6px;height:6px;border-radius:50%;background:#4A4A4A;"></span></div>
+        </div>
+        <div style="margin-top:12px; font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:1px; color:#9BA890;">YARDAGE + ARMED CLUB</div>
+      </div>
+
+      <!-- Watch: confirm card -->
+      <div style="text-align:center;">
+        <div style="width: 180px; height: 220px; margin: 0 auto; background: #000; border-radius: 44px; border: 7px solid #2A2A2A; box-shadow: 0 14px 34px rgba(0,0,0,0.5); position: relative; overflow:hidden; padding: 22px 16px; display:flex; flex-direction:column; align-items:center;">
+          <div style="font-family:'Courier Prime',monospace; font-size: 9px; letter-spacing:2px; color:#D8941F; text-transform:uppercase;">Shot detected</div>
+          <div style="font-family:Georgia,serif; font-style:italic; font-size: 30px; color:#F4EDDA; margin: 10px 0 2px 0;">8-iron?</div>
+          <div style="font-size: 11px; color:#7E8B72; margin-bottom: 14px;">turn crown to change</div>
+          <!-- auto-accept ring -->
+          <div style="position:relative; width:64px; height:64px; margin-bottom: 12px;">
+            <svg viewBox="0 0 64 64" style="width:100%;height:100%;transform:rotate(-90deg);"><circle cx="32" cy="32" r="28" fill="none" stroke="#333" stroke-width="5"/><circle cx="32" cy="32" r="28" fill="none" stroke="#D8941F" stroke-width="5" stroke-dasharray="176" stroke-dashoffset="60" stroke-linecap="round"/></svg>
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Courier Prime',monospace; font-size:18px; color:#F4EDDA;">3s</div>
+          </div>
+          <div style="font-size: 11px; color:#9BA890; line-height:1.3;">saving automatically</div>
+        </div>
+        <div style="margin-top:12px; font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:1px; color:#9BA890;">CONFIRM · AUTO-ACCEPT</div>
+      </div>
+
+      <!-- Watch: PUTTS (green-aware) -->
+      <div style="text-align:center;">
+        <div style="width: 180px; height: 220px; margin: 0 auto; background: #000; border-radius: 44px; border: 7px solid #2A2A2A; box-shadow: 0 14px 34px rgba(0,0,0,0.5); position: relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 18px;">
+          <div style="font-family:'Courier Prime',monospace; font-size: 9px; letter-spacing:2px; color:#5CC47F; text-transform:uppercase; position:absolute; top:20px; display:flex; align-items:center; gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:#5CC47F;display:inline-block;"></span>On the green</div>
+          <div style="font-family:'Courier Prime',monospace; font-size: 9px; letter-spacing:2px; color:#7E8B72; text-transform:uppercase; margin-bottom:2px;">Putts</div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:38px;height:38px;border-radius:50%;border:1px solid #4A4A4A; color:#9BA890; display:flex;align-items:center;justify-content:center; font-size:22px;">–</div>
+            <div style="font-family:Georgia,serif; font-size: 56px; color:#F4EDDA; line-height:1;">2</div>
+            <div style="width:38px;height:38px;border-radius:50%;background:#1E3A29; color:#F4EDDA; display:flex;align-items:center;justify-content:center; font-size:22px;">＋</div>
+          </div>
+          <div style="margin-top:14px; background:#D8941F; color:#13251A; border-radius:18px; padding:7px 16px; font-family:'Courier Prime',monospace; font-size:10px; font-weight:700; letter-spacing:1px; white-space:nowrap;">HOLED OUT</div>
+        </div>
+        <div style="margin-top:12px; font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:1px; color:#9BA890;">GREEN · PUTT COUNT</div>
+      </div>
+
+      <!-- Watch: score -->
+      <div style="text-align:center;">
+        <div style="width: 180px; height: 220px; margin: 0 auto; background: #000; border-radius: 44px; border: 7px solid #2A2A2A; box-shadow: 0 14px 34px rgba(0,0,0,0.5); position: relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 20px;">
+          <div style="font-family:'Courier Prime',monospace; font-size: 10px; letter-spacing:2px; color:#7E8B72; text-transform:uppercase; position:absolute; top:22px;">Hole 7 · score</div>
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div style="width:40px;height:40px;border-radius:50%;border:1px solid #4A4A4A; color:#9BA890; display:flex;align-items:center;justify-content:center; font-size:22px;">–</div>
+            <div style="font-family:Georgia,serif; font-size: 58px; color:#F4EDDA; line-height:1;">6</div>
+            <div style="width:40px;height:40px;border-radius:50%;background:#1E3A29; color:#F4EDDA; display:flex;align-items:center;justify-content:center; font-size:22px;">＋</div>
+          </div>
+          <div style="position:absolute; bottom:18px; display:flex; gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#4A4A4A;"></span><span style="width:6px;height:6px;border-radius:50%;background:#4A4A4A;"></span><span style="width:6px;height:6px;border-radius:50%;background:#4A4A4A;"></span><span style="width:6px;height:6px;border-radius:50%;background:#D8941F;"></span></div>
+        </div>
+        <div style="margin-top:12px; font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:1px; color:#9BA890;">GLANCE · SCORE</div>
+      </div>
+
+      </div>
+
+      <!-- recs -->
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 30px;">
+        <div style="background:#111; border-left:4px solid #D8941F; padding: 14px 16px;">
+          <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#F4EDDA; margin-bottom:3px;">The armed-club chip = the answer to “which club?”</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#B9B09A;">The face always shows a club, predicted from your distance-to-green using the averages the app is learning. It's never blank, so a detected swing always has a club to attach. Crown to change it; it's a default, never a chore.</div>
+        </div>
+        <div style="background:#111; border-left:4px solid #5CC47F; padding: 14px 16px;">
+          <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#F4EDDA; margin-bottom:3px;">Putts: green-aware, one tap each</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#B9B09A;">Swings can't be felt on a putt, so the watch doesn't try. When GPS places you on the green it auto-swaps to a putt counter — tap per putt, then <strong style="color:#F4EDDA;">Holed out</strong>. Fills the gap between your last full shot and the cup.</div>
+        </div>
+        <div style="background:#111; border-left:4px solid #D8941F; padding: 14px 16px;">
+          <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#F4EDDA; margin-bottom:3px;">One number, not three</div>
+          <div style="font-size:13.5px; line-height:1.5; color:#B9B09A;">The watch shows only the to-green (middle) distance — front/back are dropped here to keep the face glanceable. The same single number appears on the phone and glasses.</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">FIG. 4 — WATCH STATES · YARDAGE+CLUB · DETECT · PUTTS · SCORE</div>
+
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== SECTION VI · Glasses ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section VI · Even Realities G2</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">The whole hole, without reaching for a wrist</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 32px 0; color: #2E4636;">You want the glasses to carry everything that would otherwise make you glance down — so they become your primary read, watch and phone the backups. Output-only still holds: no menus, no input at address. The trick is a strict hierarchy on the 576×288 monochrome canvas. The <strong>to-green number is the hero</strong>; a thin top and bottom frame carry the rest — par, stroke, armed club, and your last shot — each in its own fixed corner so your eye always knows where to look.</p>
+
+    <!-- G2 HUD: active -->
+    <div style="background: #F4EDDA; border: 1px solid #D2C6A6; padding: 36px; margin-bottom: 16px;">
+      <div style="display:grid; grid-template-columns: 1fr 300px; gap: 40px; align-items:center;">
+        <div>
+          <div style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#5C6B54; margin-bottom:12px;">Active round HUD · 576 × 288</div>
+          <!-- glass panel -->
+          <div style="width:100%; max-width:576px; aspect-ratio: 576 / 288; background:#05080A; border-radius:14px; position:relative; overflow:hidden; box-shadow: inset 0 0 80px rgba(120,200,140,0.06), 0 14px 34px rgba(0,0,0,0.3);">
+            <div style="position:absolute; inset:0; background: radial-gradient(120% 120% at 50% 50%, rgba(150,220,170,0.05) 0%, transparent 70%);"></div>
+            <!-- flex column over the glow -->
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; padding:16px 24px;">
+
+              <!-- TOP FRAME: hole/par left, stroke + score right -->
+              <div style="display:flex; justify-content:space-between; align-items:baseline; font-family:'Courier Prime',monospace; font-size:20px; letter-spacing:1px; white-space:nowrap;">
+                <span style="color:#A8D8B4;">HOLE 7 · PAR 4</span>
+                <span><span style="color:#A8D8B4;">STROKE 3</span><span style="color:#5E8A6A;"> · </span><span style="color:#A8D8B4;">+2</span></span>
+              </div>
+              <div style="height:1px; background:rgba(143,199,158,0.25); margin-top:12px;"></div>
+
+              <!-- HERO: to-green + armed club -->
+              <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:30px;">
+                <div style="text-align:right;">
+                  <div style="font-family:Georgia,serif; font-size:112px; line-height:0.82; color:#D9F2DF; text-shadow: 0 0 18px rgba(150,230,170,0.35);">147</div>
+                  <div style="font-family:'Courier Prime',monospace; font-size:14px; letter-spacing:3px; color:#7FB78F; margin-top:4px; white-space:nowrap;">YDS · MIDDLE</div>
+                </div>
+                <div style="width:1px; height:92px; background:rgba(143,199,158,0.28);"></div>
+                <div style="text-align:left; white-space:nowrap;">
+                  <div style="font-family:'Courier Prime',monospace; font-size:13px; letter-spacing:2px; color:#5E8A6A;">CLUB</div>
+                  <div style="font-family:Georgia,serif; font-style:italic; font-size:42px; line-height:1.05; color:#D9F2DF; margin:1px 0;">8-iron</div>
+                  <div style="font-family:'Courier Prime',monospace; font-size:13px; letter-spacing:2px; color:#7FB78F;">▸ SELECTED</div>
+                </div>
+              </div>
+
+              <!-- BOTTOM FRAME: last shot -->
+              <div style="height:1px; background:rgba(143,199,158,0.25); margin-bottom:12px;"></div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline; font-family:'Courier Prime',monospace; font-size:20px; letter-spacing:1px; white-space:nowrap;">
+                <span style="color:#5E8A6A;">LAST</span>
+                <span style="color:#8FC79E;">S2 · 4-IRON · 168y</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap: 16px;">
+          <div style="background:#EFE7D0; border-left:4px solid #C07C1E; padding: 14px 16px;">
+            <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#13251A; margin-bottom:3px;">Fixed corners beat a busy center</div>
+            <div style="font-size:13.5px; line-height:1.5; color:#46583E;">More data is fine if it never moves: par &amp; stroke always top, last shot always bottom, the big number always center. You learn where to look once and never scan.</div>
+          </div>
+          <div style="background:#EFE7D0; border-left:4px solid #C07C1E; padding: 14px 16px;">
+            <div style="font-family:Georgia,serif; font-style:italic; font-size:18px; color:#13251A; margin-bottom:3px;">Everything the watch knows, shown here</div>
+            <div style="font-size:13.5px; line-height:1.5; color:#46583E;">To-green, current stroke, armed club, last stroke + club, par, score. When the watch updates the club or detects a shot, the HUD follows — so you rarely look down.</div>
+          </div>
+          <div style="background:#13251A; color:#EDE4CE; padding: 14px 16px;">
+            <div style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#D8941F; font-weight:700; margin-bottom:5px;">Never</div>
+            <div style="font-size:13.5px; line-height:1.5; color:#DCD3B9;">No input, no scroll lanes, no club picker on the glasses during a normal shot. The watch owns input; the glasses only ever show.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; color: #5C6B54; letter-spacing: 1px;">FIG. 5 — G2 HEADS-UP DISPLAY</div>
+
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== SECTION VII · Course Desk ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section VII · Course Desk (web)</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 8px 0; color: #13251A;">The anchors that make reconstruction possible</h2>
+    <p style="font-size: 18px; line-height: 1.6; max-width: 760px; margin: 0 0 28px 0; color: #2E4636;">This tool is off-course prep, so a visual restyle is optional. But its output is load-bearing: the tee and green anchors it publishes are what let the phone bound each hole and place pins. Two UX upgrades pay for themselves on every round.</p>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 16px;">
+      <div style="background:#EFE7D0; border:1px solid #D2C6A6; padding: 22px 24px;">
+        <div style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#C07C1E; font-weight:700; margin-bottom:8px;">Upgrade 1</div>
+        <div style="font-family:Georgia,serif; font-style:italic; font-size:22px; color:#13251A; margin-bottom:6px;">Mark the tee box, not just the green</div>
+        <div style="font-size:15px; line-height:1.55; color:#46583E;">You already drop a middle-of-green marker — keep it as the only green point. Add a tee anchor per hole: that's the second bookend reconstruction needs to bound each hole's track. Green + tee is enough; no front/back required.</div>
+      </div>
+      <div style="background:#EFE7D0; border:1px solid #D2C6A6; padding: 22px 24px;">
+        <div style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#C07C1E; font-weight:700; margin-bottom:8px;">Upgrade 2</div>
+        <div style="font-family:Georgia,serif; font-style:italic; font-size:22px; color:#13251A; margin-bottom:6px;">Completeness checklist before publish</div>
+        <div style="font-size:15px; line-height:1.55; color:#46583E;">A simple 18-row status grid — par ✓, tee ✓, green ✓ — so a half-marked course can't silently ship and leave you with no yardage on the 14th.</div>
+      </div>
+    </div>
+    <div style="background:#13251A; color:#DCD3B9; padding: 18px 24px; display:flex; gap:20px; align-items:center;">
+      <span style="font-family:'Courier Prime',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#D8941F; font-weight:700; white-space:nowrap;">Optional</span>
+      <span style="font-size:15px; line-height:1.5;">If you do restyle it, the lightest touch — Georgia headings, the cream/ink palette, Courier Prime labels — makes the desk feel like the same product without rebuilding the map editor.</span>
+    </div>
+
+    <div style="border-bottom: 1px solid #C7BB99; margin-top: 48px;"></div>
+  </div>
+
+  <!-- ===================== SECTION VIII · Roadmap ===================== -->
+  <div style="max-width: 1180px; margin: 0 auto; padding: 48px 40px 0 40px;">
+    <div style="font-family: 'Courier Prime', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #C07C1E; font-weight: 700; margin-bottom: 10px;">Section VIII · Where to start</div>
+    <h2 style="font-family: Georgia, serif; font-weight: 400; font-size: 38px; line-height: 1.1; margin: 0 0 28px 0; color: #13251A;">Prioritized by friction removed</h2>
+
+    <div style="display:flex; flex-direction:column; gap: 12px;">
+      <!-- header -->
+      <div style="display:grid; grid-template-columns: 60px 1.4fr 1fr 110px; gap: 18px; padding: 0 22px 8px 22px; font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#5C6B54;">
+        <span>Rank</span><span>Change</span><span>Surface</span><span style="text-align:right;">Effort</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 60px 1.4fr 1fr 110px; gap: 18px; align-items:center; background:#13251A; color:#F4EDDA; padding: 18px 22px; border-radius: 6px;">
+        <span style="font-family:Georgia,serif; font-style:italic; font-size:28px; color:#D8941F;">1</span>
+        <span><strong style="font-size:16px;">End-of-hole reconstruction</strong><br/><span style="font-size:13px; color:#B9B09A;">Track → auto-pins → 5-sec confirm. Kills the “forgot to mark” problem.</span></span>
+        <span style="font-size:14px; color:#DCD3B9;">iPhone + Watch</span>
+        <span style="text-align:right; font-family:'Courier Prime',monospace; font-size:12px; color:#D8941F;">HIGH</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 60px 1.4fr 1fr 110px; gap: 18px; align-items:center; background:#F4EDDA; border:1px solid #D2C6A6; padding: 18px 22px; border-radius: 6px;">
+        <span style="font-family:Georgia,serif; font-style:italic; font-size:28px; color:#C07C1E;">2</span>
+        <span><strong style="font-size:16px; color:#13251A;">Yardage-hero on-course screen</strong><br/><span style="font-size:13px; color:#46583E;">Big middle number, solid chrome, thumb-zone actions, retire Log Shot as primary.</span></span>
+        <span style="font-size:14px; color:#2E4636;">iPhone</span>
+        <span style="text-align:right; font-family:'Courier Prime',monospace; font-size:12px; color:#C07C1E;">MED</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 60px 1.4fr 1fr 110px; gap: 18px; align-items:center; background:#F4EDDA; border:1px solid #D2C6A6; padding: 18px 22px; border-radius: 6px;">
+        <span style="font-family:Georgia,serif; font-style:italic; font-size:28px; color:#C07C1E;">3</span>
+        <span><strong style="font-size:16px; color:#13251A;">Auto-accept confirm card</strong><br/><span style="font-size:13px; color:#46583E;">Watch timeout saves the shot. One-line behavior change, big friction drop.</span></span>
+        <span style="font-size:14px; color:#2E4636;">Watch</span>
+        <span style="text-align:right; font-family:'Courier Prime',monospace; font-size:12px; color:#2E6B3E;">LOW</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 60px 1.4fr 1fr 110px; gap: 18px; align-items:center; background:#F4EDDA; border:1px solid #D2C6A6; padding: 18px 22px; border-radius: 6px;">
+        <span style="font-family:Georgia,serif; font-style:italic; font-size:28px; color:#C07C1E;">4</span>
+        <span><strong style="font-size:16px; color:#13251A;">Tee anchors + green-aware putt entry</strong><br/><span style="font-size:13px; color:#46583E;">Add a tee point per hole on the desk; auto putt-counter on the green. Both feed reconstruction.</span></span>
+        <span style="font-size:14px; color:#2E4636;">Course Desk + Watch</span>
+        <span style="text-align:right; font-family:'Courier Prime',monospace; font-size:12px; color:#C07C1E;">MED</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 60px 1.4fr 1fr 110px; gap: 18px; align-items:center; background:#F4EDDA; border:1px solid #D2C6A6; padding: 18px 22px; border-radius: 6px;">
+        <span style="font-family:Georgia,serif; font-style:italic; font-size:28px; color:#C07C1E;">5</span>
+        <span><strong style="font-size:16px; color:#13251A;">Bigger glasses number + auto hole-advance</strong><br/><span style="font-size:13px; color:#46583E;">Polish passes once the model above is in place.</span></span>
+        <span style="font-size:14px; color:#2E4636;">Glasses + iPhone</span>
+        <span style="text-align:right; font-family:'Courier Prime',monospace; font-size:12px; color:#2E6B3E;">LOW</span>
+      </div>
+    </div>
+
+    <!-- colophon -->
+    <div style="margin-top: 56px; border-top: 3px double #1E3A29; padding-top: 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div style="font-family:Georgia,serif; font-style:italic; font-size:22px; color:#13251A;">Play the hole. Confirm it later. Never lose the data.</div>
+      <div style="font-family:'Courier Prime',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#5C6B54;">The Fairway Logbook · UX Review · End</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
