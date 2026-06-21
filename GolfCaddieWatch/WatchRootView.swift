@@ -143,7 +143,8 @@ private struct WatchStartScreen: View {
             if let err = controller.lastError {
                 Text(err).font(WT.mono(10)).foregroundStyle(.red).padding(.top, 4)
             }
-            // Debug footer: validation mode (raw logging + MARK) for M8 testing.
+            #if DEBUG
+            // Debug footer: validation mode (raw logging + MARK) for M8 testing (B20).
             HStack(spacing: 8) {
                 Button { controller.validationMode.toggle() } label: {
                     Text("VALIDATION \(controller.validationMode ? "ON" : "OFF")")
@@ -158,6 +159,7 @@ private struct WatchStartScreen: View {
                 }
             }
             .padding(.top, 6)
+            #endif
         }
         .padding(.horizontal, 4)
     }
@@ -203,7 +205,8 @@ private struct WatchPlayView: View {
                 .frame(maxHeight: .infinity)
                 PageDots(page: page).frame(height: 10).padding(.vertical, 3)
             }
-            // Validation ground-truth MARK (M8 only) — top-right corner tap.
+            #if DEBUG
+            // Validation ground-truth MARK (M8 only) — top-right corner tap (B20).
             if controller.validationMode {
                 Button { controller.mark() } label: {
                     Text("MARK").font(WT.mono(10)).padding(.horizontal, 8).padding(.vertical, 4)
@@ -213,6 +216,7 @@ private struct WatchPlayView: View {
                 .buttonStyle(.plain)
                 .padding(.trailing, 4)
             }
+            #endif
         }
     }
 }

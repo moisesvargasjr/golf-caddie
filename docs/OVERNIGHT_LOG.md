@@ -30,7 +30,7 @@ Legend: ✅ done · ◑ partial · ⏭️ skipped/blocked.
 | B4  | Watch→phone delivery feedback ("syncing N" chip) | ✅ done | watch build ✓ · phone 72 ✓ · ⚠ needs sim/device visual check |
 | B5  | Per-hole track segmentation + stop/dwell detection | ✅ done | phone 80 ✓ |
 | B8  | Track as shot-location source of truth | ✅ done | phone 82 ✓ |
-| B20 | Feature-flag spike/validation behind `#if DEBUG` | … | … |
+| B20 | Feature-flag spike/validation behind `#if DEBUG` | ✅ done | phone DEBUG ✓ · watch DEBUG ✓ · phone+watch Release ✓ |
 | B17 | Glasses polling cadence + staleness cue + battery | … | … |
 
 ---
@@ -149,3 +149,39 @@ consume (N strokes → N most-prominent stops); nothing calls it on the live pat
 **Notes for review:** no live shot path now uses `captureBestFix` (confirmed by grep). Locations are
 the live track fix; B5–B7 reconstruction refines pin locations from the full track afterward. W1
 discipline preserved — nothing on the live path blocks on a GPS ramp.
+
+### B20 — Feature-flag the spike/validation subsystem behind `#if DEBUG` ✅
+**What changed** (all additive `#if DEBUG` guards — DEBUG behavior identical, Release excludes the code)
+- **Watch:**
+  - `GolfCaddieWatch/SessionMeta.swift` — whole file `#if DEBUG` (validation data model only).
+  - `GolfCaddieWatch/LiveSessionController.swift` — `validationMode`, `selectedLabel`/`repCounts`,
+    `meta`/`sessionDir`/`anchorTimer`/`batteryTimer`, the session-dir creation in `start()`, `mark()`,
+    the spike save/transfer in `stop()`, and `scheduleTimers()` are all `#if DEBUG`. Release `start()`
+    passes `dir = nil` to the recorder; live detection (workout + detector + DetectCard) is untouched.
+  - `GolfCaddieWatch/MotionRecorder.swift` — the raw-file writers (handles/buffers/`recording`,
+    `appendVec`, `makeFile`, the `if recording {…}` blocks inside the motion callbacks, the flush in
+    `stop()`, the `Data.appendLE` extension) are `#if DEBUG`. The production sample taps
+    (`onAccel`/`onGyro`/`trackRate`) and `manager` start/stop are unchanged.
+  - `GolfCaddieWatch/WatchSession.swift` — the validation file-transfer half (`outstanding`,
+    `deliveredCount`, `send(sessionDir:)`, `resendAll()`, the `didFinish fileTransfer` delegate, the
+    `outstanding =` line) is `#if DEBUG`; the production userInfo half (B4 `outstandingMessages`,
+    `send(_:)`, `didFinish userInfoTransfer`) stays.
+  - `GolfCaddieWatch/WatchRootView.swift` — the VALIDATION toggle + RESEND footer and the play-screen
+    MARK button are `#if DEBUG`. Release play screen has no validation affordances.
+- **Phone:**
+  - `GolfCaddie/Debug/SpikeSessionReceiver.swift` — **surgical**: the spike file receipt
+    (`didReceive file:`, `appendReceipt`, `sessionsDirectory`, `receiptQueue`) is `#if DEBUG`, but the
+    class, `activate()`, and the **production** `didReceiveUserInfo` (live swing/command receipt) stay
+    in Release. (This delegate is the phone's only WCSession delegate — wrapping the whole file would
+    have broken live shot logging.)
+  - `GolfCaddie/Debug/SpikeSessionsView.swift` — whole file `#if DEBUG`.
+  - `GolfCaddie/Views/SettingsView.swift` — the "Watch Spike" section is `#if DEBUG`.
+  - `GolfCaddie/Debug/DebugHarness.swift` — already `#if DEBUG` (and its RootView call site), left as is.
+  - `GolfCaddieApp.swift` — `SpikeSessionReceiver.shared.activate()` **kept** (production WC delegate).
+
+**Tests/builds:** phone DEBUG test target unchanged (still passes); `GolfCaddieWatch` DEBUG builds;
+**`-configuration Release` builds clean for BOTH `GolfCaddie` and `GolfCaddieWatch`** — confirming the
+spike code compiles out with no dangling references.
+
+**Notes for review:** the dual-role `SpikeSessionReceiver` is now misnamed in Release (it's just the
+live-WC delegate there); a rename is B21 hygiene, out of scope. No runtime behavior change in DEBUG.

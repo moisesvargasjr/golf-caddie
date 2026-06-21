@@ -106,6 +106,8 @@ struct SettingsView: View {
                         exportRoundsButton
                     }
 
+                    #if DEBUG
+                    // Validation/spike session browser — dev builds only (B20).
                     section(label: "Watch Spike") {
                         NavigationLink {
                             SpikeSessionsView()
@@ -123,6 +125,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    #endif
 
                     Spacer(minLength: 40)
                 }

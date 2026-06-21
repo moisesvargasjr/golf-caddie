@@ -42,15 +42,18 @@ final class MotionRecorder {
     }()
 
     // Touched only on `queue` (or after waitUntilAllOperationsAreFinished).
+    // Raw-recording state is validation/spike-only — compiled out of Release (B20).
+    #if DEBUG
     private var dmFile: FileHandle?
     private var accelFile: FileHandle?
     private var gyroFile: FileHandle?
     private var dmBuf = Data()
     private var accelBuf = Data()
     private var gyroBuf = Data()
+    private var recording = false
+    #endif
     private var counts = Counts()
     private var recentDMTimes: [TimeInterval] = []
-    private var recording = false
 
     /// Delivered deviceMotion rate, reported on the main queue every ~100 samples.
     var onRateSample: (@MainActor (Double) -> Void)?
@@ -68,12 +71,14 @@ final class MotionRecorder {
         guard manager.isAccelerometerAvailable else { throw RecorderError.sensorUnavailable("Accelerometer") }
         let hasRawGyro = manager.isGyroAvailable
         gyroSource = hasRawGyro ? "raw" : "deviceMotion"
+        #if DEBUG
         recording = directory != nil
         if let directory {
             dmFile = try Self.makeFile(directory.appendingPathComponent("dm.bin"))
             accelFile = try Self.makeFile(directory.appendingPathComponent("accel.bin"))
             gyroFile = try Self.makeFile(directory.appendingPathComponent("gyro.bin"))
         }
+        #endif
 
         // Raw accel stays at 100 Hz (the impact channel needs it); deviceMotion
         // — which only feeds the swing-arc gyro channel on watchOS — runs at
@@ -84,6 +89,7 @@ final class MotionRecorder {
 
         manager.startDeviceMotionUpdates(to: queue) { [weak self] dm, _ in
             guard let self, let dm else { return }
+            #if DEBUG
             if recording {
                 dmBuf.appendLE(dm.timestamp)
                 dmBuf.appendLE(Float(dm.userAcceleration.x))
@@ -105,31 +111,38 @@ final class MotionRecorder {
                     dmBuf.removeAll(keepingCapacity: true)
                 }
             }
+            #endif
             if !hasRawGyro {
                 onGyro?(dm.timestamp, dm.rotationRate.x, dm.rotationRate.y, dm.rotationRate.z)
+                #if DEBUG
                 if recording {
                     appendVec(t: dm.timestamp, dm.rotationRate.x, dm.rotationRate.y, dm.rotationRate.z,
                               buf: &gyroBuf, file: gyroFile, count: &counts.gyro)
                 }
+                #endif
             }
             trackRate(dm.timestamp)
         }
         manager.startAccelerometerUpdates(to: queue) { [weak self] data, _ in
             guard let self, let data else { return }
             onAccel?(data.timestamp, data.acceleration.x, data.acceleration.y, data.acceleration.z)
+            #if DEBUG
             if recording {
                 appendVec(t: data.timestamp, data.acceleration.x, data.acceleration.y, data.acceleration.z,
                           buf: &accelBuf, file: accelFile, count: &counts.accel)
             }
+            #endif
         }
         if hasRawGyro {
             manager.startGyroUpdates(to: queue) { [weak self] data, _ in
                 guard let self, let data else { return }
                 onGyro?(data.timestamp, data.rotationRate.x, data.rotationRate.y, data.rotationRate.z)
+                #if DEBUG
                 if recording {
                     appendVec(t: data.timestamp, data.rotationRate.x, data.rotationRate.y, data.rotationRate.z,
                               buf: &gyroBuf, file: gyroFile, count: &counts.gyro)
                 }
+                #endif
             }
         }
     }
@@ -140,6 +153,8 @@ final class MotionRecorder {
         manager.stopDeviceMotionUpdates()
         manager.stopAccelerometerUpdates()
         manager.stopGyroUpdates()
+        #if DEBUG
+        // Flush + close the raw recording files (validation-only, B20).
         queue.addOperation { [self] in
             if recording {
                 dmFile?.write(dmBuf)
@@ -154,10 +169,12 @@ final class MotionRecorder {
             accelFile = nil
             gyroFile = nil
         }
+        #endif
         queue.waitUntilAllOperationsAreFinished()
         return counts
     }
 
+    #if DEBUG
     private func appendVec(t: TimeInterval, _ x: Double, _ y: Double, _ z: Double,
                            buf: inout Data, file: FileHandle?, count: inout Int) {
         buf.appendLE(t)
@@ -170,6 +187,7 @@ final class MotionRecorder {
             buf.removeAll(keepingCapacity: true)
         }
     }
+    #endif
 
     private func trackRate(_ t: TimeInterval) {
         recentDMTimes.append(t)
@@ -182,12 +200,15 @@ final class MotionRecorder {
         }
     }
 
+    #if DEBUG
     private static func makeFile(_ url: URL) throws -> FileHandle {
         FileManager.default.createFile(atPath: url.path, contents: nil)
         return try FileHandle(forWritingTo: url)
     }
+    #endif
 }
 
+#if DEBUG
 private extension Data {
     mutating func appendLE(_ value: Double) {
         var bits = value.bitPattern.littleEndian
@@ -199,3 +220,4 @@ private extension Data {
         Swift.withUnsafeBytes(of: &bits) { append(contentsOf: $0) }
     }
 }
+#endif

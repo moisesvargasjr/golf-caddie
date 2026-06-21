@@ -18,7 +18,9 @@ struct DetectedSwing: Identifiable, Equatable {
 @MainActor
 final class LiveSessionController: ObservableObject {
     @Published private(set) var running = false
+    #if DEBUG
     @Published var validationMode = false
+    #endif
     @Published private(set) var deliveredHz: Double = 0
     /// Live peak impact (g) for the "listening" meter; 0 when idle.
     @Published private(set) var liveImpact: Double = 0
@@ -34,9 +36,11 @@ final class LiveSessionController: ObservableObject {
     /// when no card is showing.
     @Published private(set) var pending: DetectedSwing?
 
-    /// Validation-mode ground-truth labelling (unused in production mode).
+    #if DEBUG
+    /// Validation-mode ground-truth labelling (spike-only, B20).
     @Published var selectedLabel: RepLabel = .fullShot
     @Published private(set) var repCounts: [RepLabel: Int] = [:]
+    #endif
 
     private let workout = WorkoutKeeper()
     private let recorder = MotionRecorder()
@@ -46,10 +50,12 @@ final class LiveSessionController: ObservableObject {
     // the higher epoch (resolves the cross-device race without clock compares).
     @Published private(set) var localClub: (short: String, epoch: Int)?
 
+    #if DEBUG
     private var meta: SessionMeta?
     private var sessionDir: URL?
     private var anchorTimer: Timer?
     private var batteryTimer: Timer?
+    #endif
 
     init() {
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
@@ -98,6 +104,7 @@ final class LiveSessionController: ObservableObject {
             recorder.onAccel = { [weak det] t, x, y, z in det?.ingestAccel(t: t, x: x, y: y, z: z) }
             recorder.onGyro = { [weak det] t, x, y, z in det?.ingestGyro(t: t, x: x, y: y, z: z) }
 
+            #if DEBUG
             var dir: URL?
             if validationMode {
                 let formatter = DateFormatter()
@@ -114,15 +121,20 @@ final class LiveSessionController: ObservableObject {
                 sessionDir = d
                 dir = d
             }
+            #else
+            let dir: URL? = nil // raw recording is validation-only (B20)
+            #endif
 
             try workout.start()
             try recorder.start(recordRawTo: dir)
 
             detectionCount = 0
-            repCounts = [:]
             startedAt = Date()
             running = true
+            #if DEBUG
+            repCounts = [:]
             scheduleTimers()
+            #endif
             WKInterfaceDevice.current().play(.start)
         } catch {
             lastError = error.localizedDescription
@@ -172,7 +184,8 @@ final class LiveSessionController: ObservableObject {
         pending = nil
     }
 
-    /// Validation-mode ground-truth mark.
+    #if DEBUG
+    /// Validation-mode ground-truth mark (spike-only, B20).
     func mark() {
         guard running, validationMode else { return }
         let label = selectedLabel
@@ -184,16 +197,25 @@ final class LiveSessionController: ObservableObject {
         ))
         WKInterfaceDevice.current().play(.success)
     }
+    #endif
 
     func stop() {
         guard running else { return }
+        #if DEBUG
         anchorTimer?.invalidate(); batteryTimer?.invalidate()
         anchorTimer = nil; batteryTimer = nil
+        #endif
 
+        #if DEBUG
         let counts = recorder.stop()
+        #else
+        recorder.stop()
+        #endif
         workout.stop()
         detector = nil
 
+        #if DEBUG
+        // Validation/spike: finalize and ship the raw session (B20).
         if var m = meta, let dir = sessionDir {
             m.anchors.append(.now())
             m.battery.append(.now())
@@ -209,6 +231,7 @@ final class LiveSessionController: ObservableObject {
             }
         }
         meta = nil; sessionDir = nil
+        #endif
         startedAt = nil
         deliveredHz = 0
         liveImpact = 0
@@ -227,6 +250,8 @@ final class LiveSessionController: ObservableObject {
     }
     #endif
 
+    #if DEBUG
+    /// Validation/spike telemetry sampling (anchors + battery into the session) — B20.
     private func scheduleTimers() {
         anchorTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.meta?.anchors.append(.now()) }
@@ -235,4 +260,5 @@ final class LiveSessionController: ObservableObject {
             Task { @MainActor in self?.meta?.battery.append(.now()) }
         }
     }
+    #endif
 }
