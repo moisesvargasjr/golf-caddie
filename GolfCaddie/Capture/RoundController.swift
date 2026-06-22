@@ -402,7 +402,8 @@ final class RoundController {
     /// HUD refresh. No-op-throws outside an active hole.
     @discardableResult
     func ingestAutoShot(at coordinate: CLLocationCoordinate2D?, accuracy: Double?,
-                        club: ClubID?, timestamp: Date) throws -> UUID {
+                        club: ClubID?, timestamp: Date,
+                        source: ShotSource = .watchAuto, isPutt: Bool = false) throws -> UUID {
         guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
@@ -415,8 +416,9 @@ final class RoundController {
             gpsAccuracy: accuracy,
             hadGPS: coordinate != nil,
             club: club ?? currentClub,
-            source: .watchAuto,
-            notes: nil
+            source: source,
+            notes: nil,
+            isPutt: isPutt
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
@@ -424,21 +426,25 @@ final class RoundController {
     }
 
     /// Watch "add shot here now" (false-negative recovery) — logs at the live
-    /// fix with the current club, like the glasses fast path.
+    /// fix with the current club, like the glasses fast path. Tagged
+    /// `.watchManual` (a deliberate tap), NOT `.watchAuto` — so per-club stats
+    /// and detector precision/recall measured from real rounds stay honest (B3).
     func addShotFromWatch() throws {
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
         try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
-                           club: currentClub, timestamp: Date())
+                           club: currentClub, timestamp: Date(), source: .watchManual)
     }
 
     /// Watch putt counter (+1) — a putter shot at the live fix. Putts are not
     /// auto-detected (per the handoff doc), so this manual tap is how they land.
+    /// Tagged `.watchManual` + `isPutt` so the green-split and "no full-shot
+    /// distance" rules have an explicit signal beyond `club == .putter` (B3).
     func addPuttFromWatch() throws {
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
         try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
-                           club: .putter, timestamp: Date())
+                           club: .putter, timestamp: Date(), source: .watchManual, isPutt: true)
     }
 
     /// Remove a specific shot on the active hole by id (the watch Strokes-page
@@ -727,9 +733,10 @@ final class RoundController {
     /// Quick one-tap putt from the phone round screen — a putter stroke at the
     /// live fix, regardless of the currently-selected club (putts otherwise mean
     /// scrolling the club picker to Putter). Goes through the normal mark path
-    /// (double-tap guard, GPS fusion) so it's a first-class stroke.
+    /// (double-tap guard, GPS fusion) so it's a first-class stroke. Tagged
+    /// `isPutt` so the green-split / no-distance rules see it (B3).
     func markPutt() async throws {
-        try await markShotInternal(source: .button, club: .putter)
+        try await markShotInternal(source: .button, club: .putter, isPutt: true)
     }
 
     /// Flip the active round between full shot-tracking and casual GPS+score.
@@ -749,7 +756,7 @@ final class RoundController {
         try await markShotInternal(source: .actionButton, club: nil)
     }
 
-    private func markShotInternal(source: ShotSource, club: ClubID?) async throws {
+    private func markShotInternal(source: ShotSource, club: ClubID?, isPutt: Bool = false) async throws {
         // The double-tap guard exists for the physical Action button / on-screen
         // double-press. A deliberate single glasses gesture must not be deduped
         // against it (would return state without the shot, breaking
@@ -766,26 +773,34 @@ final class RoundController {
             Haptics.error()
             return
         }
-        let fix = await location.captureBestFix()
+        // Location comes from the continuous best-accuracy track (`latestLocation`),
+        // NOT a per-shot `captureBestFix` ramp (B8). During a round, tracking is
+        // always running so `latestLocation` is fresh — and this removes the
+        // up-to-5 s stall the field test felt standing on the phone Mark button
+        // (FT4 #6). It unifies all live logging (phone/watch/glasses) on one
+        // mechanism; reconstruction (B5–B7) refines locations from the track later.
+        let loc = location.latestLocation
+        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,
             sequenceNumber: nextSeq,
             timestamp: Date(),
-            latitude: fix?.coordinate.latitude,
-            longitude: fix?.coordinate.longitude,
-            gpsAccuracy: fix?.horizontalAccuracy,
-            hadGPS: fix != nil,
+            latitude: hasFix ? loc?.coordinate.latitude : nil,
+            longitude: hasFix ? loc?.coordinate.longitude : nil,
+            gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
+            hadGPS: hasFix,
             club: club,
             source: source,
-            notes: nil
+            notes: nil,
+            isPutt: isPutt
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
-        lastMarkResult = .success(shotID: shot.id, accuracy: fix?.horizontalAccuracy)
+        lastMarkResult = .success(shotID: shot.id, accuracy: hasFix ? loc?.horizontalAccuracy : nil)
 
-        if fix != nil {
+        if hasFix {
             Haptics.success()
         } else {
             Haptics.warning()

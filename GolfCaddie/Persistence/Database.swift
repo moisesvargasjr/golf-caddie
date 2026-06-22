@@ -152,6 +152,20 @@ enum Database {
             )
         }
 
+        // Honest shot provenance (B3): mark putts explicitly and carry a
+        // reconstruction confidence. Additive — `isPutt` defaults to 0 (false)
+        // for existing rows; `confidence` is nullable (NULL = not applicable,
+        // which is exactly right for every live-logged/manual shot already in
+        // the DB). New `ShotSource` cases (watchManual, reconstructed) are
+        // string values in the existing `source` column, so no schema change
+        // there.
+        migrator.registerMigration("v4_shot_putt_confidence") { db in
+            try db.alter(table: "shot") { t in
+                t.add(column: "isPutt", .boolean).notNull().defaults(to: false)
+                t.add(column: "confidence", .double)
+            }
+        }
+
         return migrator
     }
 }

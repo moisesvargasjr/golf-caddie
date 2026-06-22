@@ -12,7 +12,8 @@ final class MigrationTests: XCTestCase {
     func test_migrationsRegisteredInOrder() {
         XCTAssertEqual(
             Database.migrator.migrations,
-            ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors"]
+            ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
+             "v4_shot_putt_confidence"]
         )
     }
 

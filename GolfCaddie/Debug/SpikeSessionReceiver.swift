@@ -9,12 +9,14 @@ import WatchConnectivity
 final class SpikeSessionReceiver: NSObject {
     static let shared = SpikeSessionReceiver()
 
+    #if DEBUG
     static var sessionsDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SpikeSessions", isDirectory: true)
     }
 
     private let receiptQueue = DispatchQueue(label: "spike.receiver.receipts")
+    #endif
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -40,6 +42,9 @@ extension SpikeSessionReceiver: WCSessionDelegate {
         LiveShotCoordinator.shared.receive(message)
     }
 
+    #if DEBUG
+    // Validation/spike file receipt + storage — compiled out of Release (B20).
+    // The production live-shot path (didReceiveUserInfo, above) stays in Release.
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
         // The temp file is deleted when this callback returns — move it now.
         let sessionId = (file.metadata?["sessionId"] as? String) ?? "unknown-session"
@@ -75,4 +80,5 @@ extension SpikeSessionReceiver: WCSessionDelegate {
             }
         }
     }
+    #endif
 }

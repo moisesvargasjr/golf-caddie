@@ -1,9 +1,11 @@
+#if DEBUG
 import SwiftUI
 import WatchConnectivity
 
 /// Debug list of watch spike-recording sessions received into
 /// Documents/SpikeSessions/. Share zips a session folder for AirDrop/Files;
 /// the folder is also reachable directly via Finder (UIFileSharingEnabled).
+/// Validation/spike-only: feature-flagged out of Release builds (B20).
 struct SpikeSessionsView: View {
     struct SessionFolder: Identifiable {
         let id: String
@@ -108,3 +110,4 @@ struct SpikeSessionsView: View {
         return result
     }
 }
+#endif

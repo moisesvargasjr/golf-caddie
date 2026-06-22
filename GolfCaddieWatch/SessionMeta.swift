@@ -1,8 +1,10 @@
+#if DEBUG
 import Foundation
 import WatchKit
 
 /// Wire/disk schema for `session.json` — must stay in sync with the Python
 /// parser in `scripts/swing_spike/spikelib.py` (schemaVersion 1).
+/// Validation/spike-only: feature-flagged out of Release builds (B20).
 
 struct ClockAnchor: Codable {
     let wallClock: Double // unix epoch seconds
@@ -76,3 +78,4 @@ enum RepLabel: String, CaseIterable, Identifiable, Codable {
         }
     }
 }
+#endif
