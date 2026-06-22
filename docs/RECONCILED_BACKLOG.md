@@ -23,6 +23,25 @@
 
 ---
 
+## Build status (updated 2026-06-22)
+
+- **✅ Merged to `main` (overnight night-1, 2026-06-21):** **B2** (command
+  idempotency), **B3** (shot provenance + `isPutt`/`confidence`), **B4** (watch→
+  phone delivery feedback), **B5** (per-hole track segmentation + stop/dwell),
+  **B8** (track as shot-location source of truth), **B17** (glasses poll cadence
+  ~1.5 s + reconnect staleness + battery), **B20** (spike/validation behind
+  `#if DEBUG`).
+- **✅ Resolved decision — D1:** `lastShot` is **CLUB-ONLY, no distance** (see
+  §2 D1 and B16). Do not relitigate.
+- **🟢 In review (overnight night-2, branch `overnight/night2`, not yet on
+  `main`):** **B16** done (contract doc club-only), **B14** done (Course Desk
+  tee anchors + completeness gate; needs a browser visual check), **B23**
+  *partial* (root cause found + guarded scroll-burst fix — **NEEDS G2
+  CONFIRMATION**), **B21** done (this hygiene pass).
+- **⏳ Not started:** B1, B6, B7, B9–B13, B15, B18, B19, B22.
+
+---
+
 ## 0. The reconciliation thesis (read before picking up any item)
 
 Both documents point at the **same destination**: a round where the golfer never
@@ -73,15 +92,18 @@ Carried from both source docs:
 
 ## 2. Open product decisions (flagged 🔵 — confirm before/within the relevant item)
 
-- **🔵 D1 — `lastShot.distanceYards` on the wire (item B16).** GENUINE CONFLICT.
-  The current contract deliberately **omits** distance (a club's carry isn't knowable
-  until the *next* shot is logged) and IMPROVEMENTS item 12 wants all three sources to
-  agree on "no distance." But DESIGN's new glasses HUD (Fig. 5) shows
-  `LAST · S2 · 4-IRON · 168y` — a distance. **Recommendation:** ship
-  `distanceYards` = the *realized carry of the last **completed** stroke* (the prior
-  shot, whose successor exists, so its carry is known) rather than the most-recent
-  swing. This satisfies the HUD and is well-defined. It re-opens (intentionally) the
-  "field-test-3" semantic that the 2026-06-19 note reverted. Decide before B15/B16.
+- **✅ D1 — RESOLVED: `lastShot` is CLUB-ONLY, no distance (item B16, 2026-06-22).**
+  The decision is **keep club-only with NO `distanceYards`** anywhere on `lastShot`.
+  Code already agreed (`LastShotDTO`, `shared/types.ts`); B16 fixed the stale contract
+  doc to match. The "ship `distanceYards`" recommendation below is **superseded — do
+  not implement it**; it is kept only for history. Rationale for club-only: a club's
+  carry isn't knowable until the *next* shot is logged, so a distance paired with the
+  last club would describe the *prior* club — confusing on the HUD. Per-stroke
+  distances live on the scorecard (`holes[].shots[].distanceYards`), not `lastShot`.
+  - _(superseded)_ ~~Recommendation: ship `distanceYards` = realized carry of the last
+    completed stroke; re-opens the field-test-3 semantic the 2026-06-19 note reverted.~~
+    The HUD (Fig. 5) `LAST · S2 · 4-IRON · 168y` mock is **not** the contract; render
+    last-shot club-only (e.g. `Last: 7i`).
 - **🔵 D2 — DetectCard timeout semantics.** RESOLVED here (not left open): adopt
   **auto-accept + undo** (DESIGN), NOT timeout-discard (IMPROVEMENTS item 2's
   alternate branch). Rationale: reconstruction's hole-out reconciliation + score make

@@ -591,7 +591,6 @@ final class RoundController {
         // by holeID, so we only need the ID + holeNumber + par for the
         // masthead and par stepper.
         var justConfirmed = currentHole
-        justConfirmed.par = currentHole.par
         justConfirmed.confirmedAt = Date()
         mostRecentlyConfirmedHoleFromGlasses = justConfirmed
     }

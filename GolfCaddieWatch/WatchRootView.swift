@@ -31,7 +31,6 @@ struct WatchRootView: View {
 
 private struct WatchHeader<Left: View>: View {
     @ViewBuilder var left: Left
-    var accentTime = false // retained for call-site compatibility; no longer draws a clock
     var body: some View {
         HStack {
             left
@@ -117,7 +116,7 @@ private struct WatchStartScreen: View {
     var body: some View {
         let s = session.phoneState
         VStack(alignment: .leading, spacing: 0) {
-            WatchHeader(left: { GpsDot(hasFix: s.distanceToGreenYards != nil) }, accentTime: true)
+            WatchHeader(left: { GpsDot(hasFix: s.distanceToGreenYards != nil) })
             Spacer()
             Text(s.isActive ? "ROUND IN PROGRESS" : "NO ACTIVE ROUND")
                 .font(WT.mono(11)).tracking(2).foregroundStyle(WT.ink3)
