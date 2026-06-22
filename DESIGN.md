@@ -12,6 +12,31 @@ Built for personal use, sideloaded via the free Apple Developer tier.
 No App Store submission. iPhone 16 Pro Max is the target device (Action
 button support, dual-frequency GPS).
 
+## Current architecture (2026)
+
+> The "Phase 1 … Phase 6" framing below is the original 2025 plan and is now
+> **historical** — the app moved well past it (the watch and glasses, listed as
+> far-future phases, both ship today). The single source of truth for current
+> direction and the live backlog is **`docs/RECONCILED_BACKLOG.md`**; this
+> section is the short orientation.
+
+Three devices, clear roles (see `docs/RECONCILED_BACKLOG.md` §4):
+
+- **iPhone — source of truth.** Records the continuous GPS track, owns the
+  round/map/scorecard, and runs hole-out **reconstruction** (the spine: the
+  hole is settled once, at hole-out, from the track + swing timestamps + the
+  entered score, so forgetting to mark can't cost the data).
+- **Apple Watch — primary input.** On-wrist swing **detection** is the primary
+  detection path (auto-log + undo); manual tap is a backstop. Detection now
+  *feeds reconstruction* rather than being the final word.
+- **Even Realities G2 glasses — primary glance.** A read-only **output-only**
+  HUD on the live path; the gesture-input lane stays as a gated "watch died"
+  lifeboat (`glassesInputEnabled`), not deleted.
+
+Everything must still work **phone-only** (four configs are first-class:
+phone-only, phone+watch, phone+glasses-no-watch, all three). One yardage number
+everywhere: distance to the **middle** of the green.
+
 ## What This Is Not (Yet)
 
 Out of scope for Phase 1, deferred to later phases:
