@@ -405,6 +405,30 @@ final class RoundController {
                         club: ClubID?, timestamp: Date,
                         source: ShotSource = .watchAuto, isPutt: Bool = false) throws -> UUID {
         guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
+        let resolvedClub = club ?? currentClub
+        // B7 cross-source dedup: collapse the "detector fired AND the golfer also
+        // tapped MARK SHOT for the same swing" double-log into one row.
+        switch SameSwingDedup.decide(
+            incoming: .init(timestamp: timestamp, coordinate: coordinate, source: source, isPutt: isPutt),
+            against: currentHoleShots
+        ) {
+        case .insert:
+            break
+        case let .adoptManualClub(existingID):
+            // A deliberate tap for a swing the detector already logged: keep the
+            // auto row's fused location, take over with the manual club + source.
+            if let idx = currentHoleShots.firstIndex(where: { $0.id == existingID }) {
+                var merged = currentHoleShots[idx]
+                if let resolvedClub { merged.club = resolvedClub }
+                merged.source = source
+                merged.isPutt = isPutt
+                try? ShotRepository.update(merged)
+                currentHoleShots[idx] = merged
+            }
+            return existingID
+        case let .dropDuplicate(existingID):
+            return existingID // an auto shot duplicating a manual one — already represented
+        }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
             id: UUID(),
@@ -415,7 +439,7 @@ final class RoundController {
             longitude: coordinate?.longitude,
             gpsAccuracy: accuracy,
             hadGPS: coordinate != nil,
-            club: club ?? currentClub,
+            club: resolvedClub,
             source: source,
             notes: nil,
             isPutt: isPutt
@@ -596,15 +620,32 @@ final class RoundController {
     }
 
     func confirmHoleAndAdvance(par: Int?) throws {
-        guard case let .active(_, currentHole) = state else { return }
+        guard case let .active(round, currentHole) = state else { return }
         var updated = currentHole
         updated.par = par
         updated.confirmedAt = Date()
         try HoleRepository.update(updated)
+        reconstructHole(currentHole, in: round) // B7: green-split + confidence, persisted
         // Advance to the next hole number, wrapping 18 → 1 (so a back-9 start
         // rolls onto the front 9). goToHole finds an existing row or creates it.
         let next = (currentHole.holeNumber % Self.holesPerRound) + 1
         goToHole(next)
+    }
+
+    /// End-of-hole reconstruction (B7 Path A): classify the just-played hole's
+    /// shots into full shots vs putts (green-split) and score each for confidence,
+    /// then persist. Non-destructive — locations and clubs are untouched; only
+    /// `isPutt`/`confidence` change, so the confirmation card (B7.3) and per-club
+    /// stats get an honest split with no golfer effort. Putter strokes still
+    /// classify even when the course has no green anchor.
+    private func reconstructHole(_ hole: Hole, in round: Round) {
+        let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        guard !shots.isEmpty else { return }
+        let green = GlassesStateMapper.greenCoordinate(
+            courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        for r in Reconstructor.reconstruct(shots: shots, green: green).shots where r.applied != r.shot {
+            try? ShotRepository.update(r.applied)
+        }
     }
 
     /// Switch the active hole to `number` — for flexible navigation (prev/next

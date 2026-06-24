@@ -115,4 +115,59 @@ final class ReconstructorTests: XCTestCase {
         XCTAssertEqual(r.puttCount, 3)      // the 3 putters still classify
         XCTAssertEqual(r.fullShotCount, 2)
     }
+
+    // MARK: - Cross-source dedup (SameSwingDedup)
+
+    private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    private func dshot(_ source: ShotSource, plus dt: TimeInterval,
+                       lat: Double? = nil, lng: Double? = nil, isPutt: Bool = false) -> Shot {
+        Shot(id: UUID(), holeID: UUID(), sequenceNumber: 1, timestamp: t0.addingTimeInterval(dt),
+             latitude: lat, longitude: lng, gpsAccuracy: lat != nil ? 8 : nil, hadGPS: lat != nil,
+             club: nil, source: source, notes: nil, isPutt: isPutt)
+    }
+    private func incoming(_ source: ShotSource, plus dt: TimeInterval,
+                          lat: Double? = nil, lng: Double? = nil, isPutt: Bool = false) -> SameSwingDedup.Incoming {
+        SameSwingDedup.Incoming(
+            timestamp: t0.addingTimeInterval(dt),
+            coordinate: lat.map { CLLocationCoordinate2D(latitude: $0, longitude: lng ?? green.longitude) },
+            source: source, isPutt: isPutt)
+    }
+
+    func testManualTapAdoptsRecentAutoShot() {
+        let auto = dshot(.watchAuto, plus: 0, lat: green.latitude, lng: green.longitude)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchManual, plus: 2, lat: green.latitude, lng: green.longitude), against: [auto]),
+                       .adoptManualClub(existingID: auto.id))
+    }
+    func testAutoArrivingAfterManualIsDropped() {
+        let manual = dshot(.watchManual, plus: 0, lat: green.latitude, lng: green.longitude)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchAuto, plus: 2, lat: green.latitude, lng: green.longitude), against: [manual]),
+                       .dropDuplicate(existingID: manual.id))
+    }
+    func testAutoVsAutoNeverMerges() {
+        let auto = dshot(.watchAuto, plus: 0, lat: green.latitude, lng: green.longitude)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchAuto, plus: 1, lat: green.latitude, lng: green.longitude), against: [auto]), .insert)
+    }
+    func testManualVsManualNeverMerges() {
+        let manual = dshot(.watchManual, plus: 0, lat: green.latitude, lng: green.longitude)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.button, plus: 1, lat: green.latitude, lng: green.longitude), against: [manual]), .insert)
+    }
+    func testPuttNeverMergesIntoFullShot() {
+        let autoFull = dshot(.watchAuto, plus: 0, lat: green.latitude, lng: green.longitude, isPutt: false)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchManual, plus: 1, lat: green.latitude, lng: green.longitude, isPutt: true), against: [autoFull]), .insert)
+    }
+    func testOutsideTimeWindowInserts() {
+        let auto = dshot(.watchAuto, plus: 0, lat: green.latitude, lng: green.longitude)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchManual, plus: 10, lat: green.latitude, lng: green.longitude), against: [auto]), .insert)
+    }
+    func testFarApartInserts() {
+        let auto = dshot(.watchAuto, plus: 0, lat: green.latitude, lng: green.longitude)
+        let (fa, fo) = offsetNorth(100)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchManual, plus: 2, lat: fa, lng: fo), against: [auto]), .insert)
+    }
+    func testNoFixMatchesOnTimeAlone() {
+        // Incoming manual has no fix → the spatial gate is skipped; it still matches the 2 s-old auto.
+        let auto = dshot(.watchAuto, plus: 0, lat: green.latitude, lng: green.longitude)
+        XCTAssertEqual(SameSwingDedup.decide(incoming: incoming(.watchManual, plus: 2), against: [auto]),
+                       .adoptManualClub(existingID: auto.id))
+    }
 }

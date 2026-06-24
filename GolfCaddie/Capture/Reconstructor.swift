@@ -124,3 +124,48 @@ enum Reconstructor {
         return HoleReconstruction(shots: rshots, enteredScore: enteredScore)
     }
 }
+
+/// Cross-source dedup decision (B7). The dangerous multi-device case: the watch
+/// detector fires for a swing AND the golfer, not yet trusting it, also taps MARK
+/// SHOT for the *same* swing → two rows for one stroke. This pure decision spots
+/// that collision so `RoundController` can collapse it.
+///
+/// It only ever collapses a **manual tap against an auto detection** — never
+/// auto-vs-auto (that's the reconciler's step-gate job, and dropping a genuinely
+/// distinct shot is worse than keeping an extra), and never a putt into a full
+/// shot. A deliberate manual tap takes over the auto row (keeping the manually
+/// chosen club); an auto shot arriving after a manual one is dropped.
+enum SameSwingDedup {
+    struct Incoming {
+        var timestamp: Date
+        var coordinate: CLLocationCoordinate2D?
+        var source: ShotSource
+        var isPutt: Bool
+    }
+    enum Decision: Equatable {
+        case insert                              // a genuinely new stroke
+        case adoptManualClub(existingID: UUID)   // incoming manual == an existing auto: keep its row, take the manual club
+        case dropDuplicate(existingID: UUID)     // incoming auto == an existing manual: drop the incoming
+    }
+
+    /// `.watchAuto` is the only auto-detected source; every other source is a
+    /// deliberate user action (tap / glasses / pin-drop).
+    static func isManual(_ source: ShotSource) -> Bool { source != .watchAuto }
+
+    static func decide(incoming: Incoming, against existing: [Shot],
+                       timeWindow: TimeInterval = 4, spaceWindow: Double = 20) -> Decision {
+        let incomingManual = isManual(incoming.source)
+        for shot in existing.reversed() { // most-recent first
+            guard isManual(shot.source) != incomingManual else { continue } // cross-source only
+            guard shot.isPutt == incoming.isPutt else { continue }          // never merge putt ↔ full
+            guard abs(shot.timestamp.timeIntervalSince(incoming.timestamp)) <= timeWindow else { continue }
+            if let lat = shot.latitude, let lng = shot.longitude, let c = incoming.coordinate {
+                let d = Distance.meters(from: CLLocationCoordinate2D(latitude: lat, longitude: lng), to: c)
+                if d > spaceWindow { continue } // both have a fix but they're far apart → distinct
+            }
+            return incomingManual ? .adoptManualClub(existingID: shot.id)
+                                  : .dropDuplicate(existingID: shot.id)
+        }
+        return .insert
+    }
+}
