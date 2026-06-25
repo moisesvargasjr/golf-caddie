@@ -22,7 +22,7 @@ targets:
       properties:
         CFBundleDisplayName: The Fairway Logbook
         CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "9"
+        CFBundleVersion: "17"
         # No non-exempt encryption (standard URLSession/SQLite/system crypto only).
         # Declared here so TestFlight upload doesn't prompt for export compliance
         # on every build. https://developer.apple.com/documentation/security/complying_with_encryption_export_regulations
@@ -84,7 +84,7 @@ targets:
       properties:
         CFBundleDisplayName: Fairway
         CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "9"
+        CFBundleVersion: "17"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.moisesvargasjr.golfcaddie
         WKBackgroundModes:
