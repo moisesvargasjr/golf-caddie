@@ -196,6 +196,8 @@ struct ActiveRoundView: View {
             HoleReviewSheet(
                 hole: hole,
                 bag: bag,
+                greenCoordinate: GlassesStateMapper.greenCoordinate(
+                    courseId: controller.curatedCourseId, holeNumber: hole.holeNumber),
                 onConfirm: { par in
                     confirmHole(par: par)
                 },
@@ -281,6 +283,8 @@ struct ActiveRoundView: View {
                 hole: hole,
                 bag: bag,
                 isRetro: true,
+                greenCoordinate: GlassesStateMapper.greenCoordinate(
+                    courseId: controller.curatedCourseId, holeNumber: hole.holeNumber),
                 onConfirm: { par in
                     saveRetroPar(hole: hole, par: par)
                 },

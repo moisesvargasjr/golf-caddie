@@ -17,6 +17,10 @@ struct HoleReviewSheet: View {
     /// callback — the caller is responsible for NOT calling
     /// `confirmHoleAndAdvance` again on it.
     var isRetro: Bool = false
+    /// Green anchor for this hole (curated/local), used to classify putts and
+    /// score confidence for the B7.3 "what we tracked" card. Nil when the course
+    /// has no green anchor — the card still shows the count + putter-club putts.
+    var greenCoordinate: CLLocationCoordinate2D? = nil
     let onConfirm: (Int?) -> Void
     let onCancel: () -> Void
 
@@ -33,6 +37,16 @@ struct HoleReviewSheet: View {
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
 
+    // B7.3 — reconstruct the loaded shots live (green-split + confidence) so the
+    // "what we tracked" card and per-row markers stay in sync as the golfer edits
+    // clubs / adds shots in this same sheet.
+    private var reconstruction: HoleReconstruction {
+        Reconstructor.reconstruct(shots: shots, green: greenCoordinate)
+    }
+    private var classifications: [UUID: ReconstructedShot] {
+        Dictionary(uniqueKeysWithValues: reconstruction.shots.map { ($0.shot.id, $0) })
+    }
+
     var body: some View {
         ZStack {
             PaperBackground()
@@ -46,6 +60,12 @@ struct HoleReviewSheet: View {
                     masthead
                         .padding(.horizontal, 24)
                         .padding(.top, 18)
+
+                    if !shots.isEmpty {
+                        HoleReconstructionCard(reconstruction: reconstruction)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 22)
+                    }
 
                     section("Par", content: parContent)
                         .padding(.horizontal, 24)
@@ -235,6 +255,16 @@ struct HoleReviewSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+
+            // B7.3 classification marker: putts read muted; a low-confidence
+            // full shot gets the amber "check" cue that the card refers to.
+            if let cls = classifications[shot.id] {
+                if cls.isPutt {
+                    Stamp(text: "putt", color: palette.ink3)
+                } else if cls.confidence < HoleReconstruction.lowConfidenceThreshold {
+                    Stamp(text: "check", color: palette.flag)
+                }
+            }
 
             if let yardsLabel {
                 Text(yardsLabel)
