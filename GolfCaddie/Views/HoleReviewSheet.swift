@@ -33,6 +33,7 @@ struct HoleReviewSheet: View {
     @State private var hasPar: Bool = false
     @State private var showPenaltySheet = false
     @State private var showAddShotSheet = false
+    @State private var showPinMap = false
     @State private var loadError: String?
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
@@ -45,6 +46,9 @@ struct HoleReviewSheet: View {
     }
     private var classifications: [UUID: ReconstructedShot] {
         Dictionary(uniqueKeysWithValues: reconstruction.shots.map { ($0.shot.id, $0) })
+    }
+    private var hasLocatedShots: Bool {
+        shots.contains { $0.latitude != nil && $0.longitude != nil }
     }
 
     var body: some View {
@@ -62,9 +66,12 @@ struct HoleReviewSheet: View {
                         .padding(.top, 18)
 
                     if !shots.isEmpty {
-                        HoleReconstructionCard(reconstruction: reconstruction)
-                            .padding(.horizontal, 24)
-                            .padding(.top, 22)
+                        HoleReconstructionCard(
+                            reconstruction: reconstruction,
+                            onAdjustPins: hasLocatedShots ? { showPinMap = true } : nil
+                        )
+                        .padding(.horizontal, 24)
+                        .padding(.top, 22)
                     }
 
                     section("Par", content: parContent)
@@ -122,6 +129,15 @@ struct HoleReviewSheet: View {
                     addMissingShot(club: club, position: position)
                 },
                 onCancel: { showAddShotSheet = false }
+            )
+        }
+        .fullScreenCover(isPresented: $showPinMap) {
+            HolePinMapSheet(
+                shots: shots,
+                holeID: hole.id,
+                holeNumber: hole.holeNumber,
+                onShotMoved: { shot, coord in moveShot(shot, to: coord) },
+                onDone: { showPinMap = false }
             )
         }
         .task { reload() }
@@ -223,6 +239,19 @@ struct HoleReviewSheet: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 6)
+
+        if hasLocatedShots {
+            Button {
+                showPinMap = true
+            } label: {
+                HStack {
+                    Stamp(text: "✎ Adjust pins on map")
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+        }
     }
 
     private func shotRow(idx: Int, shot: Shot) -> some View {
@@ -464,6 +493,23 @@ struct HoleReviewSheet: View {
             reload()
         } catch {
             loadError = "Update failed: \(error.localizedDescription)"
+        }
+    }
+
+    // A hand-dragged pin: store the new location and drop the GPS accuracy. The
+    // reconstructor reads a located-but-accuracyless shot as user-confirmed
+    // (full confidence), so the amber "check" cue clears on reload.
+    private func moveShot(_ shot: Shot, to coord: CLLocationCoordinate2D) {
+        var updated = shot
+        updated.latitude = coord.latitude
+        updated.longitude = coord.longitude
+        updated.hadGPS = true
+        updated.gpsAccuracy = nil
+        do {
+            try ShotRepository.update(updated)
+            reload()
+        } catch {
+            loadError = "Couldn't move shot: \(error.localizedDescription)"
         }
     }
 

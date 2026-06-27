@@ -103,7 +103,14 @@ enum Reconstructor {
     static func confidence(for shot: Shot, isPutt: Bool,
                            config: ReconstructionConfig) -> Double {
         if isPutt { return 1.0 }
-        guard shot.hadGPS, let acc = shot.gpsAccuracy else { return 0.2 } // no fix → amber
+        // Not located (an auto detection that couldn't be placed, or a
+        // not-yet-pinned manual shot) → amber; the card flags it.
+        guard shot.hadGPS else { return 0.2 }
+        // Located but carrying no GPS accuracy = a pin the golfer placed by hand
+        // (dragged on the map sets hadGPS but clears accuracy). The user is ground
+        // truth, so it's fully trusted — this is what clears the amber "check"
+        // cue once a loose shot is fixed.
+        guard let acc = shot.gpsAccuracy else { return 1.0 }
         if acc <= config.goodAccuracyMeters { return 1.0 }
         if acc >= config.poorAccuracyMeters { return 0.3 }
         let span = config.poorAccuracyMeters - config.goodAccuracyMeters

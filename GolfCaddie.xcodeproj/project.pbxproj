@@ -84,6 +84,7 @@
 		C2AA9321C5057098D782210F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3C1416B01A8D351562763700 /* Assets.xcassets */; };
 		C484E3007DAC72948353A765 /* GlassesStateMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */; };
 		C6522FA199AE44507D38DADD /* BagSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2B5E6DEB2E65AB3E9B4FF6 /* BagSetupView.swift */; };
+		C80562B95CBEE76185D37CA0 /* HolePinMapSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0D4AC81E30AEAA643D7032 /* HolePinMapSheet.swift */; };
 		C942995D31409E104529FD6A /* InRoundScorecardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842BC140AF421DC76E8BD211 /* InRoundScorecardSheet.swift */; };
 		CA86EFB30EB12E73215FC5DF /* WatchTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 263F96D198BDF6B0C3CAF42A /* WatchTheme.swift */; };
 		CB5A9A9C16C208A86FEB4EE3 /* ScoreBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD3C05D57722A9BAB47D008 /* ScoreBadge.swift */; };
@@ -165,6 +166,7 @@
 		435A866F4F4085EB7AAE374C /* DatabaseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExport.swift; sourceTree = "<group>"; };
 		4791A4B1CE59C4B0A85F203B /* ShotProvenanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShotProvenanceTests.swift; sourceTree = "<group>"; };
 		4869F686A79319D1C3C34BD3 /* Penalty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Penalty.swift; sourceTree = "<group>"; };
+		4A0D4AC81E30AEAA643D7032 /* HolePinMapSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolePinMapSheet.swift; sourceTree = "<group>"; };
 		4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPreviewDebug.swift; sourceTree = "<group>"; };
 		4EEE08CB9110FAA5A5C67753 /* RoundController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundController.swift; sourceTree = "<group>"; };
 		4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSchemeHandler.swift; sourceTree = "<group>"; };
@@ -365,6 +367,7 @@
 				C87D45D677F510D8534863B6 /* HoleDetailView.swift */,
 				2051A514844C59772CDC6D6A /* HoleEditComponents.swift */,
 				35EC59F88A91476EF4968B7F /* HoleGridSheet.swift */,
+				4A0D4AC81E30AEAA643D7032 /* HolePinMapSheet.swift */,
 				F5AD27F0EAF79D4FDB5F7F21 /* HoleReconstructionCard.swift */,
 				AACE405237B270A6D4E74FBA /* HoleReviewSheet.swift */,
 				3060BD727058056FCC94E4B4 /* HomeView.swift */,
@@ -690,6 +693,7 @@
 				9726158DC21C77DBB75448BD /* HoleDetailView.swift in Sources */,
 				08784BB7FD830BA077986592 /* HoleEditComponents.swift in Sources */,
 				ADC2D2D182AEAA6AC1C43D1C /* HoleGridSheet.swift in Sources */,
+				C80562B95CBEE76185D37CA0 /* HolePinMapSheet.swift in Sources */,
 				D64EE03942171ADEAC1E7631 /* HoleReconstructionCard.swift in Sources */,
 				17FD1DC52AF364EF563E4C0B /* HoleReviewSheet.swift in Sources */,
 				3BEEE61E9A58354C243493D9 /* HomeView.swift in Sources */,

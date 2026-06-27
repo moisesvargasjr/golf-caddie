@@ -68,6 +68,14 @@ final class ReconstructorTests: XCTestCase {
         XCTAssertEqual(Reconstructor.confidence(for: s, isPutt: true, config: cfg), 1.0, accuracy: 0.001)
     }
 
+    func testHandPlacedPinIsConfident() {
+        // A dragged pin keeps its coordinates but has no GPS accuracy — the user
+        // is ground truth, so it must read full confidence (clears the "check" cue).
+        let (la, lo) = offsetNorth(150)
+        let s = shot(1, lat: la, lng: lo, acc: nil, club: .sevenIron)
+        XCTAssertEqual(Reconstructor.confidence(for: s, isPutt: false, config: cfg), 1.0, accuracy: 0.001)
+    }
+
     // MARK: - Whole-hole reconstruct + reconciliation
 
     /// A par-3-shaped hole: 2 full shots reaching the green, then 3 putts.

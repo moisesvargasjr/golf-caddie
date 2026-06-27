@@ -11,6 +11,9 @@ import SwiftUI
 /// list and the confirm action.
 struct HoleReconstructionCard: View {
     let reconstruction: HoleReconstruction
+    /// When set, the low-confidence note becomes a button that opens the pin
+    /// corrector. Nil (e.g. in previews) → the note is plain text.
+    var onAdjustPins: (() -> Void)? = nil
 
     @Environment(\.palette) private var palette
 
@@ -67,7 +70,17 @@ struct HoleReconstructionCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private var lowConfidenceNote: some View {
+        if let onAdjustPins {
+            Button(action: onAdjustPins) { noteBody(actionable: true) }
+                .buttonStyle(.plain)
+        } else {
+            noteBody(actionable: false)
+        }
+    }
+
+    private func noteBody(actionable: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Stamp(text: "Check \(lowConfidence.count)", color: palette.flag)
             Text(lowConfidenceCopy)
@@ -76,18 +89,24 @@ struct HoleReconstructionCard: View {
                 .foregroundStyle(palette.ink2)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if actionable {
+                Text("›")
+                    .font(.custom(AppFont.serifName, size: 22).weight(.bold))
+                    .foregroundStyle(palette.flag)
+            }
         }
+        .contentShape(Rectangle())
     }
 
-    // "Shot III: the GPS fix was loose — tap it below to check the pin."
+    // "Shot III: the GPS fix was loose — adjust the pin to fix it."
     private var lowConfidenceCopy: String {
         let romans = lowConfidence
             .compactMap { reconstruction.shots.firstIndex(of: $0) }
             .map { ($0 + 1).roman }
         let list = romans.joined(separator: ", ")
         let plural = lowConfidence.count == 1
-        return "Shot\(plural ? "" : "s") \(list): the GPS fix was loose — tap "
-            + "\(plural ? "it" : "them") below to check the pin."
+        return "Shot\(plural ? "" : "s") \(list): the GPS fix was loose — "
+            + "adjust the pin to fix \(plural ? "it" : "them")."
     }
 }
 
