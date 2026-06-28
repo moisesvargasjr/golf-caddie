@@ -516,6 +516,33 @@ struct ActiveRoundView: View {
                     Stamp(text: "No anchor", color: palette.ink3)
                         .padding(.top, 4)
                 }
+
+                // Always-available re-link/unlink. The picker used to appear ONLY
+                // when nothing was linked, so a wrong auto-detect (or a multi-course
+                // facility where it grabbed the wrong nine) couldn't be fixed until
+                // the round ended. Tap to change the course or remove the link
+                // (the picker's "No course" choice unlinks).
+                if let id = controller.curatedCourseId {
+                    Rectangle().fill(palette.rule).frame(height: 1).padding(.top, 6)
+                    Button {
+                        showCoursePicker = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(curatedCourses.first { $0.id == id }?.name ?? "Course linked")
+                                .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                                .tracking(0.6)
+                                .foregroundStyle(palette.ink3)
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text("CHANGE ›")
+                                .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                                .tracking(1.0)
+                                .foregroundStyle(palette.flag)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                }
             }
         }
     }

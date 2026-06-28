@@ -27,6 +27,14 @@ struct SettingsView: View {
     @State private var pendingExport: PendingExport?
     @State private var exportError: String?
 
+    /// "0.1.0 (18)" — short version + build, read from the bundle so it always
+    /// reflects the running build (handy when juggling TestFlight builds).
+    private var appVersionString: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(v) (\(b))"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -126,6 +134,14 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     }
                     #endif
+
+                    // App version + build number — confirm which build is running.
+                    Text("GolfCaddie \(appVersionString)")
+                        .font(AppFont.metadata)
+                        .tracking(1.0)
+                        .foregroundStyle(palette.ink3)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 20)
 
                     Spacer(minLength: 40)
                 }
