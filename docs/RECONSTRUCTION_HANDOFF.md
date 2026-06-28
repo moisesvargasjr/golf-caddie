@@ -1,65 +1,97 @@
-# Reconstruction Work — Session Handoff / Resume Note
+# Reconstruction Work — Shipped Record + Next-Phase Handoff
 
-_Snapshot as of 2026-06-24. For a fresh agent continuing the end-of-hole
-reconstruction build. The canonical plan is [`RECONCILED_BACKLOG.md`](RECONCILED_BACKLOG.md);
-this note is "where we are + how to resume" on top of it._
+_Snapshot as of 2026-06-28. The end-of-hole reconstruction hero (B6 + B7, both
+paths) is **built, validated, and merged to `main`**. This note records what
+shipped and what's left, on top of the canonical plan in
+[`RECONCILED_BACKLOG.md`](RECONCILED_BACKLOG.md)._
 
-## TL;DR — where we are right now
+## TL;DR — reconstruction is DONE
 
-Building **B7 (Path A) end-of-hole reconstruction**, in-the-loop with the user.
-- **B7 engine is done and up as PR #4** (`reconstruction/b7-path-a`, ready, **101/101 tests green**) — awaiting the user's review/merge + an optional on-device sanity-check of the dedup. https://github.com/moisesvargasjr/golf-caddie/pull/4
-- **Next: B7.3** — the "We tracked N shots" confirmation card UI (not started).
-- The repo is currently left on `main`. The B7 code is on branch
-  `reconstruction/b7-path-a` (pushed, PR #4). **To continue: `git checkout reconstruction/b7-path-a`.**
+The whole reconstruction spine landed via **PR #4** (merged 2026-06-28,
+`reconstruction/b7-path-a` → `main`, merge commit `1356344`):
+- **Path A (B7, watch):** `Reconstructor` (green-split putt classification, GPS-accuracy
+  confidence, count reconciliation) + `SameSwingDedup` + the "what we tracked"
+  `HoleReconstructionCard` + the `HolePinMapSheet` draggable pin corrector.
+- **Path B (B6, phone-only):** `PathBReconstructor` (port of the R1 prototype) wired into
+  the casual `Next ›` → review-sheet flow (same card in "reconstructed" mode + same pin
+  corrector). Plus the **shot-time segmentation hardening** of `TrackSegmenter`.
+- **Validated on the real Emerald Isle round** through the shipping pipeline: split exact
+  6/18, putt err 0.89/hole, placement 12.0 m — matching/beating the Python prototype.
+  **114 unit tests green.**
 
-## How to resume (do this first)
+`main` is at build **0.1.0 (17)**; Xcode Cloud archives `main` → TestFlight.
 
-1. Read `docs/RECONCILED_BACKLOG.md` — the source of truth (23 items B1–B23, decisions, traceability).
-2. `git checkout reconstruction/b7-path-a` (the B7 work; if PR #4 is already merged, it's on `main`).
-3. Skim the validated prototype: `sample-data/reconstruct_prototype.py` (gitignored; see "Data" below).
-4. Continue with **B7.3** (card UI) — see "What's next".
+## The one thing still unverified
 
-## Backlog status
+The B7 **live-capture dedup** (a manual MARK-SHOT collapsing into a watch auto-detect)
+is covered by 8 unit tests but **never exercised on the actual watch**. The next real
+round on phone+watch is the check — does a MARK-SHOT-right-after-a-detected-swing feel
+right (one shot, manual club kept), not double-logged. Everything else is additive /
+non-destructive.
 
-- **Merged to main:** B2, B3, B4, B5, B8, B17, B20 (night 1) · B14, B16, B21 (night 2).
-- **In progress:** **B7** (Path A) — engine on PR #4; B7.3 card next.
-- **Draft / needs hardware:** B23 (glasses club-scroll fix — needs G2 to tune `SCROLL_QUIET_MS`; draft PR #3).
-- **Not started:** B1 (watch auto-log card), **B6 (Path B — the next big piece)**, B9–B13 + B15 (UI), B18 (glasses input gating), B19 (watch battery), B22 (glasses sync-freeze).
-- **Pending checks (merged but unverified):** B4 syncing chip, B17 staleness/battery (sim/G2), B14 curation tool (browser).
+## What's left (the remaining backlog)
+
+Reconstruction was the hard central piece; the rest is lighter. From `RECONCILED_BACKLOG.md`:
+- **Not started:** B1 (watch auto-log + undo card — a Path-A prerequisite for *streaming*
+  every swing), B9 (yardage-hero on-course screen — also where in-round current-hole map
+  editing + the green marker live), B10 (auto hole-advance), B11 (watch redesign), B12
+  (home resume-first), B13 (scorecard + reconstruction inbox), B15 (glasses HUD), B18
+  (gate glasses input), B19 (watch battery), B22 (glasses sync-freeze).
+- **Draft / hardware-gated:** B23 (glasses club-scroll fix — draft PR #3 in the glasses
+  repo, needs the G2).
+- **Merged but device-unverified:** the dedup (above), B4 syncing chip, B17 staleness/
+  battery, B14 curation tool (browser visual check).
 
 ## Decisions locked (do not relitigate)
 
-- **D1 = `lastShot` is club-only, NO distance** (resolved; B16 done).
-- Reconstruction is the spine; **Path A (watch) is robust, Path B (phone-only) is the nudge fallback**.
-- **B6/B7 are built in-the-loop, NOT unattended** (overnight runs are for safe/spec'd items only).
+- **D1 = `lastShot` is club-only, NO distance** (B16, merged).
+- Reconstruction is the spine; **Path A (watch) classifies located shots, Path B
+  (phone-only) infers + places** — the draggable-pin correction is the load-bearing UX
+  (placement is ~12 m, good enough to nudge, not relocate).
+- **B6/B7 were built in-the-loop, not unattended.**
 - One yardage everywhere = middle of green; glasses output-only + gated input lifeboat.
 
-## What the prototype proved (grounds the whole build)
+## What the prototype proved (now confirmed in shipping Swift)
 
-Validated in Python against the **real Emerald Isle round** (pulled off the phone) before writing Swift:
-- **Path A** rides the live `fuse()` (swing-time → nearest breadcrumb) — already locates shots to within GPS noise. So Path A reconstruction is a **hole-out layer (classify + reconcile), not re-location**.
-- **Path B** (phone-only): score → pins. Split error <1 putt/hole, placement ~11m → **the draggable-nudge UX is load-bearing**, not polish.
-- **Tuned params:** dwell 8s / radius 6m · green radius 25m · merge 20m.
-- **Segmentation bug found:** `TrackSegmenter.timeWindow` keys off hole-number+confirm-time, so a non-monotonic confirm (the round's H8 confirmed after H9) yields an empty/garbled window. Fix = segment by play-order/shot-time. **This is a B6 prerequisite** (Path A doesn't use TrackSegmenter).
+Validated in Python against the real Emerald Isle round, then **re-confirmed through the
+shipping pipeline** via a throwaway smoke test:
+- **Path A** rides the live `fuse()` (swing-time → nearest breadcrumb) — already locates
+  shots to GPS noise. So Path A is a **classify + reconcile** layer, not re-location.
+- **Path B**: score → pins. The split is rough (~6/18 exact) **by nature** — which is why
+  the draggable-nudge UX is load-bearing.
+- **Tuned params:** dwell 8 s / radius ~5–6 m · green radius 25 m · merge 20 m.
+- **Segmentation bug — FIXED:** confirm-time windowing handed the round's inverted H8/H9 a
+  21-minute window. Now keyed off **last-stroke time** (`TrackSegmenter.timeWindow`'s
+  `lastShotTimes`), robust to confirm inversions. This is what moved the real-data numbers
+  from 4/18·1.17·13.7 m to 6/18·0.89·12.0 m.
 
-## B7 code map (what's on the branch)
+## Code map (what shipped, all on `main`)
 
-- `GolfCaddie/Capture/Reconstructor.swift` — **pure core** (B7.1): `Reconstructor.reconstruct()` (green-split putt classification, GPS-accuracy confidence, count-vs-score reconciliation) + `SameSwingDedup` (pure cross-source dedup decision).
-- `GolfCaddie/Capture/RoundController.swift` — **integration** (B7.2): `confirmHoleAndAdvance` runs `reconstructHole(...)` (persists `isPutt`/`confidence`, non-destructive); `ingestAutoShot` routes through `SameSwingDedup` (manual MARK-SHOT-after-detect adopts the auto row; auto-after-manual dropped; never auto-vs-auto, never putt-into-full).
-- `GolfCaddieTests/ReconstructorTests.swift` — 19 tests (classification, confidence, reconciliation, dedup).
-- Reuses: `GlassesStateMapper.greenCoordinate` (green anchor, local-over-curated), `Shot.isPutt`/`confidence` (B3), `ClubID.putter`, `Distance`.
-
-## What's next (concrete)
-
-1. **B7.3 — confirmation card UI.** Extend `Views/HoleReviewSheet.swift` / `Views/ActiveRoundView.swift`: render the reconstructed split ("We tracked N shots"), amber pins below `HoleReconstruction.lowConfidenceThreshold` (0.5), Edit-pins / Looks-right, draggable pins (reuse `Views/EditableHoleMap.swift`). **UI — build a first cut, iterate with the user.**
-2. **B6 — Path B (phone-only reconstruction).** The next big piece. Port the prototype's score→pins algorithm; **includes the B5 segmentation play-order fix**; score-stepper + collapsed disclosure (DESIGN Fig 1b); reuse `EditableHoleMap`, `ClubAverages`.
-3. Hardware/verify follow-ups when the user has devices: B23 (G2), B4/B17/B1 (sim/device), B14 (browser).
+- `GolfCaddie/Capture/Reconstructor.swift` — Path-A core + `SameSwingDedup`.
+- `GolfCaddie/Capture/PathBReconstructor.swift` — Path-B engine (merge dwells, estimate
+  split, place pins).
+- `GolfCaddie/Capture/TrackSegmenter.swift` — per-hole windowing (shot-time) + stop detection.
+- `GolfCaddie/Capture/RoundController.swift` — `reconstructHole` (Path A at confirm),
+  `placeCurrentHoleFromTrack` (Path B on casual review entry), `ingestAutoShot` dedup.
+- `GolfCaddie/Views/HoleReconstructionCard.swift` — the card (`.tracked` / `.reconstructed`).
+- `GolfCaddie/Views/HolePinMapSheet.swift` — draggable pin corrector (reuses `EditableHoleMap`).
+- `GolfCaddie/Views/HoleReviewSheet.swift` — hosts the card + corrector for both paths.
+- `GolfCaddie/Glasses/GlassesStateMapper.swift` — `greenCoordinate` + `teeCoordinate`.
+- Tests: `ReconstructorTests`, `PathBReconstructorTests`, `TrackSegmenterTests`.
 
 ## Environment gotchas
 
-- **Builds need Xcode-beta 27** via `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` (the only installed sim runtimes are iOS/watchOS 27). Test sim: **iPhone 17 Pro** (id `63965C6A-DE24-4AEF-881E-397A252D5AEB`); watch sim Apple Watch Series 11 (46mm).
-- `xcodegen generate` after adding/removing Swift files (project globs `GolfCaddie/` + `GolfCaddieTests/`).
-- **Flow:** branch → per-item commits → push → PR per repo → user reviews/merges. Three repos: `golf-caddie`, `golf-caddie-glasses`, `golf-caddie-coursedata`.
-- **Data:** `sample-data/golfcaddie.sqlite` (gitignored) was pulled from the user's iPhone via
-  `xcrun devicectl device copy from --device <id> --domain-type appDataContainer --domain-identifier com.moisesvargasjr.golfcaddie --source "Library/Application Support/golfcaddie.sqlite" --destination ...`. Two rounds have GPS tracks (Emerald Isle FT4, Welk). Personal GPS — keep gitignored.
-- Completed handoffs/logs are archived under `docs/archive/`. Cross-session synthesis also lives in the user's Obsidian vault (`personal/learning/golf-caddie-glasses/reconciled-backlog.md`).
+- **Builds need Xcode-beta 27** via `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`
+  (only iOS/watchOS 27 sim runtimes installed). Test sim: **iPhone 17 Pro** (id
+  `63965C6A-DE24-4AEF-881E-397A252D5AEB`); watch sim Apple Watch Series 11 (46mm).
+- `xcodegen generate` after adding/removing Swift files (globs `GolfCaddie/` + `GolfCaddieTests/`).
+- **Build number is in `project.yml` + both `Info.plist`s — keep them in lockstep**; the
+  last upload was build 16, so source is at **17** (don't regress below an uploaded number).
+- **Flow:** branch → per-item commits → push → PR per repo → user reviews/merges. Three
+  repos: `golf-caddie`, `golf-caddie-glasses`, `golf-caddie-coursedata`.
+- **Data:** `sample-data/golfcaddie.sqlite` (gitignored, personal GPS) was pulled via
+  `xcrun devicectl device copy from --device <id> --domain-type appDataContainer --domain-identifier com.moisesvargasjr.golfcaddie --source "Library/Application Support/golfcaddie.sqlite" --destination ...`.
+  The real-data smoke test reads it directly via GRDB + `golf-caddie-coursedata/data/courses.json`
+  for anchors (throwaway — re-create when you want to re-validate on real data).
+- Completed handoffs/logs are archived under `docs/archive/`. Cross-session synthesis also
+  lives in the Obsidian vault (`personal/learning/golf-caddie-glasses/reconciled-backlog.md`).

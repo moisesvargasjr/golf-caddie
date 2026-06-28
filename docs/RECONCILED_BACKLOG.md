@@ -23,22 +23,34 @@
 
 ---
 
-## Build status (updated 2026-06-22)
+## Build status (updated 2026-06-28)
 
-- **✅ Merged to `main` (overnight night-1, 2026-06-21):** **B2** (command
-  idempotency), **B3** (shot provenance + `isPutt`/`confidence`), **B4** (watch→
-  phone delivery feedback), **B5** (per-hole track segmentation + stop/dwell),
-  **B8** (track as shot-location source of truth), **B17** (glasses poll cadence
-  ~1.5 s + reconnect staleness + battery), **B20** (spike/validation behind
-  `#if DEBUG`).
-- **✅ Resolved decision — D1:** `lastShot` is **CLUB-ONLY, no distance** (see
-  §2 D1 and B16). Do not relitigate.
-- **🟢 In review (overnight night-2, branch `overnight/night2`, not yet on
-  `main`):** **B16** done (contract doc club-only), **B14** done (Course Desk
-  tee anchors + completeness gate; needs a browser visual check), **B23**
-  *partial* (root cause found + guarded scroll-burst fix — **NEEDS G2
-  CONFIRMATION**), **B21** done (this hygiene pass).
-- **⏳ Not started:** B1, B6, B7, B9–B13, B15, B18, B19, B22.
+- **✅ Merged to `main`:**
+  - _Foundations (night-1):_ **B2** (command idempotency), **B3** (shot provenance +
+    `isPutt`/`confidence`), **B4** (watch→phone delivery feedback), **B5** (per-hole
+    track segmentation + stop/dwell), **B8** (track as shot-location source of truth),
+    **B17** (glasses poll ~1.5 s + reconnect staleness + battery), **B20** (spike/
+    validation behind `#if DEBUG`).
+  - _Contract + coursedata + hygiene (night-2):_ **B16** (`lastShot` club-only),
+    **B14** (Course Desk tee anchors + completeness gate — needs a browser visual
+    check), **B21** (doc/flag/dead-code hygiene).
+  - _The reconstruction hero (PR #4, 2026-06-28):_ **B6** (Path B phone-only — engine +
+    casual `Next ›` review-flow UI + shot-time segmentation hardening) and **B7** (Path
+    A watch — `Reconstructor` + `SameSwingDedup` + the "what we tracked" card + draggable
+    pin corrector). **Both paths**, validated on the real Emerald Isle round (split
+    6/18, putt err 0.89/hole, placement 12.0 m — matching/beating the R1 prototype);
+    **114 unit tests green**. The B5 segmentation was hardened here (window by last-shot
+    time, robust to confirm inversions).
+- **✅ Resolved decision — D1:** `lastShot` is **CLUB-ONLY, no distance** (see §2 D1 and
+  B16). Do not relitigate.
+- **🟢 Draft / hardware-gated:** **B23** (glasses club-scroll fix — root-caused, guarded
+  fix on **draft PR #3** in the glasses repo; **NEEDS G2 CONFIRMATION**).
+- **⏳ Not started:** B1 (watch auto-log card), B9, B10, B11, B12, B13, B15, B18, B19,
+  B22.
+- **🔬 Merged but device-unverified:** the B7 live-capture **dedup** (a manual MARK-SHOT
+  collapsing into a watch auto-detect) is unit-tested but wants a real round on the
+  watch to confirm the feel; B4's syncing chip and B17's staleness/battery want a
+  device/G2 pass; B14 wants a browser visual check.
 
 ---
 
@@ -351,7 +363,7 @@ parallel with the P0 foundations below (different surface, can be a different pe
 
 ## P1 — The hero: End-of-hole reconstruction (DESIGN #1)
 
-### B5 — Per-hole track segmentation + stop/dwell detection · Phone · M
+### B5 — Per-hole track segmentation + stop/dwell detection · Phone · M · ✅ MERGED (night-1; window hardened to shot-time in PR #4)
 - **Why.** The track is persisted **round-scoped** (`TracePoint.roundID`), and there's
   no notion of a "stop." Both reconstruction paths need (a) the slice of the track
   belonging to the current hole and (b) the dwell points that are candidate shot
@@ -368,7 +380,13 @@ parallel with the P0 foundations below (different surface, can be a different pe
   (config or `#if DEBUG` knobs).
 - **Traces-to.** DESIGN #1 acceptance ("Stop detection").
 
-### B6 — Path B: phone-only score-driven reconstruction · Phone · L
+### B6 — Path B: phone-only score-driven reconstruction · Phone · L · ✅ MERGED (PR #4)
+> **Shipped** as `PathBReconstructor` (engine) + casual `Next ›` → review-sheet flow
+> (card in "reconstructed" mode + `HolePinMapSheet` pin corrector). Differs slightly
+> from the spec below: rather than a separate collapsed disclosure on the on-course
+> screen, casual hole-out reuses the **same** `HoleReviewSheet` as tracked holes (one
+> shared review UX for both paths). Score-stepper / collapsed-disclosure polish on the
+> live screen (Fig. 1b) remains open and folds into **B9/B13**.
 - **Why.** This is DESIGN's **"Phone-only Path B must work first"** — the frictionless
   floor with no watch. Today nothing reconstructs: casual mode has a score stepper
   (`ActiveRoundView` :633–674) but never lays pins; `confirmHoleAndAdvance` :593–603 just
@@ -399,7 +417,14 @@ parallel with the P0 foundations below (different surface, can be a different pe
   split, club distance, graceful degradation, editing); subsumes IMPROVEMENTS 3b
   (semantic dedup becomes reconciliation) for the phone-only case.
 
-### B7 — Path A: watch-detected reconstruction + cross-source reconciliation · Phone · L
+### B7 — Path A: watch-detected reconstruction + cross-source reconciliation · Phone · L · ✅ MERGED (PR #4)
+> **Shipped** as `Reconstructor` (green-split + confidence + count reconciliation),
+> `SameSwingDedup` (manual-vs-auto collapse), the `HoleReconstructionCard` ("what we
+> tracked"), and the `HolePinMapSheet` draggable corrector. Reframed from the spec:
+> `fuse()` already *locates* each watch shot live, so Path A is a hole-out *classify*
+> layer, not re-location. The **in-round current-hole map editing** (FT4 #7) is partly
+> covered (pins editable from the review sheet's corrector) but not yet from the live
+> on-course map — that piece folds into **B9**. Dedup is **device-unverified** (see banner).
 - **Why.** With a watch, shots are pre-detected (B1 streams every swing with a
   timestamp). DESIGN's Fig. 1: on hole-out, match each detected swing to the nearest
   **track stop** and present "We tracked N shots" for one-tap confirm. This is also
