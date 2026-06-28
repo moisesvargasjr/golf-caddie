@@ -91,6 +91,50 @@ final class TrackSegmenterTests: XCTestCase {
         XCTAssertEqual(w2?.upperBound, now, "active hole runs to now")
     }
 
+    func testWindowUsesPlayOrderNotHoleNumber() {
+        let rid = UUID()
+        // Played H9 first (confirmed t0+100), then H8 (confirmed t0+200) — an
+        // out-of-order confirm. The old holeNumber bound mis-windowed H8 to start
+        // at the round start, swallowing H9's track.
+        let h9 = Hole(id: UUID(), roundID: rid, holeNumber: 9, par: nil,
+                      confirmedAt: t0.addingTimeInterval(100))
+        let h8 = Hole(id: UUID(), roundID: rid, holeNumber: 8, par: nil,
+                      confirmedAt: t0.addingTimeInterval(200))
+        let holes = [h8, h9]
+        let now = t0.addingTimeInterval(300)
+
+        let w9 = TrackSegmenter.timeWindow(forHole: h9, roundStart: t0, holes: holes, now: now)
+        XCTAssertEqual(w9?.lowerBound, t0, "first hole played starts at round start")
+        XCTAssertEqual(w9?.upperBound, t0.addingTimeInterval(100))
+
+        let w8 = TrackSegmenter.timeWindow(forHole: h8, roundStart: t0, holes: holes, now: now)
+        XCTAssertEqual(w8?.lowerBound, t0.addingTimeInterval(100),
+                       "H8 was played after H9, so its window starts at H9's confirm")
+        XCTAssertEqual(w8?.upperBound, t0.addingTimeInterval(200))
+    }
+
+    func testWindowUsesShotTimeOverConfirmInversion() {
+        let rid = UUID()
+        // H8 was PLAYED first (last stroke t0+150) but CONFIRMED late (t0+400);
+        // H9 played second (last stroke t0+250) but confirmed early (t0+300).
+        // Confirm times invert play order — shot times must win.
+        let h8 = Hole(id: UUID(), roundID: rid, holeNumber: 8, par: nil, confirmedAt: t0.addingTimeInterval(400))
+        let h9 = Hole(id: UUID(), roundID: rid, holeNumber: 9, par: nil, confirmedAt: t0.addingTimeInterval(300))
+        let holes = [h8, h9]
+        let shotTimes: [UUID: Date] = [h8.id: t0.addingTimeInterval(150),
+                                       h9.id: t0.addingTimeInterval(250)]
+        let now = t0.addingTimeInterval(500)
+        let buf = TrackSegmenter.departureBufferSeconds
+
+        let w8 = TrackSegmenter.timeWindow(forHole: h8, roundStart: t0, holes: holes, now: now, lastShotTimes: shotTimes)
+        XCTAssertEqual(w8?.lowerBound, t0, "H8 played first → starts at round start")
+        XCTAssertEqual(w8?.upperBound, t0.addingTimeInterval(150 + buf))
+
+        let w9 = TrackSegmenter.timeWindow(forHole: h9, roundStart: t0, holes: holes, now: now, lastShotTimes: shotTimes)
+        XCTAssertEqual(w9?.lowerBound, t0.addingTimeInterval(150 + buf), "H9 starts at H8's departure, not its confirm")
+        XCTAssertEqual(w9?.upperBound, t0.addingTimeInterval(250 + buf))
+    }
+
     func testWindowDegenerateBoundsReturnNil() {
         let rid = UUID()
         // confirmedAt earlier than the round start (clock weirdness) → no window.

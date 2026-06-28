@@ -196,6 +196,8 @@ struct ActiveRoundView: View {
             HoleReviewSheet(
                 hole: hole,
                 bag: bag,
+                greenCoordinate: GlassesStateMapper.greenCoordinate(
+                    courseId: controller.curatedCourseId, holeNumber: hole.holeNumber),
                 onConfirm: { par in
                     confirmHole(par: par)
                 },
@@ -281,6 +283,8 @@ struct ActiveRoundView: View {
                 hole: hole,
                 bag: bag,
                 isRetro: true,
+                greenCoordinate: GlassesStateMapper.greenCoordinate(
+                    courseId: controller.curatedCourseId, holeNumber: hole.holeNumber),
                 onConfirm: { par in
                     saveRetroPar(hole: hole, par: par)
                 },
@@ -665,12 +669,39 @@ struct ActiveRoundView: View {
             errorBanner
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
+
+            casualNextButton
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 40)
         .background(palette.paper)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: Color.black.opacity(0.5), radius: 40, x: 0, y: -8)
+    }
+
+    // Casual hole-out: reconstruct the strokes from the GPS track (Path B), then
+    // open the same review sheet (card + draggable pins) to confirm/adjust.
+    private var casualNextButton: some View {
+        Button {
+            controller.placeCurrentHoleFromTrack()
+            reviewingHole = controller.currentHole
+        } label: {
+            HStack(spacing: 6) {
+                Text("Next")
+                    .font(.custom(AppFont.serifName, size: 18).italic().weight(.regular))
+                Text("›")
+                    .font(.custom(AppFont.serifName, size: 20).weight(.bold))
+            }
+            .foregroundStyle(palette.paper)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(palette.ink)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
     }
 
     private func casualStepButton(systemName: String, action: @escaping () -> Void) -> some View {

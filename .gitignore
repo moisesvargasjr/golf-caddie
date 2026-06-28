@@ -32,3 +32,6 @@ Carthage/Build/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Pulled device DB + reconstruction scratch (personal GPS data)
+sample-data/

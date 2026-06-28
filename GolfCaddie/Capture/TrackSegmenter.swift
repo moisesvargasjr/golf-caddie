@@ -62,19 +62,36 @@ enum TrackSegmenter {
 
     // MARK: - Per-hole windowing (pure)
 
-    /// The time window of the round's track belonging to `hole`: from the latest
-    /// confirm time among *earlier* holes (you arrived here when you last
-    /// confirmed an earlier hole) up to this hole's own confirm time — or `now`
-    /// while it's still the active, unconfirmed hole. Hole 1 (no earlier hole)
-    /// starts at `roundStart`. Returns nil if the bounds are degenerate.
+    /// A little past the holed putt — the golfer lingers, then walks on. Keeps a
+    /// hole's window covering its last stroke without bleeding far into the next.
+    static let departureBufferSeconds: TimeInterval = 15
+
+    /// The time window of the round's track belonging to `hole`: from when the
+    /// golfer arrived (the previously-PLAYED hole's departure) up to when they
+    /// left this hole — or `now` while it's still the active, unplayed hole. The
+    /// first hole played starts at `roundStart`. Returns nil if degenerate.
+    ///
+    /// "Departure" is keyed off the hole's LAST STROKE time (+ a small buffer)
+    /// when `lastShotTimes` supplies it, falling back to the hole's confirm time.
+    /// Last-stroke time tracks actual PLAY order, so it stays correct even when
+    /// confirm times invert play order — a back-nine start (18→1) or an
+    /// out-of-order confirm (H8 confirmed after H9, as in the Emerald Isle round,
+    /// where confirm-time windowing handed H9 a 21-minute window). Callers without
+    /// shot times (older call sites, pure tests) get the confirm-time behavior.
+    /// This is the B5/B6 segmentation foundation.
     static func timeWindow(forHole hole: Hole, roundStart: Date, holes: [Hole],
-                           now: Date) -> ClosedRange<Date>? {
-        let previousConfirm = holes
-            .filter { $0.holeNumber < hole.holeNumber }
-            .compactMap(\.confirmedAt)
+                           now: Date, lastShotTimes: [UUID: Date] = [:]) -> ClosedRange<Date>? {
+        func departure(_ h: Hole) -> Date? {
+            if let last = lastShotTimes[h.id] { return last.addingTimeInterval(departureBufferSeconds) }
+            return h.confirmedAt
+        }
+        let end = departure(hole) ?? now
+        let previousDeparture = holes
+            .filter { $0.id != hole.id }
+            .compactMap(departure)
+            .filter { $0 < end }
             .max()
-        let start = previousConfirm ?? roundStart
-        let end = hole.confirmedAt ?? now
+        let start = previousDeparture ?? roundStart
         guard end >= start else { return nil }
         return start...end
     }
@@ -126,8 +143,22 @@ enum TrackSegmenter {
                       config: StopDetectionConfig = .default, now: Date = Date()) throws -> [TrackStop] {
         let holes = try HoleRepository.holesForRound(round.id)
         let all = try TracePointRepository.pointsForRound(round.id)
-        let window = timeWindow(forHole: hole, roundStart: round.startedAt, holes: holes, now: now)
+        let lastShotTimes = try lastShotTimesByHole(holes)
+        let window = timeWindow(forHole: hole, roundStart: round.startedAt, holes: holes,
+                                now: now, lastShotTimes: lastShotTimes)
         return detectStops(in: points(all, in: window), config: config)
+    }
+
+    /// Latest stroke timestamp per hole — the play-order boundary that makes
+    /// windowing robust to confirm inversions (see `timeWindow`).
+    private static func lastShotTimesByHole(_ holes: [Hole]) throws -> [UUID: Date] {
+        var out: [UUID: Date] = [:]
+        for h in holes {
+            if let last = try ShotRepository.shotsForHole(h.id).map(\.timestamp).max() {
+                out[h.id] = last
+            }
+        }
+        return out
     }
 
     // MARK: - Helpers

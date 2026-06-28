@@ -17,6 +17,10 @@ struct HoleReviewSheet: View {
     /// callback — the caller is responsible for NOT calling
     /// `confirmHoleAndAdvance` again on it.
     var isRetro: Bool = false
+    /// Green anchor for this hole (curated/local), used to classify putts and
+    /// score confidence for the B7.3 "what we tracked" card. Nil when the course
+    /// has no green anchor — the card still shows the count + putter-club putts.
+    var greenCoordinate: CLLocationCoordinate2D? = nil
     let onConfirm: (Int?) -> Void
     let onCancel: () -> Void
 
@@ -29,9 +33,35 @@ struct HoleReviewSheet: View {
     @State private var hasPar: Bool = false
     @State private var showPenaltySheet = false
     @State private var showAddShotSheet = false
+    @State private var showPinMap = false
     @State private var loadError: String?
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
+
+    // B7.3 — reconstruct the loaded shots live (green-split + confidence) so the
+    // "what we tracked" card and per-row markers stay in sync as the golfer edits
+    // clubs / adds shots in this same sheet.
+    private var reconstruction: HoleReconstruction {
+        // Phone-only (Path B) holes carry their split/confidence already; re-running
+        // Path A's green-split would mis-classify a fallback pin dropped on the green
+        // as a putt. Trust the persisted classification for reconstructed shots;
+        // live-recompute Path A only for GPS-tracked shots.
+        if isReconstructed {
+            let rs = shots.sorted { $0.sequenceNumber < $1.sequenceNumber }
+                .map { ReconstructedShot(shot: $0, isPutt: $0.isPutt, confidence: $0.confidence ?? 1.0) }
+            return HoleReconstruction(shots: rs, enteredScore: nil)
+        }
+        return Reconstructor.reconstruct(shots: shots, green: greenCoordinate)
+    }
+    private var classifications: [UUID: ReconstructedShot] {
+        Dictionary(uniqueKeysWithValues: reconstruction.shots.map { ($0.shot.id, $0) })
+    }
+    private var hasLocatedShots: Bool {
+        shots.contains { $0.latitude != nil && $0.longitude != nil }
+    }
+    private var isReconstructed: Bool {
+        shots.contains { $0.source == .reconstructed }
+    }
 
     var body: some View {
         ZStack {
@@ -46,6 +76,16 @@ struct HoleReviewSheet: View {
                     masthead
                         .padding(.horizontal, 24)
                         .padding(.top, 18)
+
+                    if !shots.isEmpty {
+                        HoleReconstructionCard(
+                            reconstruction: reconstruction,
+                            mode: isReconstructed ? .reconstructed : .tracked,
+                            onAdjustPins: hasLocatedShots ? { showPinMap = true } : nil
+                        )
+                        .padding(.horizontal, 24)
+                        .padding(.top, 22)
+                    }
 
                     section("Par", content: parContent)
                         .padding(.horizontal, 24)
@@ -102,6 +142,15 @@ struct HoleReviewSheet: View {
                     addMissingShot(club: club, position: position)
                 },
                 onCancel: { showAddShotSheet = false }
+            )
+        }
+        .fullScreenCover(isPresented: $showPinMap) {
+            HolePinMapSheet(
+                shots: shots,
+                holeID: hole.id,
+                holeNumber: hole.holeNumber,
+                onShotMoved: { shot, coord in moveShot(shot, to: coord) },
+                onDone: { showPinMap = false }
             )
         }
         .task { reload() }
@@ -203,6 +252,19 @@ struct HoleReviewSheet: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 6)
+
+        if hasLocatedShots {
+            Button {
+                showPinMap = true
+            } label: {
+                HStack {
+                    Stamp(text: "✎ Adjust pins on map")
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+        }
     }
 
     private func shotRow(idx: Int, shot: Shot) -> some View {
@@ -235,6 +297,16 @@ struct HoleReviewSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+
+            // B7.3 classification marker: putts read muted; a low-confidence
+            // full shot gets the amber "check" cue that the card refers to.
+            if let cls = classifications[shot.id] {
+                if cls.isPutt {
+                    Stamp(text: "putt", color: palette.ink3)
+                } else if cls.confidence < HoleReconstruction.lowConfidenceThreshold {
+                    Stamp(text: "check", color: palette.flag)
+                }
+            }
 
             if let yardsLabel {
                 Text(yardsLabel)
@@ -434,6 +506,24 @@ struct HoleReviewSheet: View {
             reload()
         } catch {
             loadError = "Update failed: \(error.localizedDescription)"
+        }
+    }
+
+    // A hand-dragged pin: store the new location and drop the GPS accuracy. The
+    // reconstructor reads a located-but-accuracyless shot as user-confirmed
+    // (full confidence), so the amber "check" cue clears on reload.
+    private func moveShot(_ shot: Shot, to coord: CLLocationCoordinate2D) {
+        var updated = shot
+        updated.latitude = coord.latitude
+        updated.longitude = coord.longitude
+        updated.hadGPS = true
+        updated.gpsAccuracy = nil
+        updated.confidence = 1.0 // user-placed = ground truth (also clears Path-B's amber flag)
+        do {
+            try ShotRepository.update(updated)
+            reload()
+        } catch {
+            loadError = "Couldn't move shot: \(error.localizedDescription)"
         }
     }
 

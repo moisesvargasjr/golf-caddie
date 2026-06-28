@@ -405,6 +405,30 @@ final class RoundController {
                         club: ClubID?, timestamp: Date,
                         source: ShotSource = .watchAuto, isPutt: Bool = false) throws -> UUID {
         guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
+        let resolvedClub = club ?? currentClub
+        // B7 cross-source dedup: collapse the "detector fired AND the golfer also
+        // tapped MARK SHOT for the same swing" double-log into one row.
+        switch SameSwingDedup.decide(
+            incoming: .init(timestamp: timestamp, coordinate: coordinate, source: source, isPutt: isPutt),
+            against: currentHoleShots
+        ) {
+        case .insert:
+            break
+        case let .adoptManualClub(existingID):
+            // A deliberate tap for a swing the detector already logged: keep the
+            // auto row's fused location, take over with the manual club + source.
+            if let idx = currentHoleShots.firstIndex(where: { $0.id == existingID }) {
+                var merged = currentHoleShots[idx]
+                if let resolvedClub { merged.club = resolvedClub }
+                merged.source = source
+                merged.isPutt = isPutt
+                try? ShotRepository.update(merged)
+                currentHoleShots[idx] = merged
+            }
+            return existingID
+        case let .dropDuplicate(existingID):
+            return existingID // an auto shot duplicating a manual one — already represented
+        }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
             id: UUID(),
@@ -415,7 +439,7 @@ final class RoundController {
             longitude: coordinate?.longitude,
             gpsAccuracy: accuracy,
             hadGPS: coordinate != nil,
-            club: club ?? currentClub,
+            club: resolvedClub,
             source: source,
             notes: nil,
             isPutt: isPutt
@@ -596,15 +620,78 @@ final class RoundController {
     }
 
     func confirmHoleAndAdvance(par: Int?) throws {
-        guard case let .active(_, currentHole) = state else { return }
+        guard case let .active(round, currentHole) = state else { return }
         var updated = currentHole
         updated.par = par
         updated.confirmedAt = Date()
         try HoleRepository.update(updated)
+        reconstructHole(currentHole, in: round) // B7: green-split + confidence, persisted
         // Advance to the next hole number, wrapping 18 → 1 (so a back-9 start
         // rolls onto the front 9). goToHole finds an existing row or creates it.
         let next = (currentHole.holeNumber % Self.holesPerRound) + 1
         goToHole(next)
+    }
+
+    /// End-of-hole reconstruction (B7 Path A): classify the just-played hole's
+    /// shots into full shots vs putts (green-split) and score each for confidence,
+    /// then persist. Non-destructive — locations and clubs are untouched; only
+    /// `isPutt`/`confidence` change, so the confirmation card (B7.3) and per-club
+    /// stats get an honest split with no golfer effort. Putter strokes still
+    /// classify even when the course has no green anchor.
+    private func reconstructHole(_ hole: Hole, in round: Round) {
+        let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        guard !shots.isEmpty else { return }
+        // Phone-only holes are placed by Path B on review entry (and possibly
+        // hand-adjusted since); don't re-run the green-split over them.
+        guard !shots.contains(where: { $0.source == .reconstructed }) else { return }
+        let green = GlassesStateMapper.greenCoordinate(
+            courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        for r in Reconstructor.reconstruct(shots: shots, green: green).shots where r.applied != r.shot {
+            try? ShotRepository.update(r.applied)
+        }
+    }
+
+    /// Path-B (phone-only) placement (B6): turn the active hole's detail-less
+    /// casual strokes into located, classified shots by reading the GPS track —
+    /// full shots at off-green dwells, putts on the green. Called when the golfer
+    /// opens the review on a phone-only hole; the review sheet then shows the
+    /// reconstructed split + draggable pins to confirm/adjust. Runs once: if the
+    /// hole is already reconstructed (and maybe hand-tuned), it's left untouched.
+    func placeCurrentHoleFromTrack() {
+        guard case let .active(round, hole) = state else { return }
+        let shots = ((try? ShotRepository.shotsForHole(hole.id)) ?? [])
+            .sorted { $0.sequenceNumber < $1.sequenceNumber }
+        guard !shots.isEmpty else { return }
+        guard !shots.contains(where: { $0.source == .reconstructed }) else { return }
+
+        let green = GlassesStateMapper.greenCoordinate(
+            courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let tee = GlassesStateMapper.teeCoordinate(
+            courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let stops = (try? TrackSegmenter.stops(forHole: hole, in: round)) ?? []
+        let recon = PathBReconstructor.reconstruct(score: shots.count, stops: stops,
+                                                   tee: tee, green: green)
+
+        for (shot, placed) in zip(shots, recon.shots) {
+            var updated = shot
+            updated.latitude = placed.latitude
+            updated.longitude = placed.longitude
+            updated.hadGPS = true
+            updated.gpsAccuracy = nil
+            updated.isPutt = placed.isPutt
+            updated.source = .reconstructed
+            updated.confidence = Self.pathBConfidence(placed)
+            try? ShotRepository.update(updated)
+        }
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
+    /// Confidence for a Path-B placed pin: a fallback guess (no dwell behind it)
+    /// is flagged for the golfer to drag; a putt on the green or a dwell-placed
+    /// full shot is a reasonable guess that doesn't shout for attention.
+    private static func pathBConfidence(_ s: PathBShot) -> Double {
+        if !s.placedFromDwell { return 0.3 } // fallback drop → amber "check"
+        return s.isPutt ? 1.0 : 0.7
     }
 
     /// Switch the active hole to `number` — for flexible navigation (prev/next
