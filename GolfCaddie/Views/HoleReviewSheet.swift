@@ -42,13 +42,25 @@ struct HoleReviewSheet: View {
     // "what we tracked" card and per-row markers stay in sync as the golfer edits
     // clubs / adds shots in this same sheet.
     private var reconstruction: HoleReconstruction {
-        Reconstructor.reconstruct(shots: shots, green: greenCoordinate)
+        // Phone-only (Path B) holes carry their split/confidence already; re-running
+        // Path A's green-split would mis-classify a fallback pin dropped on the green
+        // as a putt. Trust the persisted classification for reconstructed shots;
+        // live-recompute Path A only for GPS-tracked shots.
+        if isReconstructed {
+            let rs = shots.sorted { $0.sequenceNumber < $1.sequenceNumber }
+                .map { ReconstructedShot(shot: $0, isPutt: $0.isPutt, confidence: $0.confidence ?? 1.0) }
+            return HoleReconstruction(shots: rs, enteredScore: nil)
+        }
+        return Reconstructor.reconstruct(shots: shots, green: greenCoordinate)
     }
     private var classifications: [UUID: ReconstructedShot] {
         Dictionary(uniqueKeysWithValues: reconstruction.shots.map { ($0.shot.id, $0) })
     }
     private var hasLocatedShots: Bool {
         shots.contains { $0.latitude != nil && $0.longitude != nil }
+    }
+    private var isReconstructed: Bool {
+        shots.contains { $0.source == .reconstructed }
     }
 
     var body: some View {
@@ -68,6 +80,7 @@ struct HoleReviewSheet: View {
                     if !shots.isEmpty {
                         HoleReconstructionCard(
                             reconstruction: reconstruction,
+                            mode: isReconstructed ? .reconstructed : .tracked,
                             onAdjustPins: hasLocatedShots ? { showPinMap = true } : nil
                         )
                         .padding(.horizontal, 24)
@@ -505,6 +518,7 @@ struct HoleReviewSheet: View {
         updated.longitude = coord.longitude
         updated.hadGPS = true
         updated.gpsAccuracy = nil
+        updated.confidence = 1.0 // user-placed = ground truth (also clears Path-B's amber flag)
         do {
             try ShotRepository.update(updated)
             reload()

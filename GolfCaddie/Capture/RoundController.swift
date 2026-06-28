@@ -641,11 +641,57 @@ final class RoundController {
     private func reconstructHole(_ hole: Hole, in round: Round) {
         let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
         guard !shots.isEmpty else { return }
+        // Phone-only holes are placed by Path B on review entry (and possibly
+        // hand-adjusted since); don't re-run the green-split over them.
+        guard !shots.contains(where: { $0.source == .reconstructed }) else { return }
         let green = GlassesStateMapper.greenCoordinate(
             courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
         for r in Reconstructor.reconstruct(shots: shots, green: green).shots where r.applied != r.shot {
             try? ShotRepository.update(r.applied)
         }
+    }
+
+    /// Path-B (phone-only) placement (B6): turn the active hole's detail-less
+    /// casual strokes into located, classified shots by reading the GPS track —
+    /// full shots at off-green dwells, putts on the green. Called when the golfer
+    /// opens the review on a phone-only hole; the review sheet then shows the
+    /// reconstructed split + draggable pins to confirm/adjust. Runs once: if the
+    /// hole is already reconstructed (and maybe hand-tuned), it's left untouched.
+    func placeCurrentHoleFromTrack() {
+        guard case let .active(round, hole) = state else { return }
+        let shots = ((try? ShotRepository.shotsForHole(hole.id)) ?? [])
+            .sorted { $0.sequenceNumber < $1.sequenceNumber }
+        guard !shots.isEmpty else { return }
+        guard !shots.contains(where: { $0.source == .reconstructed }) else { return }
+
+        let green = GlassesStateMapper.greenCoordinate(
+            courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let tee = GlassesStateMapper.teeCoordinate(
+            courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let stops = (try? TrackSegmenter.stops(forHole: hole, in: round)) ?? []
+        let recon = PathBReconstructor.reconstruct(score: shots.count, stops: stops,
+                                                   tee: tee, green: green)
+
+        for (shot, placed) in zip(shots, recon.shots) {
+            var updated = shot
+            updated.latitude = placed.latitude
+            updated.longitude = placed.longitude
+            updated.hadGPS = true
+            updated.gpsAccuracy = nil
+            updated.isPutt = placed.isPutt
+            updated.source = .reconstructed
+            updated.confidence = Self.pathBConfidence(placed)
+            try? ShotRepository.update(updated)
+        }
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
+    /// Confidence for a Path-B placed pin: a fallback guess (no dwell behind it)
+    /// is flagged for the golfer to drag; a putt on the green or a dwell-placed
+    /// full shot is a reasonable guess that doesn't shout for attention.
+    private static func pathBConfidence(_ s: PathBShot) -> Double {
+        if !s.placedFromDwell { return 0.3 } // fallback drop → amber "check"
+        return s.isPutt ? 1.0 : 0.7
     }
 
     /// Switch the active hole to `number` — for flexible navigation (prev/next

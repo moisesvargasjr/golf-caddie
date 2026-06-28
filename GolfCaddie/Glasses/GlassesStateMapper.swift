@@ -275,6 +275,18 @@ enum GlassesStateMapper {
         return CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng)
     }
 
+    /// The hole's tee coordinate (local capture wins over curated), or nil if no
+    /// course is linked / no tee anchor exists. Used by Path-B reconstruction to
+    /// place the tee shot.
+    static func teeCoordinate(courseId: String?, holeNumber: Int) -> CLLocationCoordinate2D? {
+        guard let courseId else { return nil }
+        let local = try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: holeNumber)
+        let curatedTee = (try? CourseDataRepository.course(byId: courseId))?
+            .holes.first { $0.number == holeNumber }?.teeAnchor
+        guard let tee = local?.tee ?? curatedTee else { return nil }
+        return CLLocationCoordinate2D(latitude: tee.lat, longitude: tee.lng)
+    }
+
     /// Yards from an arbitrary coordinate to the hole's green; nil without a green.
     static func yardsToGreen(from coordinate: CLLocationCoordinate2D, courseId: String?, holeNumber: Int) -> Int? {
         guard let green = greenCoordinate(courseId: courseId, holeNumber: holeNumber) else { return nil }

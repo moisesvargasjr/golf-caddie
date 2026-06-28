@@ -10,7 +10,13 @@ import SwiftUI
 /// `HoleReconstruction`; the host `HoleReviewSheet` owns the editable shot
 /// list and the confirm action.
 struct HoleReconstructionCard: View {
+    /// Path A (watch located each shot) vs Path B (phone-only — strokes placed
+    /// from the GPS track). Only changes the wording: A reads "tracked / the GPS
+    /// fix was loose", B reads "reconstructed / placed from a guess".
+    enum Mode { case tracked, reconstructed }
+
     let reconstruction: HoleReconstruction
+    var mode: Mode = .tracked
     /// When set, the low-confidence note becomes a button that opens the pin
     /// corrector. Nil (e.g. in previews) → the note is plain text.
     var onAdjustPins: (() -> Void)? = nil
@@ -25,7 +31,7 @@ struct HoleReconstructionCard: View {
     var body: some View {
         PaperCard(padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18)) {
             VStack(alignment: .leading, spacing: 12) {
-                Stamp(text: "What we tracked")
+                Stamp(text: mode == .tracked ? "What we tracked" : "What we reconstructed")
 
                 HStack(alignment: .lastTextBaseline, spacing: 8) {
                     Text("\(total)")
@@ -63,7 +69,9 @@ struct HoleReconstructionCard: View {
     }
 
     private var confirmLine: some View {
-        Text("Looks complete — confirm below if it's right.")
+        Text(mode == .tracked
+             ? "Looks complete — confirm below if it's right."
+             : "Placed from your track — confirm, or nudge the pins below.")
             .font(AppFont.micro)
             .tracking(0.6)
             .foregroundStyle(palette.ink3)
@@ -105,7 +113,8 @@ struct HoleReconstructionCard: View {
             .map { ($0 + 1).roman }
         let list = romans.joined(separator: ", ")
         let plural = lowConfidence.count == 1
-        return "Shot\(plural ? "" : "s") \(list): the GPS fix was loose — "
+        let reason = mode == .tracked ? "the GPS fix was loose" : "we placed \(plural ? "it" : "them") from a guess"
+        return "Shot\(plural ? "" : "s") \(list): \(reason) — "
             + "adjust the pin to fix \(plural ? "it" : "them")."
     }
 }
