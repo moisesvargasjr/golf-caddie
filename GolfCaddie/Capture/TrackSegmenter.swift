@@ -62,19 +62,27 @@ enum TrackSegmenter {
 
     // MARK: - Per-hole windowing (pure)
 
-    /// The time window of the round's track belonging to `hole`: from the latest
-    /// confirm time among *earlier* holes (you arrived here when you last
-    /// confirmed an earlier hole) up to this hole's own confirm time — or `now`
-    /// while it's still the active, unconfirmed hole. Hole 1 (no earlier hole)
-    /// starts at `roundStart`. Returns nil if the bounds are degenerate.
+    /// The time window of the round's track belonging to `hole`: from when the
+    /// golfer arrived (the previously-PLAYED hole's confirm) up to this hole's own
+    /// confirm time — or `now` while it's still the active, unconfirmed hole. The
+    /// first hole played starts at `roundStart`. Returns nil if the bounds are
+    /// degenerate.
+    ///
+    /// "Previously played" is keyed off confirm time, not hole number: the latest
+    /// confirm strictly before this hole's own confirm. That stays correct when
+    /// play order ≠ hole order — a back-nine start (18→1) or an out-of-order
+    /// confirm (H8 confirmed after H9) — which the old holeNumber-based bound got
+    /// wrong (it would borrow a later-played hole's confirm and yield an empty or
+    /// garbled window). This is the B5 segmentation fix B6 depends on.
     static func timeWindow(forHole hole: Hole, roundStart: Date, holes: [Hole],
                            now: Date) -> ClosedRange<Date>? {
+        let end = hole.confirmedAt ?? now
         let previousConfirm = holes
-            .filter { $0.holeNumber < hole.holeNumber }
+            .filter { $0.id != hole.id }
             .compactMap(\.confirmedAt)
+            .filter { $0 < end }
             .max()
         let start = previousConfirm ?? roundStart
-        let end = hole.confirmedAt ?? now
         guard end >= start else { return nil }
         return start...end
     }

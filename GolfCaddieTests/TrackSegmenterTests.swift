@@ -91,6 +91,28 @@ final class TrackSegmenterTests: XCTestCase {
         XCTAssertEqual(w2?.upperBound, now, "active hole runs to now")
     }
 
+    func testWindowUsesPlayOrderNotHoleNumber() {
+        let rid = UUID()
+        // Played H9 first (confirmed t0+100), then H8 (confirmed t0+200) — an
+        // out-of-order confirm. The old holeNumber bound mis-windowed H8 to start
+        // at the round start, swallowing H9's track.
+        let h9 = Hole(id: UUID(), roundID: rid, holeNumber: 9, par: nil,
+                      confirmedAt: t0.addingTimeInterval(100))
+        let h8 = Hole(id: UUID(), roundID: rid, holeNumber: 8, par: nil,
+                      confirmedAt: t0.addingTimeInterval(200))
+        let holes = [h8, h9]
+        let now = t0.addingTimeInterval(300)
+
+        let w9 = TrackSegmenter.timeWindow(forHole: h9, roundStart: t0, holes: holes, now: now)
+        XCTAssertEqual(w9?.lowerBound, t0, "first hole played starts at round start")
+        XCTAssertEqual(w9?.upperBound, t0.addingTimeInterval(100))
+
+        let w8 = TrackSegmenter.timeWindow(forHole: h8, roundStart: t0, holes: holes, now: now)
+        XCTAssertEqual(w8?.lowerBound, t0.addingTimeInterval(100),
+                       "H8 was played after H9, so its window starts at H9's confirm")
+        XCTAssertEqual(w8?.upperBound, t0.addingTimeInterval(200))
+    }
+
     func testWindowDegenerateBoundsReturnNil() {
         let rid = UUID()
         // confirmedAt earlier than the round start (clock weirdness) → no window.
