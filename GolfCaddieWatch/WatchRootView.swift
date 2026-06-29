@@ -248,7 +248,7 @@ private struct YardageScreen: View {
                 .font(WT.mono(9)).tracking(1.4).foregroundStyle(WT.ink2)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(yards.map(String.init) ?? "–––")
-                .font(WT.serif(38)).foregroundStyle(WT.ink)
+                .font(WT.serif(34)).foregroundStyle(WT.ink)
                 .minimumScaleFactor(0.5).lineLimit(1)
                 .shadow(color: .black.opacity(0.8), radius: 8, y: 2)
             // Front/back folded into one compact line (was a full row) so the
@@ -260,21 +260,50 @@ private struct YardageScreen: View {
                 }
                 .lineLimit(1).minimumScaleFactor(0.7)
             }
+            // Flexible gap: top-anchors the yardage block under the LISTENING
+            // meter (so it never rides up under it) and drops the club card +
+            // action row to the bottom of the page.
+            Spacer(minLength: 2)
             ClubSelector()
-            // Quick log — for putts/chips the detector doesn't catch, so they're
-            // one tap instead of pulling the phone out (field test 2026-06-18).
-            Button {
-                WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
-                WKInterfaceDevice.current().play(.success)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus.circle.fill").font(.system(size: 14))
-                    Text("MARK SHOT").font(WT.mono(12)).tracking(1.2)
+            // Bottom action row. The detector auto-logs full swings but not
+            // putts, so putts are now the dominant manual entry — PUTT is the
+            // big primary key; MARK is the smaller fallback for a missed
+            // full-swing detection. PUTT → `.puttPlusOne` (phone logs a real
+            // putt); MARK → `.addShot(nil)` (logs with the current club). Putter
+            // is no longer a scroll club — this key replaces it (field 2026-06-27).
+            HStack(spacing: 6) {
+                Button {
+                    WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
+                    WKInterfaceDevice.current().play(.success)
+                } label: {
+                    Text("MARK").font(WT.mono(11)).tracking(1.0)
+                        .frame(minHeight: 26)
                 }
-                .frame(maxWidth: .infinity, minHeight: 26)
+                .buttonStyle(.bordered).tint(WT.ink2)
+                .frame(width: 58)
+
+                Button {
+                    WatchSession.shared.send(.command(.puttPlusOne))
+                    WKInterfaceDevice.current().play(.success)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "flag.fill").font(.system(size: 12))
+                        Text("PUTT +1").font(WT.mono(14)).tracking(0.8)
+                            .lineLimit(1).minimumScaleFactor(0.75)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 26)
+                }
+                .buttonStyle(.borderedProminent).tint(WT.accent)
             }
-            .buttonStyle(.borderedProminent).tint(WT.accent)
         }
+        // The paged region overlaps the LISTENING meter row, so the top-anchored
+        // yardage block needs ~14pt clearance to sit cleanly below it. The
+        // flexible Spacer above absorbs this, keeping the action row pinned to
+        // the bottom. (The HOLE·PAR context line stays tucked under the meter —
+        // there isn't room for it plus the number, FRONT/BACK, club, and keys on
+        // 40mm; the hole/par is glanceable on the Strokes/Score pages.)
+        .padding(.top, 14)
+        .frame(maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 6)
     }
 }
@@ -292,7 +321,10 @@ private struct ClubSelector: View {
     @State private var armed = false
 
     var body: some View {
-        let clubs = session.phoneState.clubs
+        // Putter is button-driven now (the dedicated PUTT key), so it's no
+        // longer a scrollable club. ("Pt" is ClubID.putter.shortName; the watch
+        // target has no ClubID, so match the canonical string.)
+        let clubs = session.phoneState.clubs.filter { $0.short != "Pt" }
         let idx = currentIndex(clubs)
         let club = clubs.indices.contains(idx) ? clubs[idx] : nil
         let suggested = suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0)
@@ -333,7 +365,7 @@ private struct ClubSelector: View {
                     .foregroundStyle(WT.ink3)
             }
         }
-        .padding(.horizontal, 11).padding(.vertical, 5)
+        .padding(.horizontal, 11).padding(.vertical, 3)
         .background(WT.surface, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16)
             .stroke(armed ? WT.accent : WT.line, lineWidth: armed ? 2 : 1))
