@@ -283,8 +283,7 @@ private struct YardageScreen: View {
                 .frame(width: 58)
 
                 Button {
-                    WatchSession.shared.send(.command(.puttPlusOne))
-                    WKInterfaceDevice.current().play(.success)
+                    controller.sendPutt()
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "flag.fill").font(.system(size: 12))

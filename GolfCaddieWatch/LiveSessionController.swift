@@ -50,6 +50,11 @@ final class LiveSessionController: ObservableObject {
     // the higher epoch (resolves the cross-device race without clock compares).
     @Published private(set) var localClub: (short: String, epoch: Int)?
 
+    // PUTT +1 tap-bounce guard (leading-edge): swallow a second tap within this
+    // window so a fat-finger double-tap doesn't double-log a putt (field 2026-06-28).
+    private var lastPuttTapAt: Date?
+    private let puttTapDebounce: TimeInterval = 1.5
+
     #if DEBUG
     private var meta: SessionMeta?
     private var sessionDir: URL?
@@ -80,6 +85,18 @@ final class LiveSessionController: ObservableObject {
         let nextEpoch = max(WatchSession.shared.phoneState.clubEpoch, localClub?.epoch ?? 0) + 1
         localClub = (short, nextEpoch)
         WatchSession.shared.send(.command(.clubChange(shortName: short, epoch: nextEpoch)))
+    }
+
+    /// PUTT +1 key — sends one putt, debounced against double-taps. The first tap
+    /// fires immediately; a fat-finger repeat within `puttTapDebounce` is swallowed
+    /// (field data caught a putt logged twice ~1 s apart). The phone has a matching
+    /// backstop guard in `addPuttFromWatch`.
+    func sendPutt() {
+        let now = Date()
+        if let last = lastPuttTapAt, now.timeIntervalSince(last) < puttTapDebounce { return }
+        lastPuttTapAt = now
+        WatchSession.shared.send(.command(.puttPlusOne))
+        WKInterfaceDevice.current().play(.success)
     }
 
     func toggle() async {
