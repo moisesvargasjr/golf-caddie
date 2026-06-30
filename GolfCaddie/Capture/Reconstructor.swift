@@ -92,6 +92,12 @@ enum Reconstructor {
     static func isPutt(_ shot: Shot, green: CLLocationCoordinate2D?,
                        config: ReconstructionConfig) -> Bool {
         if shot.club == .putter { return true }
+        // A known non-putter club is a full shot / chip — never a putt, even when
+        // struck from inside the green radius (a wedge tapped from the fringe sits
+        // within it but isn't a putt; field data caught lob-wedge chips mis-flagged
+        // this way). Green-proximity is only a fallback when the club is unknown —
+        // the Path B case, where a track-placed shot carries no club.
+        if shot.club != nil { return false }
         guard let green, let lat = shot.latitude, let lng = shot.longitude else { return false }
         return Distance.meters(from: CLLocationCoordinate2D(latitude: lat, longitude: lng),
                                to: green) <= config.greenRadiusMeters
