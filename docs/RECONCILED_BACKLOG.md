@@ -183,11 +183,14 @@ and analyzed (`/tmp/golf-dbs/iphone/golfcaddie.sqlite` — **personal GPS, never
 - The B7 cross-source dedup (`SameSwingDedup`) held — **no auto+manual collisions** in the data.
 
 **New items surfaced — all three FIXED (branches noted):**
-- **B26 — putt double-log on tap-bounce.** Hole 5 logged the same putt twice, 1 s apart, same
-  spot — the manual-putt control had no debounce. (Distinct from B7's auto/manual dedup, which
-  held.) **Fix:** watch leading-edge debounce (`LiveSessionController.sendPutt`, 1.5 s) + phone
-  backstop (`RoundController.addPuttFromWatch` drops a putt ≤ 2.5 s after the last putt). Test:
-  `LiveMarkPathTests.testWatchPuttDoubleTapIsDroppedAsBounce`. ✅ (`watch/input-redesign`)
+- **B26 — ~~putt double-log on tap-bounce~~ → REVERTED (misdiagnosis).** Initially read hole 5's
+  two same-spot putts (1 s apart) as an accidental double-tap and added a watch+phone debounce.
+  **The golfer batch-logs putts** — sinks the hole, then taps PUTT a few times to catch up, all
+  at the hole location — so rapid same-spot putts are *real*, and the debounce dropped them
+  (under-counting). Debounce removed; every tap logs (`sendPutt` / `addPuttFromWatch` no longer
+  dedup). Safe because `SameSwingDedup` is cross-source only (never collapses manual↔manual), and
+  putt-location imprecision is harmless: putts get no yardage and the split is club-based (B28).
+  Test: `testRapidPuttTapsEachLog`. (field note 2026-06-30) ✅ (`watch/input-redesign`)
 - **B27 — glasses "⚠ NO SYNC" banner flicker.** `onPoll` flipped `disconnected` on a single
   dropped poll with no debounce (unlike the GPS-stale path), so a transient blip flashed the
   banner for one frame and shifted every HUD line below it — read in the field as the

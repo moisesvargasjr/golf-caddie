@@ -46,16 +46,17 @@ final class LiveMarkPathTests: XCTestCase {
         XCTAssertTrue(shot.isPutt)
     }
 
-    /// A fat-finger second PUTT tap moments after the first is tap-bounce, not a
-    /// second putt — the phone-side backstop drops it (field data, Oaks North,
-    /// caught a putt logged twice ~1 s apart). The watch debounces too.
+    /// Putts are commonly batch-logged a few rapid taps at a time after the fact
+    /// (sink it, then catch up) — so consecutive same-spot putt taps must each
+    /// log, with no tap-bounce dedup (field note 2026-06-30).
     @MainActor
-    func testWatchPuttDoubleTapIsDroppedAsBounce() throws {
+    func testRapidPuttTapsEachLog() throws {
         let controller = RoundController(location: LocationManager())
         try controller.startRound()
         try controller.addPuttFromWatch()
-        try controller.addPuttFromWatch() // within the window → swallowed
-        XCTAssertEqual(controller.currentHoleShots.count, 1)
-        XCTAssertTrue(try XCTUnwrap(controller.currentHoleShots.last).isPutt)
+        try controller.addPuttFromWatch()
+        try controller.addPuttFromWatch()
+        XCTAssertEqual(controller.currentHoleShots.count, 3)
+        XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.isPutt })
     }
 }

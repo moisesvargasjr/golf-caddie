@@ -460,23 +460,15 @@ final class RoundController {
                            club: currentClub, timestamp: Date(), source: .watchManual)
     }
 
-    /// How close in time two watch putts must be to count as a double-tap rather
-    /// than two real putts. Field data: a double-tap landed ~1 s apart while real
-    /// consecutive putts were ≥ 6 s apart.
-    private let puttDoubleTapWindow: TimeInterval = 2.5
-
     /// Watch putt counter (+1) — a putter shot at the live fix. Putts are not
     /// auto-detected (per the handoff doc), so this manual tap is how they land.
     /// Tagged `.watchManual` + `isPutt` so the green-split and "no full-shot
     /// distance" rules have an explicit signal beyond `club == .putter` (B3).
+    ///
+    /// No tap-bounce dedup: putts are often batch-logged a few rapid taps at a
+    /// time after the fact (sink it, then catch up), all at the hole — so rapid
+    /// same-spot putts are real, not accidental double-taps (field note 2026-06-30).
     func addPuttFromWatch() throws {
-        // Tap-bounce backstop: a putt logged moments ago is a double-tap, not a
-        // second putt (field data caught one logged twice ~1 s apart). The watch
-        // debounces too; this catches anything that slips the link.
-        if let last = currentHoleShots.last, last.isPutt,
-           Date().timeIntervalSince(last.timestamp) < puttDoubleTapWindow {
-            return
-        }
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
         try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
