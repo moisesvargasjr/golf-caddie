@@ -168,6 +168,44 @@ that confirms, sharpens, or de-risks items already here.
 - Emerald Isle was curated and used live (now in `courses.json` with `greenAnchor` only,
   **no `tee`**) — a fresh real course that confirms **B14**'s premise.
 
+## 2.6 Field test 5 — Oaks North (North nine, 2026-06-28): what the round told us
+
+Watch + glasses + phone (Apple Watch Series 6), 9 holes, linked `oaks-north-north`.
+The phone DB was pulled off-device via `xcrun devicectl … --domain-type appDataContainer`
+and analyzed (`/tmp/golf-dbs/iphone/golfcaddie.sqlite` — **personal GPS, never committed**):
+48 shots, 2 727 trace points, **0 penalties**, course linked correctly (no mis-link).
+
+**Positive signals (de-risk):**
+- **Glasses sync held the whole round** — B22 (FT4 freeze) did **not** recur. One clean run;
+  not yet proof it's gone.
+- **Watch auto-tracked every full swing** (26 `watchAuto`, zero manual marking) — Path A
+  (B1/B7) field-validated again. Putts (not auto-detected, by design) entered by hand.
+- The B7 cross-source dedup (`SameSwingDedup`) held — **no auto+manual collisions** in the data.
+
+**New items surfaced — all three FIXED (branches noted):**
+- **B26 — putt double-log on tap-bounce.** Hole 5 logged the same putt twice, 1 s apart, same
+  spot — the manual-putt control had no debounce. (Distinct from B7's auto/manual dedup, which
+  held.) **Fix:** watch leading-edge debounce (`LiveSessionController.sendPutt`, 1.5 s) + phone
+  backstop (`RoundController.addPuttFromWatch` drops a putt ≤ 2.5 s after the last putt). Test:
+  `LiveMarkPathTests.testWatchPuttDoubleTapIsDroppedAsBounce`. ✅ (`watch/input-redesign`)
+- **B27 — glasses "⚠ NO SYNC" banner flicker.** `onPoll` flipped `disconnected` on a single
+  dropped poll with no debounce (unlike the GPS-stale path), so a transient blip flashed the
+  banner for one frame and shifted every HUD line below it — read in the field as the
+  "TOTAL/PENALTY line flickering." **Fix:** `DISCONNECT_DEBOUNCE = 2` consecutive drops before
+  the cue shows (`router.ts`). ✅ (repacked `golfcaddie.ehpk`; on-G2 confirm pending)
+- **B28 — putt over-classification.** `Reconstructor.isPutt` flagged *any* non-putter shot
+  inside the green radius as a putt → 6 lob-wedge chips from the fringe mis-counted as putts.
+  **Fix:** a known non-putter is never a putt; green-proximity is only a fallback when the club
+  is unknown (the Path B case). Tests updated + `testClublessStrokeFromGreenIsPutt` added. ✅
+
+**Earlier FT5-prep feedback, now tracked items:**
+- **B24 — watch input redesign.** PUTT +1 promoted to the primary key (→ `.puttPlusOne`), MARK
+  shrunk to secondary, putter dropped from the crown scroll; yardage block top-anchored so the
+  to-green number clears the LISTENING meter. ✅ (`watch/input-redesign`)
+- **B25 — watch in-round club edit.** Change a logged shot's club mid-hole *and* on the summary,
+  without the phone. Needs a new watch→phone command (the watch can only add/delete a shot today,
+  not mutate one), a phone handler, and a `StrokeRow` affordance. 🔲 **next.**
+
 ## 3. What already exists (inventory — saves the implementer days)
 
 Verified in code 2026-06-20. The reconstruction "hero" is far from greenfield:
