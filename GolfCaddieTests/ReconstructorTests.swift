@@ -29,9 +29,19 @@ final class ReconstructorTests: XCTestCase {
                                            green: green, config: cfg))
     }
 
-    func testStrokeStruckFromGreenIsPutt() {
+    func testKnownNonPutterNearGreenIsNotPutt() {
+        // A wedge tapped from the fringe sits inside the green radius but is a
+        // chip, not a putt — trust the club (field regression, Oaks North).
         let (la, lo) = offsetNorth(10) // within 25 m
-        XCTAssertTrue(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: .sevenIron),
+        XCTAssertFalse(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: .sevenIron),
+                                            green: green, config: cfg))
+    }
+
+    func testClublessStrokeFromGreenIsPutt() {
+        // Path B carries no club on a track-placed shot; inside the green radius
+        // it's a putt by proximity (the only signal available).
+        let (la, lo) = offsetNorth(10) // within 25 m, club == nil
+        XCTAssertTrue(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5),
                                            green: green, config: cfg))
     }
 

@@ -82,6 +82,15 @@ final class LiveSessionController: ObservableObject {
         WatchSession.shared.send(.command(.clubChange(shortName: short, epoch: nextEpoch)))
     }
 
+    /// PUTT +1 key — logs one putt per tap. No debounce: putts are commonly
+    /// batch-logged a few rapid taps at a time after the fact (you sink it, then
+    /// tap to catch up), so consecutive same-spot taps are real putts, not
+    /// accidental double-taps (field note 2026-06-30).
+    func sendPutt() {
+        WatchSession.shared.send(.command(.puttPlusOne))
+        WKInterfaceDevice.current().play(.success)
+    }
+
     func toggle() async {
         if running { stop() } else { await start() }
     }

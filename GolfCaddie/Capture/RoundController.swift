@@ -464,6 +464,10 @@ final class RoundController {
     /// auto-detected (per the handoff doc), so this manual tap is how they land.
     /// Tagged `.watchManual` + `isPutt` so the green-split and "no full-shot
     /// distance" rules have an explicit signal beyond `club == .putter` (B3).
+    ///
+    /// No tap-bounce dedup: putts are often batch-logged a few rapid taps at a
+    /// time after the fact (sink it, then catch up), all at the hole — so rapid
+    /// same-spot putts are real, not accidental double-taps (field note 2026-06-30).
     func addPuttFromWatch() throws {
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
