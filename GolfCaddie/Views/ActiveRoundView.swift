@@ -96,7 +96,14 @@ struct ActiveRoundView: View {
                     controller.setCuratedCourseId(id)
                     showCoursePicker = false
                 },
-                onCancel: { showCoursePicker = false }
+                onCancel: { showCoursePicker = false },
+                onRefresh: {
+                    // B29: pull-to-refresh bypasses the hourly catalog throttle.
+                    await CourseSyncClient.shared.syncIfStale(force: true)
+                    let fresh = await CourseDataRepository.allCoursesFromAsyncContext()
+                    curatedCourses = fresh
+                    return fresh
+                }
             )
         }
     }

@@ -268,6 +268,20 @@ enum CourseDataRepository {
         }
     }
 
+    /// Async-safe wrapper for `allCourses()`. GRDB's synchronous `read` traps
+    /// (`unsafeForcedSync called from Swift Concurrent context`) when called
+    /// from a `.task`/`.refreshable` closure — see the `.onAppear` note in
+    /// ActiveRoundView. `MainActor.run` does NOT fix it (still inside a Task);
+    /// hopping through a plain GCD main-queue block exits the cooperative pool
+    /// so the sync read is legal. Soft-fails to [] like every call site does.
+    static func allCoursesFromAsyncContext() async -> [CuratedCourse] {
+        await withCheckedContinuation { cont in
+            DispatchQueue.main.async {
+                cont.resume(returning: (try? allCourses()) ?? [])
+            }
+        }
+    }
+
     /// Nearest cached course whose centroid is within `within` metres of the
     /// coordinate, or nil. Tiny dataset → in-Swift haversine is fine.
     static func nearest(

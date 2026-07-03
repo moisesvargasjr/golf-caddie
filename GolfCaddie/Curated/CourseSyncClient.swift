@@ -31,13 +31,17 @@ final class CourseSyncClient {
     private var inFlight = false
 
     /// Fire-and-forget from app launch. Never throws, never blocks.
-    func syncIfStale() async {
+    /// `force` skips the staleness throttle for a user-initiated
+    /// pull-to-refresh (B29) — publishing a same-day course shouldn't mean
+    /// waiting out the hour. The ETag conditional still applies, so a forced
+    /// refresh of an unchanged catalog is a cheap 304.
+    func syncIfStale(force: Bool = false) async {
         guard !inFlight, let url = Self.catalogURL else { return }
         inFlight = true
         defer { inFlight = false }
 
         var meta = (try? CourseDataRepository.loadSyncMeta()) ?? CuratedSyncMeta()
-        if let last = meta.lastSyncAt,
+        if !force, let last = meta.lastSyncAt,
            Date().timeIntervalSince(last) < Self.minRefreshInterval {
             return
         }
