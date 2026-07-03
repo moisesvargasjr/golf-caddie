@@ -387,7 +387,8 @@ final class RoundController {
             hadGPS: true,
             club: club,
             source: .manual,
-            notes: nil
+            notes: nil,
+            isPutt: Shot.derivedIsPutt(club: club)
         )
         try ShotRepository.insertShot(shot, at: nextSeq)
         currentHoleShots.append(shot)
@@ -406,10 +407,15 @@ final class RoundController {
                         source: ShotSource = .watchAuto, isPutt: Bool = false) throws -> UUID {
         guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
         let resolvedClub = club ?? currentClub
+        // B31: a putter club means a putt no matter what the caller's flag said
+        // (the watch "+ ADD STROKE" grid includes Pt but sends isPutt=false).
+        // Deriving before the dedup also engages its "never merge putt ↔ full"
+        // guard for putter-club taps.
+        let resolvedIsPutt = Shot.derivedIsPutt(club: resolvedClub, explicit: isPutt)
         // B7 cross-source dedup: collapse the "detector fired AND the golfer also
         // tapped MARK SHOT for the same swing" double-log into one row.
         switch SameSwingDedup.decide(
-            incoming: .init(timestamp: timestamp, coordinate: coordinate, source: source, isPutt: isPutt),
+            incoming: .init(timestamp: timestamp, coordinate: coordinate, source: source, isPutt: resolvedIsPutt),
             against: currentHoleShots
         ) {
         case .insert:
@@ -421,7 +427,7 @@ final class RoundController {
                 var merged = currentHoleShots[idx]
                 if let resolvedClub { merged.club = resolvedClub }
                 merged.source = source
-                merged.isPutt = isPutt
+                merged.isPutt = Shot.derivedIsPutt(club: merged.club, explicit: isPutt)
                 try? ShotRepository.update(merged)
                 currentHoleShots[idx] = merged
             }
@@ -442,7 +448,7 @@ final class RoundController {
             club: resolvedClub,
             source: source,
             notes: nil,
-            isPutt: isPutt
+            isPutt: resolvedIsPutt
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
@@ -847,15 +853,18 @@ final class RoundController {
     }
 
     private func markShotInternal(source: ShotSource, club: ClubID?, isPutt: Bool = false) async throws {
+        // B31: putter club ⇒ putt, whatever the caller passed — so a Mark tap
+        // with Putter as the selected club is a first-class putt.
+        let resolvedIsPutt = Shot.derivedIsPutt(club: club, explicit: isPutt)
         // The double-tap guard exists for the physical Action button / on-screen
         // double-press on a *full shot* (you don't hit two in a second). Putts are
-        // EXEMPT: they're commonly batch-logged a few rapid taps at a time after
-        // the fact (sink it, then catch up), and this guard was silently dropping
-        // them — a par-3 played to 6 got scored 3 (field: Oaks North South h1,
-        // 2026-07-02; same lesson as the reverted watch debounce B26). A deliberate
-        // single glasses gesture must not be deduped either; the glasses path
-        // doesn't go through here anyway.
-        if (source == .button || source == .actionButton) && !isPutt {
+        // EXEMPT — including Marks with the putter selected (B31): they're commonly
+        // batch-logged a few rapid taps at a time after the fact (sink it, then
+        // catch up), and this guard was silently dropping them — a par-3 played
+        // to 6 got scored 3 (field: Oaks North South h1, 2026-07-02; same lesson
+        // as the reverted watch debounce B26). A deliberate single glasses gesture
+        // must not be deduped either; the glasses path doesn't go through here anyway.
+        if (source == .button || source == .actionButton) && !resolvedIsPutt {
             if let last = lastMarkAt, Date().timeIntervalSince(last) < doubleTapThreshold {
                 return
             }
@@ -888,7 +897,7 @@ final class RoundController {
             club: club,
             source: source,
             notes: nil,
-            isPutt: isPutt
+            isPutt: resolvedIsPutt
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)

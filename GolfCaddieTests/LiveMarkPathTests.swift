@@ -75,6 +75,20 @@ final class LiveMarkPathTests: XCTestCase {
         XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.isPutt })
     }
 
+    /// B31: a Mark tap with the putter selected as current club is a putt —
+    /// derived, not passed — and therefore exempt from the double-tap guard
+    /// like every other putt (same batch-logging rationale as B30).
+    @MainActor
+    func testRapidPutterClubMarksEachLogAsPutts() async throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound()
+        controller.setCurrentClub(.putter)
+        try await controller.markShot()
+        try await controller.markShot()
+        XCTAssertEqual(controller.currentHoleShots.count, 2)
+        XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.isPutt })
+    }
+
     /// But the full-shot double-tap guard stays: two rapid Mark taps within the
     /// window collapse to one (accidental double-press protection is unchanged).
     @MainActor

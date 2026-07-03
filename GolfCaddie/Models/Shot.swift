@@ -37,3 +37,16 @@ struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
     /// "hit hard" with "we're sure where this shot is".
     var confidence: Double? = nil
 }
+
+extension Shot {
+    /// Write-time half of the B28 family rule (putter ⇒ putt, any other known
+    /// club ⇒ not a putt): every path that creates a shot or changes its club
+    /// derives `isPutt` through here, so a putter picked in the manual-add
+    /// sheet or a club edit can't leave a stale flag behind (B31). `explicit`
+    /// is the caller's flag, honored only when the club is unknown — the
+    /// green-proximity fallback for club-less shots stays reconstruction's job.
+    static func derivedIsPutt(club: ClubID?, explicit: Bool = false) -> Bool {
+        if let club { return club == .putter }
+        return explicit
+    }
+}

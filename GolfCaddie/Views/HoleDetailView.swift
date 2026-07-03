@@ -904,6 +904,9 @@ struct HoleDetailView: View {
     private func updateShotClub(_ shot: Shot, club: ClubID?) {
         var updated = shot
         updated.club = club
+        // B31: the putt flag follows the club — putter sets it, any other known
+        // club clears a stale one (B28 rule at edit time).
+        updated.isPutt = Shot.derivedIsPutt(club: club, explicit: updated.isPutt)
         do {
             try ShotRepository.update(updated)
             loadHole()
