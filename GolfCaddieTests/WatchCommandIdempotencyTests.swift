@@ -67,6 +67,19 @@ final class WatchCommandIdempotencyTests: XCTestCase {
                           "two separate user actions are distinct, not deduped")
     }
 
+    /// B33: `WatchClub.isPutter` is additive — a payload WITHOUT the key
+    /// (old phone build) must decode with nil so the watch's "Pt" fallback
+    /// engages, and a payload WITH it must round-trip.
+    func testWatchClubIsPutterIsOptionalOnTheWire() throws {
+        let legacy = Data(#"{"short":"Pt","name":"Putter","avgYards":12}"#.utf8)
+        let decoded = try JSONDecoder().decode(WatchClub.self, from: legacy)
+        XCTAssertNil(decoded.isPutter)
+
+        let flagged = WatchClub(short: "Bl", name: "Blade", avgYards: 12, isPutter: true)
+        let roundTripped = try JSONDecoder().decode(WatchClub.self, from: JSONEncoder().encode(flagged))
+        XCTAssertEqual(roundTripped.isPutter, true)
+    }
+
     func testEditStrokeClubRoundTripsThroughEncoding() throws {
         let id = UUID()
         let msg = WatchToPhoneMessage.command(.editStrokeClub(id: "abc", clubShortName: "Pt"), id: id)

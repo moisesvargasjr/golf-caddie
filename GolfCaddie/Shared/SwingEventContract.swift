@@ -112,6 +112,12 @@ struct WatchClub: Codable, Equatable, Identifiable {
     var short: String // club shortName, e.g. "7i"
     var name: String // club name, e.g. "7 Iron"
     var avgYards: Int
+    /// Kind-based putter flag (B33) so the watch selector can exclude
+    /// renamed/custom putters semantically instead of matching the literal
+    /// "Pt". Optional = additive: an old-phone payload decodes nil (the watch
+    /// falls back to the "Pt" match) and an old watch ignores the extra key —
+    /// contract stays v1.
+    var isPutter: Bool? = nil
     var id: String { short }
 }
 

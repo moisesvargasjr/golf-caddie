@@ -320,9 +320,10 @@ private struct ClubSelector: View {
 
     var body: some View {
         // Putter is button-driven now (the dedicated PUTT key), so it's no
-        // longer a scrollable club. ("Pt" is the seed putter's club shortName;
-        // the watch target has no club table, so match the canonical string.)
-        let clubs = session.phoneState.clubs.filter { $0.short != "Pt" }
+        // longer a scrollable club. Semantic isPutter flag when the phone
+        // sends it (B33 — renamed/custom putters excluded too); the literal
+        // "Pt" match is the fallback for old-phone payloads.
+        let clubs = session.phoneState.clubs.filter { !($0.isPutter ?? ($0.short == "Pt")) }
         let idx = currentIndex(clubs)
         let club = clubs.indices.contains(idx) ? clubs[idx] : nil
         let suggested = suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0)

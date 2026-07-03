@@ -61,7 +61,8 @@ final class WatchStatePublisher {
         let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
         let clubs = bag.map { c in
             WatchClub(short: c.shortName, name: c.name,
-                      avgYards: ClubAverages.shared.average(for: c.id) ?? c.defaultYards)
+                      avgYards: ClubAverages.shared.average(for: c.id) ?? c.defaultYards,
+                      isPutter: c.kind == .putter)
         }
 
         let strokes = controller.currentHoleShots.enumerated().map { idx, shot -> WatchStroke in

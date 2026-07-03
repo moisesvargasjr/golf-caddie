@@ -38,7 +38,7 @@ enum WatchPreviewDebug {
             WatchClub(short: "9i", name: "9 Iron", avgYards: 125),
             WatchClub(short: "PW", name: "P. Wedge", avgYards: 110),
             WatchClub(short: "SW", name: "Sand Wedge", avgYards: 80),
-            WatchClub(short: "Pt", name: "Putter", avgYards: 12),
+            WatchClub(short: "Pt", name: "Putter", avgYards: 12, isPutter: true),
         ],
         strokes: [
             WatchStroke(id: "1", clubShort: "Dr", clubName: "Driver", lie: "Tee", fromYards: 412, time: "2:41", manual: false),
