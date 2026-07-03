@@ -7,7 +7,7 @@ import SwiftUI
 struct InRoundScorecardSheet: View {
     let round: Round
     let currentHoleNumber: Int
-    let bag: [ClubID]
+    let bag: [Club]
     /// Curated course this round matched (nil ⇒ HoleDetailView hides anchor /
     /// yardage UI — graceful degradation, same as post-round).
     let curatedCourseId: String?

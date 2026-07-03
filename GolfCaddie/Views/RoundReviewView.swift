@@ -14,7 +14,7 @@ struct RoundReviewView: View {
     // round.curatedCourseId in place and the downstream NavigationLink picks
     // up the new value the next time the user opens the hole editor.
     @State private var round: Round
-    let bag: [ClubID]
+    let bag: [Club]
     let onResume: (() -> Void)?
     let onDismiss: (() -> Void)?
     /// Called after the round is successfully deleted. Callers should refresh
@@ -36,7 +36,7 @@ struct RoundReviewView: View {
 
     init(
         round: Round,
-        bag: [ClubID],
+        bag: [Club],
         onResume: (() -> Void)? = nil,
         onDismiss: (() -> Void)? = nil,
         onDeleted: (() -> Void)? = nil

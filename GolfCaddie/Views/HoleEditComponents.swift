@@ -27,9 +27,9 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 struct ShotReviewRow: View {
     let shot: Shot
-    let bag: [ClubID]
+    let bag: [Club]
     let distanceMeters: Double?
-    let onClubChange: (ClubID?) -> Void
+    let onClubChange: (Club?) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -39,7 +39,7 @@ struct ShotReviewRow: View {
 
             Menu {
                 ForEach(bag) { club in
-                    Button(club.longName) { onClubChange(club) }
+                    Button(club.name) { onClubChange(club) }
                 }
                 Divider()
                 Button("(no club)", role: .destructive) { onClubChange(nil) }
@@ -54,8 +54,8 @@ struct ShotReviewRow: View {
 
     @ViewBuilder
     private var clubLabel: some View {
-        if let club = shot.club {
-            Text(club.longName)
+        if let name = ClubCatalog.shared.name(id: shot.club) {
+            Text(name)
                 .foregroundStyle(.primary)
         } else {
             Text("tap to set club")
@@ -85,12 +85,12 @@ struct ShotReviewRow: View {
 }
 
 struct AddMissingShotSheet: View {
-    let bag: [ClubID]
+    let bag: [Club]
     let currentShotCount: Int
-    let onAdd: (ClubID?, Int) -> Void
+    let onAdd: (Club?, Int) -> Void
     let onCancel: () -> Void
 
-    @State private var club: ClubID?
+    @State private var club: Club?
     @State private var position: Int = 1
     @Environment(\.palette) private var palette
 
@@ -149,11 +149,11 @@ struct AddMissingShotSheet: View {
                             Menu {
                                 Button("(no club)", role: .destructive) { club = nil }
                                 ForEach(bag) { c in
-                                    Button(c.longName) { club = c }
+                                    Button(c.name) { club = c }
                                 }
                             } label: {
                                 HStack {
-                                    Text(club?.longName ?? "Tap to set club")
+                                    Text(club?.name ?? "Tap to set club")
                                         .font(AppFont.bodyLarge)
                                         .italic(club == nil)
                                         .foregroundStyle(club == nil ? palette.flag : palette.ink)

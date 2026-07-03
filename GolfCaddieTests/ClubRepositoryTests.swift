@@ -131,9 +131,9 @@ final class ClubRepositoryTests: XCTestCase {
 
     // MARK: - helpers
 
-    /// Raw insert: `Shot.club` is still `ClubID?` in this commit, so a custom
-    /// club id can't ride the model — write the row directly. UUIDs bind
-    /// natively (GRDB stores them as BLOBs; a text uuid would break the FK).
+    /// Raw insert — keeps this helper independent of the Shot model (the club
+    /// column is plain TEXT either way). UUIDs bind natively (GRDB stores them
+    /// as BLOBs; a text uuid would break the FK).
     private func seedShot(holeID: UUID, clubID: String) throws {
         try queue.write { db in
             try db.execute(

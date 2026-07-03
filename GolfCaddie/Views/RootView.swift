@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
-    @State private var bag: [ClubID] = []
+    @State private var bag: [Club] = []
     @State private var hasLoadedConfig = false
     @State private var location = LocationManager()
     @State private var controller: RoundController?
@@ -75,7 +75,7 @@ struct RootView: View {
 
     private func loadConfig() {
         do {
-            bag = try ClubConfigurationRepository.load().bag
+            bag = try ClubConfigurationRepository.loadBagClubs()
         } catch {
             print("Failed to load bag: \(error)")
         }

@@ -13,7 +13,7 @@ import SwiftUI
 /// no live controller hole to sync). Captured anchors are LOCAL only; they're
 /// exported later and merged into the curated catalog.
 struct HoleDetailView: View {
-    let bag: [ClubID]
+    let bag: [Club]
     /// Curated course this round matched, or nil → anchor capture / yardage
     /// hidden (graceful degradation).
     let curatedCourseId: String?
@@ -44,7 +44,7 @@ struct HoleDetailView: View {
 
     init(
         holes: [Hole],
-        bag: [ClubID],
+        bag: [Club],
         curatedCourseId: String? = nil,
         startIndex: Int = 0,
         onChanged: @escaping () -> Void
@@ -146,7 +146,7 @@ struct HoleDetailView: View {
         if isLast, hole?.confirmedAt != nil {
             return "HOLE"
         }
-        if shot.club == .putter {
+        if ClubCatalog.shared.isPutter(id: shot.club) {
             return "GREEN"
         }
         if let g = effectiveGreen, let lat = shot.latitude, let lng = shot.longitude {
@@ -183,9 +183,9 @@ struct HoleDetailView: View {
         var items: [LedgerItem] = []
         var i = 0
         while i < shots.count {
-            if shots[i].club == .putter {
+            if ClubCatalog.shared.isPutter(id: shots[i].club) {
                 let start = i
-                while i < shots.count && shots[i].club == .putter { i += 1 }
+                while i < shots.count && ClubCatalog.shared.isPutter(id: shots[i].club) { i += 1 }
                 items.append(.puttRun(Array(shots[start..<i]), startIndex: start))
             } else {
                 items.append(.shot(shots[i], index: i))
@@ -565,12 +565,12 @@ struct HoleDetailView: View {
 
             Menu {
                 ForEach(bag) { club in
-                    Button(club.longName) { updateShotClub(shot, club: club) }
+                    Button(club.name) { updateShotClub(shot, club: club) }
                 }
                 Divider()
                 Button("(no club)", role: .destructive) { updateShotClub(shot, club: nil) }
             } label: {
-                Text(shot.club?.longName ?? "tap to set club")
+                Text(ClubCatalog.shared.name(id: shot.club) ?? "tap to set club")
                     .font(AppFont.bodyLarge)
                     .foregroundStyle(shot.club == nil ? palette.flag : palette.ink)
                     .italic(shot.club == nil)
@@ -901,9 +901,9 @@ struct HoleDetailView: View {
         }
     }
 
-    private func updateShotClub(_ shot: Shot, club: ClubID?) {
+    private func updateShotClub(_ shot: Shot, club: Club?) {
         var updated = shot
-        updated.club = club
+        updated.club = club?.id
         // B31: the putt flag follows the club — putter sets it, any other known
         // club clears a stale one (B28 rule at edit time).
         updated.isPutt = Shot.derivedIsPutt(club: club, explicit: updated.isPutt)
@@ -926,7 +926,7 @@ struct HoleDetailView: View {
         }
     }
 
-    private func addMissingShot(club: ClubID?, position: Int) {
+    private func addMissingShot(club: Club?, position: Int) {
         guard let hole else { return }
         let shot = Shot(
             id: UUID(),
@@ -937,7 +937,7 @@ struct HoleDetailView: View {
             longitude: nil,
             gpsAccuracy: nil,
             hadGPS: false,
-            club: club,
+            club: club?.id,
             source: .manual,
             notes: nil
         )

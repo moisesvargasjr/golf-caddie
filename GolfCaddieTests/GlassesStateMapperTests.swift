@@ -54,7 +54,7 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_holeScore_isShotCountPlusPenaltyStrokes() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: 4)
-        let shot = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, club: .driver)
+        let shot = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, club: "driver")
         try TestDatabase.seedPenalty(holeID: hole.id, type: .obOrLost, strokeCount: 1)
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
@@ -73,7 +73,7 @@ final class GlassesStateMapperTests: XCTestCase {
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
-            isActive: true, round: round, hole: hole, currentClub: .sevenIron
+            isActive: true, round: round, hole: hole, currentClub: seedClub("sevenIron")
         ))
 
         XCTAssertEqual(state.currentClub, "7i")
@@ -94,7 +94,7 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_clubs_presentWhenBagSeeded_inBagOrder() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
-        try TestDatabase.seedBag([.driver, .sevenIron, .putter])
+        try TestDatabase.seedBag(["driver", "sevenIron", "putter"])
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
             isActive: true, round: round, hole: hole
@@ -108,8 +108,8 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_lastShot_isMostRecentSwungClub() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
-        let s1 = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: .driver)
-        let s2 = try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0, club: .sevenIron)
+        let s1 = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: "driver")
+        let s2 = try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0, club: "sevenIron")
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
             isActive: true, round: round, hole: hole, shots: [s1, s2]
@@ -124,7 +124,7 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_lastShot_singleShotShowsThatClub() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
-        let s1 = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: .driver)
+        let s1 = try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: "driver")
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
             isActive: true, round: round, hole: hole, shots: [s1]
@@ -285,7 +285,7 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_holes_trimsTrailingEmptyUnconfirmedHole() throws {
         let round = try TestDatabase.seedRound()
         let h1 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: 4, confirmedAt: Date())
-        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: .driver)
+        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: "driver")
         // Trailing unconfirmed hole with no shots/penalties — should be trimmed.
         _ = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2)
 
@@ -300,9 +300,9 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_holes_keepsTrailingHoleThatHasShots() throws {
         let round = try TestDatabase.seedRound()
         let h1 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: 4, confirmedAt: Date())
-        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: .driver)
+        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: "driver")
         let h2 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2)
-        try TestDatabase.seedShot(holeID: h2.id, sequence: 1, club: .driver)
+        try TestDatabase.seedShot(holeID: h2.id, sequence: 1, club: "driver")
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
             isActive: true, round: round, hole: h2
@@ -314,16 +314,16 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_scoring_aggregatesOnlyConfirmedHoles() throws {
         let round = try TestDatabase.seedRound()
         let h1 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: 4, confirmedAt: Date())
-        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: .driver)
-        try TestDatabase.seedShot(holeID: h1.id, sequence: 2, club: .putter)
+        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: "driver")
+        try TestDatabase.seedShot(holeID: h1.id, sequence: 2, club: "putter")
         let h2 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2, par: 3, confirmedAt: Date())
-        try TestDatabase.seedShot(holeID: h2.id, sequence: 1, club: .nineIron)
-        try TestDatabase.seedShot(holeID: h2.id, sequence: 2, club: .putter)
-        try TestDatabase.seedShot(holeID: h2.id, sequence: 3, club: .putter)
+        try TestDatabase.seedShot(holeID: h2.id, sequence: 1, club: "nineIron")
+        try TestDatabase.seedShot(holeID: h2.id, sequence: 2, club: "putter")
+        try TestDatabase.seedShot(holeID: h2.id, sequence: 3, club: "putter")
         // Trailing unconfirmed hole-in-progress with shots — counts as current
         // but is NOT confirmed, so it does NOT add to scoring totals.
         let h3 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 3, par: 4)
-        try TestDatabase.seedShot(holeID: h3.id, sequence: 1, club: .driver)
+        try TestDatabase.seedShot(holeID: h3.id, sequence: 1, club: "driver")
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
             isActive: true, round: round, hole: h3
@@ -338,7 +338,7 @@ final class GlassesStateMapperTests: XCTestCase {
     func test_scoring_totalParOmitted_whenNoConfirmedHoleHasPar() throws {
         let round = try TestDatabase.seedRound()
         let h1 = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: nil, confirmedAt: Date())
-        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: .driver)
+        try TestDatabase.seedShot(holeID: h1.id, sequence: 1, club: "driver")
 
         let state = GlassesStateMapper.snapshot(inputs: makeInputs(
             isActive: true, round: round, hole: h1
@@ -364,12 +364,17 @@ final class GlassesStateMapperTests: XCTestCase {
 
     // MARK: - helpers
 
+    /// A seed-catalog Club row by id (the same rows v5 seeds into the DB).
+    private func seedClub(_ id: String) -> Club {
+        Club.seedCatalog.first { $0.id == id }!
+    }
+
     private func makeInputs(
         isActive: Bool,
         round: Round? = nil,
         hole: Hole? = nil,
         shots: [Shot] = [],
-        currentClub: ClubID? = nil,
+        currentClub: Club? = nil,
         curatedCourseId: String? = nil,
         latestLocation: CLLocation? = nil,
         lastLocationReceivedAt: Date? = nil,

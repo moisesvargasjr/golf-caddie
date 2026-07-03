@@ -122,9 +122,9 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(rows.first?["id"] as String?, "driver")
         XCTAssertEqual(rows.last?["id"] as String?, "putter")
         XCTAssertEqual(rows.last?["kind"] as String?, "putter")
-        // Every seed id is a legacy ClubID rawValue — the whole point of the
-        // zero-data-migration design.
-        let legacy = Set(ClubID.allCases.map(\.rawValue))
+        // Every seed id is a pinned legacy rawValue (the strings the deleted
+        // ClubID enum used) — the whole point of the zero-data-migration design.
+        let legacy = Set(Club.seedCatalog.map(\.id))
         for row in rows {
             let id = row["id"] as String? ?? ""
             XCTAssertTrue(legacy.contains(id), "seed id '\(id)' is not a legacy rawValue")
@@ -169,7 +169,7 @@ final class MigrationTests: XCTestCase {
             try Shot.filter(Column("holeID") == holeID).fetchAll(db)
         }
         XCTAssertEqual(shots.count, 1)
-        XCTAssertEqual(shots.first?.club, .gapWedge)
+        XCTAssertEqual(shots.first?.club, "gapWedge")
 
         // The legacy bagJSON still decodes (same bytes, same shape).
         let bagJSON = try q.read { db in

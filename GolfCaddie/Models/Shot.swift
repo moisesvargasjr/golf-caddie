@@ -22,12 +22,13 @@ struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
     var longitude: Double?
     var gpsAccuracy: Double?
     var hadGPS: Bool
-    var club: ClubID?
+    /// club-table id (legacy rows carry old ClubID rawValues — same strings).
+    var club: String?
     var source: ShotSource
     var notes: String?
     /// True for a putt — taken on the green, with no full-shot carry distance.
-    /// Distinct from `club == .putter` so reconstruction's green-split and the
-    /// "no club / no distance" rule have an explicit signal (DESIGN model).
+    /// Distinct from the club being putter-kind so reconstruction's green-split
+    /// and the "no club / no distance" rule have an explicit signal (DESIGN model).
     var isPutt: Bool = false
     /// 0…1 confidence that this is a real, correctly-located stroke. `nil` =
     /// not applicable / unknown (live-logged + manual shots). End-of-hole
@@ -42,11 +43,13 @@ extension Shot {
     /// Write-time half of the B28 family rule (putter ⇒ putt, any other known
     /// club ⇒ not a putt): every path that creates a shot or changes its club
     /// derives `isPutt` through here, so a putter picked in the manual-add
-    /// sheet or a club edit can't leave a stale flag behind (B31). `explicit`
-    /// is the caller's flag, honored only when the club is unknown — the
-    /// green-proximity fallback for club-less shots stays reconstruction's job.
-    static func derivedIsPutt(club: ClubID?, explicit: Bool = false) -> Bool {
-        if let club { return club == .putter }
+    /// sheet or a club edit can't leave a stale flag behind (B31). Callers
+    /// resolve a stored club id to its `Club` row first (kind is what makes a
+    /// renamed/custom putter still count, B33). `explicit` is the caller's
+    /// flag, honored only when the club is unknown — the green-proximity
+    /// fallback for club-less shots stays reconstruction's job.
+    static func derivedIsPutt(club: Club?, explicit: Bool = false) -> Bool {
+        if let club { return club.kind == .putter }
         return explicit
     }
 }

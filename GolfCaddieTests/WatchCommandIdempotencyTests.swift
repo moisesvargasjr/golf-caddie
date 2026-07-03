@@ -109,7 +109,7 @@ final class WatchCommandIdempotencyTests: XCTestCase {
 
         coordinator.ingest(WatchToPhoneMessage.command(.addShot(clubShortName: "7i")))
         let shot = try XCTUnwrap(controller.currentHoleShots.last)
-        XCTAssertEqual(shot.club, .sevenIron)
+        XCTAssertEqual(shot.club, "sevenIron")
         XCTAssertFalse(shot.isPutt)
 
         let editID = UUID()
@@ -119,19 +119,19 @@ final class WatchCommandIdempotencyTests: XCTestCase {
         coordinator.ingest(edit) // redelivery of the same command id — no double apply
         XCTAssertEqual(controller.currentHoleShots.count, 1)
         var edited = try XCTUnwrap(controller.currentHoleShots.last)
-        XCTAssertEqual(edited.club, .putter)
+        XCTAssertEqual(edited.club, Club.putterID)
         XCTAssertTrue(edited.isPutt, "edit to putter derives isPutt (B31)")
 
         coordinator.ingest(WatchToPhoneMessage.command(
             .editStrokeClub(id: shot.id.uuidString, clubShortName: "7i")))
         edited = try XCTUnwrap(controller.currentHoleShots.last)
-        XCTAssertEqual(edited.club, .sevenIron)
+        XCTAssertEqual(edited.club, "sevenIron")
         XCTAssertFalse(edited.isPutt, "edit back to an iron clears the stale putt flag")
 
         // The DB row matches the in-memory list (the publisher reads the list,
         // the reconstructor reads the DB — they must agree).
         let persisted = try XCTUnwrap(try ShotRepository.shotsForHole(edited.holeID).first)
-        XCTAssertEqual(persisted.club, .sevenIron)
+        XCTAssertEqual(persisted.club, "sevenIron")
         XCTAssertFalse(persisted.isPutt)
     }
 }

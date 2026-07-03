@@ -14,7 +14,7 @@ final class ReconstructorTests: XCTestCase {
     let cfg = ReconstructionConfig() // explicit defaults: green 25 m, good 6 m, poor 25 m
 
     private func shot(_ seq: Int, lat: Double? = nil, lng: Double? = nil,
-                      acc: Double? = nil, club: ClubID? = nil,
+                      acc: Double? = nil, club: String? = nil,
                       source: ShotSource = .watchAuto) -> Shot {
         Shot(id: UUID(), holeID: UUID(), sequenceNumber: seq, timestamp: Date(),
              latitude: lat, longitude: lng, gpsAccuracy: acc, hadGPS: lat != nil,
@@ -25,7 +25,7 @@ final class ReconstructorTests: XCTestCase {
 
     func testPutterIsAlwaysPuttEvenFarFromGreen() {
         let (la, lo) = offsetNorth(200) // 200 m away, but it's a putter
-        XCTAssertTrue(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: .putter),
+        XCTAssertTrue(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: "putter"),
                                            green: green, config: cfg))
     }
 
@@ -33,7 +33,7 @@ final class ReconstructorTests: XCTestCase {
         // A wedge tapped from the fringe sits inside the green radius but is a
         // chip, not a putt — trust the club (field regression, Oaks North).
         let (la, lo) = offsetNorth(10) // within 25 m
-        XCTAssertFalse(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: .sevenIron),
+        XCTAssertFalse(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: "sevenIron"),
                                             green: green, config: cfg))
     }
 
@@ -47,12 +47,12 @@ final class ReconstructorTests: XCTestCase {
 
     func testStrokeOffGreenIsFullShot() {
         let (la, lo) = offsetNorth(150)
-        XCTAssertFalse(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: .sevenIron),
+        XCTAssertFalse(Reconstructor.isPutt(shot(1, lat: la, lng: lo, acc: 5, club: "sevenIron"),
                                             green: green, config: cfg))
     }
 
     func testNoGPSNonPutterStaysFullShot() {
-        XCTAssertFalse(Reconstructor.isPutt(shot(1, club: .sevenIron), green: green, config: cfg))
+        XCTAssertFalse(Reconstructor.isPutt(shot(1, club: "sevenIron"), green: green, config: cfg))
     }
 
     // MARK: - Confidence
@@ -60,7 +60,7 @@ final class ReconstructorTests: XCTestCase {
     func testConfidenceScalesWithAccuracy() {
         let (la, lo) = offsetNorth(150) // a full shot
         func conf(_ acc: Double?) -> Double {
-            let s = shot(1, lat: la, lng: lo, acc: acc, club: .sevenIron)
+            let s = shot(1, lat: la, lng: lo, acc: acc, club: "sevenIron")
             return Reconstructor.confidence(for: s, isPutt: false, config: cfg)
         }
         XCTAssertEqual(conf(6), 1.0, accuracy: 0.001)    // tight fix → full trust
@@ -69,12 +69,12 @@ final class ReconstructorTests: XCTestCase {
     }
 
     func testNoGPSFullShotIsLowConfidence() {
-        let s = shot(1, club: .sevenIron) // hadGPS == false
+        let s = shot(1, club: "sevenIron") // hadGPS == false
         XCTAssertEqual(Reconstructor.confidence(for: s, isPutt: false, config: cfg), 0.2, accuracy: 0.001)
     }
 
     func testPuttsAreAlwaysConfident() {
-        let s = shot(1, club: .putter)
+        let s = shot(1, club: "putter")
         XCTAssertEqual(Reconstructor.confidence(for: s, isPutt: true, config: cfg), 1.0, accuracy: 0.001)
     }
 
@@ -82,7 +82,7 @@ final class ReconstructorTests: XCTestCase {
         // A dragged pin keeps its coordinates but has no GPS accuracy — the user
         // is ground truth, so it must read full confidence (clears the "check" cue).
         let (la, lo) = offsetNorth(150)
-        let s = shot(1, lat: la, lng: lo, acc: nil, club: .sevenIron)
+        let s = shot(1, lat: la, lng: lo, acc: nil, club: "sevenIron")
         XCTAssertEqual(Reconstructor.confidence(for: s, isPutt: false, config: cfg), 1.0, accuracy: 0.001)
     }
 
@@ -93,11 +93,11 @@ final class ReconstructorTests: XCTestCase {
         let (fa, fo) = offsetNorth(150)
         let (ga, go) = offsetNorth(8)
         return [
-            shot(1, lat: fa, lng: fo, acc: 7, club: .sevenIron),  // tee shot (full)
-            shot(2, lat: fa, lng: fo, acc: 9, club: .pitchingWedge), // approach (full)
-            shot(3, lat: ga, lng: go, acc: 6, club: .putter),     // putt
-            shot(4, lat: ga, lng: go, acc: 6, club: .putter),     // putt
-            shot(5, lat: ga, lng: go, acc: 6, club: .putter),     // putt
+            shot(1, lat: fa, lng: fo, acc: 7, club: "sevenIron"),  // tee shot (full)
+            shot(2, lat: fa, lng: fo, acc: 9, club: "pitchingWedge"), // approach (full)
+            shot(3, lat: ga, lng: go, acc: 6, club: "putter"),     // putt
+            shot(4, lat: ga, lng: go, acc: 6, club: "putter"),     // putt
+            shot(5, lat: ga, lng: go, acc: 6, club: "putter"),     // putt
         ]
     }
 

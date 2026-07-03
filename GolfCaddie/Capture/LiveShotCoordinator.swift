@@ -101,7 +101,8 @@ final class LiveShotCoordinator {
     private func handle(_ command: WatchCommand) {
         switch command {
         case let .addShot(clubShortName):
-            if let short = clubShortName, let club = ClubID.from(shortName: short) {
+            if let short = clubShortName,
+               let club = (try? ClubRepository.from(shortName: short)) ?? nil {
                 controller?.setCurrentClub(club)
             }
             try? controller?.addShotFromWatch()
@@ -116,7 +117,7 @@ final class LiveShotCoordinator {
             if let short = clubShortName {
                 // Unknown short (mismatched builds) must NOT clear the club —
                 // drop the edit, same posture as addShot's unknown-club skip.
-                guard let club = ClubID.from(shortName: short) else { break }
+                guard let club = (try? ClubRepository.from(shortName: short)) ?? nil else { break }
                 try? controller?.updateShotClub(id: uuid, club: club)
             } else {
                 try? controller?.updateShotClub(id: uuid, club: nil)
@@ -155,7 +156,7 @@ final class LiveShotCoordinator {
                 try? controller?.ingestAutoShot(
                     at: coordinate,
                     accuracy: accuracy,
-                    club: event.club.flatMap(ClubID.from(shortName:)),
+                    club: event.club.flatMap { (try? ClubRepository.from(shortName: $0)) ?? nil },
                     timestamp: event.candidateTime
                 )
             }

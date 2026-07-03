@@ -12,7 +12,7 @@ struct GlassesStateInputs {
     var currentRound: Round?
     var currentHole: Hole?
     var currentHoleShots: [Shot]
-    var currentClub: ClubID?
+    var currentClub: Club?
     var curatedCourseId: String?
     var latestLocation: CLLocation?
     var lastLocationReceivedAt: Date?
@@ -129,17 +129,17 @@ enum GlassesStateMapper {
         return holes
     }
 
-    /// Ordered selectable clubs as ClubID.shortName strings, in the golfer's
+    /// Ordered selectable clubs as club shortName strings, in the golfer's
     /// bag order. Single source of truth: the SAME ClubConfigurationRepository
     /// bag RootView loads and feeds into the phone club picker
-    /// (RootView → ActiveRoundView club row) and the SAME
-    /// ClubID.shortName vocabulary GET's currentClub uses. Omitted (nil) when
-    /// the bag is empty so the wire shape matches the contract's "older iOS /
-    /// no clubs" case rather than emitting [].
+    /// (RootView → ActiveRoundView club row) and the SAME club shortName
+    /// vocabulary GET's currentClub uses. Omitted (nil) when the bag is empty
+    /// so the wire shape matches the contract's "older iOS / no clubs" case
+    /// rather than emitting [].
     private static func selectableClubShortNames() -> [String]? {
-        let bag = (try? ClubConfigurationRepository.load().bag) ?? []
+        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
         guard !bag.isEmpty else { return nil }
-        return bag.map { $0.shortName }
+        return bag.map(\.shortName)
     }
 
     private static func score(forHole hole: Hole) -> Int {
@@ -175,12 +175,13 @@ enum GlassesStateMapper {
         )
     }
 
+    @MainActor
     private static func holeSummary(_ hole: Hole) -> HoleSummaryDTO {
         let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
         let shotDTOs = shots.enumerated().map { idx, shot in
             ShotSummaryDTO(
                 sequenceNumber: shot.sequenceNumber,
-                club: shot.club?.shortName,
+                club: ClubCatalog.shared.shortName(id: shot.club),
                 distanceYards: yards(between: shot, and: shots[safe: idx + 1])
             )
         }
@@ -198,10 +199,11 @@ enum GlassesStateMapper {
     /// GPS gap to the following position), so pairing a distance here would
     /// describe the PRIOR club, which confused on the HUD (see LastShotDTO).
     /// `currentClub` is the upcoming selection; this is the last actual swing.
+    @MainActor
     private static func lastShotDTO(from shots: [Shot]) -> LastShotDTO? {
         guard let last = shots.last else { return nil }
         return LastShotDTO(
-            club: last.club?.shortName,
+            club: ClubCatalog.shared.shortName(id: last.club),
             sequenceNumber: last.sequenceNumber
         )
     }

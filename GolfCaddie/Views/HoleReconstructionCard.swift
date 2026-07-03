@@ -122,7 +122,7 @@ struct HoleReconstructionCard: View {
 // MARK: - Preview
 
 #Preview("States") {
-    func shot(_ seq: Int, club: ClubID?, acc: Double?, hadGPS: Bool = true) -> Shot {
+    func shot(_ seq: Int, club: String?, acc: Double?, hadGPS: Bool = true) -> Shot {
         Shot(id: UUID(), holeID: UUID(), sequenceNumber: seq, timestamp: Date(),
              latitude: 34.0, longitude: -117.0, gpsAccuracy: acc, hadGPS: hadGPS,
              club: club, source: .watchAuto, notes: nil)
@@ -138,20 +138,20 @@ struct HoleReconstructionCard: View {
         VStack(spacing: 20) {
             // Clean: 3 full + 2 putts, all tight fixes.
             HoleReconstructionCard(reconstruction: recon([
-                shot(1, club: .driver, acc: 4), shot(2, club: .sevenIron, acc: 5),
-                shot(3, club: .pitchingWedge, acc: 4), shot(4, club: .putter, acc: 6),
-                shot(5, club: .putter, acc: 6),
+                shot(1, club: "driver", acc: 4), shot(2, club: "sevenIron", acc: 5),
+                shot(3, club: "pitchingWedge", acc: 4), shot(4, club: "putter", acc: 6),
+                shot(5, club: "putter", acc: 6),
             ], green: green))
 
             // One loose fix + one no-GPS shot → two flagged.
             HoleReconstructionCard(reconstruction: recon([
-                shot(1, club: .driver, acc: 4), shot(2, club: .sevenIron, acc: 22),
-                shot(3, club: .pitchingWedge, acc: nil, hadGPS: false), shot(4, club: .putter, acc: 6),
+                shot(1, club: "driver", acc: 4), shot(2, club: "sevenIron", acc: 22),
+                shot(3, club: "pitchingWedge", acc: nil, hadGPS: false), shot(4, club: "putter", acc: 6),
             ], green: green))
 
             // Single shot, ace-ish.
             HoleReconstructionCard(reconstruction: recon([
-                shot(1, club: .sevenIron, acc: 5),
+                shot(1, club: "sevenIron", acc: 5),
             ], green: green))
         }
         .padding(24)

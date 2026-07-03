@@ -88,8 +88,18 @@ enum ClubConfigurationRepository {
                 arguments: [singletonID]
             )
             guard let json else { return .empty }
-            let bag = try JSONDecoder().decode([ClubID].self, from: Data(json.utf8))
+            let bag = try JSONDecoder().decode([String].self, from: Data(json.utf8))
             return ClubConfiguration(bag: bag)
+        }
+    }
+
+    /// The bag as resolved Club rows, in bag order; drops ids that no longer
+    /// resolve (defensive) and archived clubs.
+    static func loadBagClubs() throws -> [Club] {
+        try load().bag.compactMap { id in
+            guard let club = try ClubRepository.club(id: id), !club.isArchived
+            else { return nil }
+            return club
         }
     }
 

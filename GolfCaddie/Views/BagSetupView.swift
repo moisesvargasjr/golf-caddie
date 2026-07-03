@@ -3,23 +3,35 @@ import SwiftUI
 /// Paper-styled bag editor. First-launch flow (when the bag is empty) shows
 /// this with no Cancel button; reached from Settings later with Cancel.
 struct BagSetupView: View {
-    @State private var bag: [ClubID]
+    @State private var bag: [Club]
     @State private var saveError: String?
     @State private var isEditing = false
-    private let onSave: ([ClubID]) -> Void
+    private let onSave: ([Club]) -> Void
     private let onCancel: (() -> Void)?
 
     @Environment(\.palette) private var palette
 
-    init(initialBag: [ClubID], onCancel: (() -> Void)? = nil, onSave: @escaping ([ClubID]) -> Void) {
-        let seed = initialBag.isEmpty ? ClubConfiguration.recommendedDefault.bag : initialBag
+    init(initialBag: [Club], onCancel: (() -> Void)? = nil, onSave: @escaping ([Club]) -> Void) {
+        // First launch (empty bag): seed the recommended 13 by resolving their
+        // ids against the catalog, so any renames carry through.
+        let seed: [Club]
+        if initialBag.isEmpty {
+            let all = (try? ClubRepository.all()) ?? []
+            seed = ClubConfiguration.recommendedDefault.bag.compactMap { id in
+                all.first { $0.id == id }
+            }
+        } else {
+            seed = initialBag
+        }
         _bag = State(initialValue: seed)
         self.onCancel = onCancel
         self.onSave = onSave
     }
 
-    private var availableClubs: [ClubID] {
-        ClubID.allCases.filter { !bag.contains($0) }
+    private var availableClubs: [Club] {
+        ((try? ClubRepository.all()) ?? []).filter { c in
+            !bag.contains { $0.id == c.id }
+        }
     }
 
     var body: some View {
@@ -150,13 +162,13 @@ struct BagSetupView: View {
                             .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
                             .foregroundStyle(palette.ink2)
                             .frame(width: 36, alignment: .leading)
-                        Text(club.longName)
+                        Text(club.name)
                             .font(AppFont.bodyLarge)
                             .foregroundStyle(palette.ink)
                         Spacer()
                         if isEditing {
                             Button(role: .destructive) {
-                                bag.removeAll { $0 == club }
+                                bag.removeAll { $0.id == club.id }
                             } label: {
                                 Image(systemName: "minus.circle.fill")
                                     .foregroundStyle(palette.flag)
@@ -184,7 +196,7 @@ struct BagSetupView: View {
                             .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
                             .foregroundStyle(palette.ink2)
                             .frame(width: 36, alignment: .leading)
-                        Text(club.longName)
+                        Text(club.name)
                             .font(AppFont.bodyLarge)
                             .foregroundStyle(palette.ink)
                         Spacer()
@@ -226,7 +238,7 @@ struct BagSetupView: View {
 
     private func save() {
         do {
-            try ClubConfigurationRepository.save(ClubConfiguration(bag: bag))
+            try ClubConfigurationRepository.save(ClubConfiguration(bag: bag.map(\.id)))
             onSave(bag)
         } catch {
             saveError = "Couldn't save bag: \(error.localizedDescription)"
@@ -239,5 +251,7 @@ struct BagSetupView: View {
 }
 
 #Preview("Configured") {
-    BagSetupView(initialBag: ClubConfiguration.recommendedDefault.bag) { _ in }
+    BagSetupView(initialBag: ClubConfiguration.recommendedDefault.bag.compactMap { id in
+        Club.seedCatalog.first { $0.id == id }
+    }) { _ in }
 }

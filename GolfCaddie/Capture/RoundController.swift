@@ -28,7 +28,7 @@ final class RoundController {
     /// resume. Mutations on this property must go through
     /// `addPenaltyToCurrentHole` / `undoLastAction` so other UI stays in sync.
     private(set) var currentHolePenalties: [Penalty] = []
-    private(set) var currentClub: ClubID?
+    private(set) var currentClub: Club?
     private(set) var lastMarkResult: ShotMarkResult?
     private(set) var mostRecentlyEndedRound: Round?
 
@@ -371,7 +371,7 @@ final class RoundController {
     /// inserting at an arbitrary position is the post-round
     /// `HoleDetailView` flow (the in-round common case is "I missed the
     /// last shot," so end-insert covers it).
-    func insertMissingShot(at coord: CLLocationCoordinate2D, club: ClubID?) throws {
+    func insertMissingShot(at coord: CLLocationCoordinate2D, club: Club?) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
         }
@@ -385,7 +385,7 @@ final class RoundController {
             longitude: coord.longitude,
             gpsAccuracy: nil,
             hadGPS: true,
-            club: club,
+            club: club?.id,
             source: .manual,
             notes: nil,
             isPutt: Shot.derivedIsPutt(club: club)
@@ -403,7 +403,7 @@ final class RoundController {
     /// HUD refresh. No-op-throws outside an active hole.
     @discardableResult
     func ingestAutoShot(at coordinate: CLLocationCoordinate2D?, accuracy: Double?,
-                        club: ClubID?, timestamp: Date,
+                        club: Club?, timestamp: Date,
                         source: ShotSource = .watchAuto, isPutt: Bool = false) throws -> UUID {
         guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
         let resolvedClub = club ?? currentClub
@@ -425,9 +425,11 @@ final class RoundController {
             // auto row's fused location, take over with the manual club + source.
             if let idx = currentHoleShots.firstIndex(where: { $0.id == existingID }) {
                 var merged = currentHoleShots[idx]
-                if let resolvedClub { merged.club = resolvedClub }
+                if let resolvedClub { merged.club = resolvedClub.id }
                 merged.source = source
-                merged.isPutt = Shot.derivedIsPutt(club: merged.club, explicit: isPutt)
+                merged.isPutt = Shot.derivedIsPutt(
+                    club: resolvedClub ?? ClubCatalog.shared.club(id: merged.club),
+                    explicit: isPutt)
                 try? ShotRepository.update(merged)
                 currentHoleShots[idx] = merged
             }
@@ -445,7 +447,7 @@ final class RoundController {
             longitude: coordinate?.longitude,
             gpsAccuracy: accuracy,
             hadGPS: coordinate != nil,
-            club: resolvedClub,
+            club: resolvedClub?.id,
             source: source,
             notes: nil,
             isPutt: resolvedIsPutt
@@ -469,7 +471,7 @@ final class RoundController {
     /// Watch putt counter (+1) — a putter shot at the live fix. Putts are not
     /// auto-detected (per the handoff doc), so this manual tap is how they land.
     /// Tagged `.watchManual` + `isPutt` so the green-split and "no full-shot
-    /// distance" rules have an explicit signal beyond `club == .putter` (B3).
+    /// distance" rules have an explicit signal beyond the putter club (B3).
     ///
     /// No tap-bounce dedup: putts are often batch-logged a few rapid taps at a
     /// time after the fact (sink it, then catch up), all at the hole — so rapid
@@ -478,7 +480,16 @@ final class RoundController {
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
         try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
-                           club: .putter, timestamp: Date(), source: .watchManual, isPutt: true)
+                           club: resolvedPutter(), timestamp: Date(), source: .watchManual, isPutt: true)
+    }
+
+    /// First putter-kind club in the bag, else first active putter-kind club.
+    /// The editor guarantees ≥1 active putter; explicit isPutt:true keeps putts
+    /// correct even in the nil fallback.
+    private func resolvedPutter() -> Club? {
+        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
+        if let putter = bag.first(where: { $0.kind == .putter }) { return putter }
+        return ((try? ClubRepository.all()) ?? []).first { $0.kind == .putter }
     }
 
     /// Remove a specific shot on the active hole by id (the watch Strokes-page
@@ -497,11 +508,11 @@ final class RoundController {
     /// next tick carries the edit back to the watch. No-op if the shot isn't
     /// on the active hole. (Past-hole edits stay in HoleDetailView /
     /// HoleReviewSheet — they don't touch the live list.)
-    func updateShotClub(id: UUID, club: ClubID?) throws {
+    func updateShotClub(id: UUID, club: Club?) throws {
         guard case .active = state else { return }
         guard let idx = currentHoleShots.firstIndex(where: { $0.id == id }) else { return }
         var shot = currentHoleShots[idx]
-        shot.club = club
+        shot.club = club?.id
         shot.isPutt = Shot.derivedIsPutt(club: club, explicit: shot.isPutt)
         try ShotRepository.update(shot)
         currentHoleShots[idx] = shot
@@ -587,26 +598,27 @@ final class RoundController {
         location.startTracking()
     }
 
-    func setCurrentClub(_ club: ClubID?) {
+    func setCurrentClub(_ club: Club?) {
         currentClub = club
     }
 
-    /// Set the selected club from the glasses POST /api/club path. Parses the
-    /// short name with the SAME vocabulary as ClubID.shortName (ClubID.from)
-    /// and routes through the SAME setCurrentClub path / single-source-of-truth
-    /// `currentClub` property that the phone club picker sets
-    /// (ActiveRoundView.swift:199), that GET /api/state reports
-    /// (GlassesStateMapper currentClub), and that a glasses-logged shot is
-    /// tagged with (logShotFromGlasses → club: currentClub). It only changes
-    /// the selection: no shot logged, no score mutated, no GPS — a synchronous
-    /// stored-property write, so W1 (no 5s block) is unaffected. Idempotent:
-    /// re-selecting the current club is a no-op assignment. Requires an active
-    /// hole (parity with shot/undo); unknown short name → unknownClub.
+    /// Set the selected club from the glasses POST /api/club path. Resolves
+    /// the short name with the SAME club-table vocabulary the wire uses
+    /// (ClubRepository.from(shortName:), active clubs only) and routes through
+    /// the SAME setCurrentClub path / single-source-of-truth `currentClub`
+    /// property that the phone club picker sets (ActiveRoundView.swift:199),
+    /// that GET /api/state reports (GlassesStateMapper currentClub), and that
+    /// a glasses-logged shot is tagged with (logShotFromGlasses → club:
+    /// currentClub). It only changes the selection: no shot logged, no score
+    /// mutated, no GPS — a synchronous stored-property write plus one tiny DB
+    /// read, so W1 (no 5s block) is unaffected. Idempotent: re-selecting the
+    /// current club is a no-op assignment. Requires an active hole (parity
+    /// with shot/undo); unknown short name → unknownClub.
     func setCurrentClubFromGlasses(shortName: String) throws {
         guard case .active = state else {
             throw GlassesError.noActiveHole
         }
-        guard let club = ClubID.from(shortName: shortName) else {
+        guard let club = (try? ClubRepository.from(shortName: shortName)) ?? nil else {
             throw GlassesError.unknownClub
         }
         setCurrentClub(club)
@@ -672,7 +684,16 @@ final class RoundController {
         guard !shots.contains(where: { $0.source == .reconstructed }) else { return }
         let green = GlassesStateMapper.greenCoordinate(
             courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
-        for r in Reconstructor.reconstruct(shots: shots, green: green).shots where r.applied != r.shot {
+        // The green-split's "logged with the putter" check needs the real set
+        // of putter-kind ids (renamed/custom putters, archived included so
+        // history classifies). Soft-fail keeps the config's seed-id default.
+        var config = ReconstructionConfig.default
+        let putterIDs = ((try? ClubRepository.all(includeArchived: true)) ?? [])
+            .filter { $0.kind == .putter }
+            .map(\.id)
+        if !putterIDs.isEmpty { config.putterClubIDs = Set(putterIDs) }
+        for r in Reconstructor.reconstruct(shots: shots, green: green, config: config).shots
+            where r.applied != r.shot {
             try? ShotRepository.update(r.applied)
         }
     }
@@ -806,7 +827,7 @@ final class RoundController {
             longitude: hasFix ? loc?.coordinate.longitude : nil,
             gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
             hadGPS: hasFix,
-            club: currentClub,
+            club: currentClub?.id,
             source: .glasses,
             notes: nil
         )
@@ -848,7 +869,7 @@ final class RoundController {
     /// (double-tap guard, GPS fusion) so it's a first-class stroke. Tagged
     /// `isPutt` so the green-split / no-distance rules see it (B3).
     func markPutt() async throws {
-        try await markShotInternal(source: .button, club: .putter, isPutt: true)
+        try await markShotInternal(source: .button, club: resolvedPutter(), isPutt: true)
     }
 
     /// Flip the active round between full shot-tracking and casual GPS+score.
@@ -868,7 +889,7 @@ final class RoundController {
         try await markShotInternal(source: .actionButton, club: nil)
     }
 
-    private func markShotInternal(source: ShotSource, club: ClubID?, isPutt: Bool = false) async throws {
+    private func markShotInternal(source: ShotSource, club: Club?, isPutt: Bool = false) async throws {
         // B31: putter club ⇒ putt, whatever the caller passed — so a Mark tap
         // with Putter as the selected club is a first-class putt.
         let resolvedIsPutt = Shot.derivedIsPutt(club: club, explicit: isPutt)
@@ -910,7 +931,7 @@ final class RoundController {
             longitude: hasFix ? loc?.coordinate.longitude : nil,
             gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
             hadGPS: hasFix,
-            club: club,
+            club: club?.id,
             source: source,
             notes: nil,
             isPutt: resolvedIsPutt

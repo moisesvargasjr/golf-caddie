@@ -4,7 +4,7 @@ import SwiftUI
 struct ActiveRoundView: View {
     let controller: RoundController
     let location: LocationManager
-    @Binding var bag: [ClubID]
+    @Binding var bag: [Club]
 
     @Environment(\.palette) private var palette
     @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
@@ -391,7 +391,7 @@ struct ActiveRoundView: View {
                                 .font(.custom(AppFont.monoName, size: 10).weight(.bold))
                                 .foregroundStyle(palette.ink3)
                                 .tabularNumerals()
-                            Text(shot.club?.shortName ?? "—")
+                            Text(ClubCatalog.shared.shortName(id: shot.club) ?? "—")
                                 .font(.custom(AppFont.serifName, size: 13).italic().weight(.bold))
                                 .foregroundStyle(palette.ink)
                         }
@@ -562,11 +562,11 @@ struct ActiveRoundView: View {
                         .tracking(1.4)
                         .foregroundStyle(palette.ink3)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(controller.currentClub?.longName ?? "—")
+                        Text(controller.currentClub?.name ?? "—")
                             .font(.custom(AppFont.serifName, size: 22).italic().weight(.bold))
                             .foregroundStyle(palette.ink)
                         if let club = controller.currentClub,
-                           let avg = ClubAverages.shared.average(for: club) {
+                           let avg = ClubAverages.shared.average(for: club.id) {
                             let f = units.format(yards: avg)
                             Text("avg \(f.value) \(f.unit)")
                                 .font(.custom(AppFont.monoName, size: 12).weight(.bold))
@@ -837,9 +837,9 @@ struct ActiveRoundView: View {
         )
     }
 
-    private func clubCell(_ club: ClubID) -> some View {
+    private func clubCell(_ club: Club) -> some View {
         let isSelected = controller.currentClub == club
-        let avg = ClubAverages.shared.average(for: club)
+        let avg = ClubAverages.shared.average(for: club.id)
         return Button {
             controller.setCurrentClub(club)
         } label: {
@@ -1104,7 +1104,7 @@ struct ActiveRoundView: View {
         case (nil, nil):
             return "Removes the most recent shot or penalty."
         case let (shot?, nil):
-            let label = shot.club?.longName ?? "no club"
+            let label = ClubCatalog.shared.name(id: shot.club) ?? "no club"
             return "Removes Shot \(shot.sequenceNumber) (\(label)) from this hole."
         case let (nil, penalty?):
             return "Removes the \(penalty.type.displayName) penalty from this hole."
@@ -1112,7 +1112,7 @@ struct ActiveRoundView: View {
             if penalty.timestamp >= shot.timestamp {
                 return "Removes the \(penalty.type.displayName) penalty from this hole."
             }
-            let label = shot.club?.longName ?? "no club"
+            let label = ClubCatalog.shared.name(id: shot.club) ?? "no club"
             return "Removes Shot \(shot.sequenceNumber) (\(label)) from this hole."
         }
     }
@@ -1231,7 +1231,7 @@ struct ActiveRoundView: View {
         controller.clearMostRecentlyConfirmedHoleFromGlasses()
     }
 
-    private func insertMissingShot(at coord: CLLocationCoordinate2D, club: ClubID?) {
+    private func insertMissingShot(at coord: CLLocationCoordinate2D, club: Club?) {
         actionError = nil
         do {
             try controller.insertMissingShot(at: coord, club: club)
