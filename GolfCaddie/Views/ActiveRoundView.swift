@@ -454,13 +454,22 @@ struct ActiveRoundView: View {
 
     // MARK: - Distance card
 
+    /// Compact yardage card (B9): hero + one F · B line; everything else
+    /// (course name, change/unlink) lives behind the "···" menu so the card
+    /// stops covering the map. The unlinked "Link course" recovery stays IN
+    /// the card body — a wrong/missed auto-detect must stay one tap to fix,
+    /// not hidden in a menu.
     private var distanceCard: some View {
-        PaperCard(padding: EdgeInsets(top: 12, leading: 16, bottom: 10, trailing: 16)) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("TO PIN")
-                    .font(.custom(AppFont.monoName, size: 9).weight(.bold))
-                    .tracking(1.4)
-                    .foregroundStyle(palette.ink2)
+        PaperCard(padding: EdgeInsets(top: 10, leading: 12, bottom: 8, trailing: 10)) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text("TO PIN")
+                        .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                        .tracking(1.4)
+                        .foregroundStyle(palette.ink2)
+                    Spacer(minLength: 12)
+                    cardOverflowMenu
+                }
 
                 if let yards = distanceToGreenYards {
                     let f = units.format(yards: yards)
@@ -475,31 +484,11 @@ struct ActiveRoundView: View {
                             .foregroundStyle(palette.ink2)
                     }
 
-                    Rectangle().fill(palette.rule).frame(height: 1)
-                        .padding(.vertical, 4)
-
-                    HStack(spacing: 18) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("FRONT")
-                                .font(.custom(AppFont.monoName, size: 8).weight(.bold))
-                                .tracking(1.2)
-                                .foregroundStyle(palette.ink3)
-                            Text("\(units.format(yards: max(0, yards - 14)).value)")
-                                .font(.custom(AppFont.monoName, size: 14).weight(.bold))
-                                .foregroundStyle(palette.ink)
-                                .tabularNumerals()
-                        }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("BACK")
-                                .font(.custom(AppFont.monoName, size: 8).weight(.bold))
-                                .tracking(1.2)
-                                .foregroundStyle(palette.ink3)
-                            Text("\(units.format(yards: yards + 14).value)")
-                                .font(.custom(AppFont.monoName, size: 14).weight(.bold))
-                                .foregroundStyle(palette.ink)
-                                .tabularNumerals()
-                        }
-                    }
+                    Text("F \(units.format(yards: max(0, yards - 14)).value) · B \(units.format(yards: yards + 14).value)")
+                        .font(.custom(AppFont.monoName, size: 11).weight(.bold))
+                        .tracking(0.6)
+                        .foregroundStyle(palette.ink2)
+                        .tabularNumerals()
                 } else if controller.curatedCourseId == nil {
                     // No course linked yet — distance-to-green is gated on
                     // `curatedCourseId`, so surface the picker right where the
@@ -516,43 +505,42 @@ struct ActiveRoundView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
                 } else {
                     // Course is linked, but distance still isn't computable —
                     // green anchor is missing (no curated anchor + nothing
                     // locally captured yet) or GPS has no fix.
                     Stamp(text: "No anchor", color: palette.ink3)
-                        .padding(.top, 4)
-                }
-
-                // Always-available re-link/unlink. The picker used to appear ONLY
-                // when nothing was linked, so a wrong auto-detect (or a multi-course
-                // facility where it grabbed the wrong nine) couldn't be fixed until
-                // the round ended. Tap to change the course or remove the link
-                // (the picker's "No course" choice unlinks).
-                if let id = controller.curatedCourseId {
-                    Rectangle().fill(palette.rule).frame(height: 1).padding(.top, 6)
-                    Button {
-                        showCoursePicker = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(curatedCourses.first { $0.id == id }?.name ?? "Course linked")
-                                .font(.custom(AppFont.monoName, size: 9).weight(.bold))
-                                .tracking(0.6)
-                                .foregroundStyle(palette.ink3)
-                                .lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text("CHANGE ›")
-                                .font(.custom(AppFont.monoName, size: 9).weight(.bold))
-                                .tracking(1.0)
-                                .foregroundStyle(palette.flag)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
+                        .padding(.top, 2)
                 }
             }
         }
+    }
+
+    /// "···" on the yardage card — course re-link/unlink moved off the card
+    /// face (B9). Re-link must stay reachable MID-ROUND: a wrong auto-detect
+    /// (or the wrong nine at a multi-course facility) used to be unfixable
+    /// until the round ended.
+    private var cardOverflowMenu: some View {
+        Menu {
+            if let id = controller.curatedCourseId {
+                Section(curatedCourses.first { $0.id == id }?.name ?? "Course linked") {
+                    Button("Change course…") { showCoursePicker = true }
+                    Button("Unlink course", role: .destructive) {
+                        controller.setCuratedCourseId(nil)
+                    }
+                }
+            } else {
+                Button("Link course…") { showCoursePicker = true }
+            }
+        } label: {
+            Text("···")
+                .font(.custom(AppFont.monoName, size: 12).weight(.heavy))
+                .foregroundStyle(palette.ink2)
+                .frame(minWidth: 28, minHeight: 20, alignment: .trailing)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Bottom sheet
