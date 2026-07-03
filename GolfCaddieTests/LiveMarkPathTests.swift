@@ -42,7 +42,7 @@ final class LiveMarkPathTests: XCTestCase {
 
         let shot = try XCTUnwrap(controller.currentHoleShots.last)
         XCTAssertEqual(shot.source, .button)
-        XCTAssertEqual(shot.club, .putter)
+        XCTAssertEqual(shot.club, Club.putterID)
         XCTAssertTrue(shot.isPutt)
     }
 
@@ -82,7 +82,8 @@ final class LiveMarkPathTests: XCTestCase {
     func testRapidPutterClubMarksEachLogAsPutts() async throws {
         let controller = RoundController(location: LocationManager())
         try controller.startRound()
-        controller.setCurrentClub(.putter)
+        let putter = try XCTUnwrap(ClubRepository.club(id: Club.putterID))
+        controller.setCurrentClub(putter)
         try await controller.markShot()
         try await controller.markShot()
         XCTAssertEqual(controller.currentHoleShots.count, 2)
@@ -120,7 +121,8 @@ final class LiveMarkPathTests: XCTestCase {
     func testRapidGlassesPuttTapsEachLogAndDerivePutt() throws {
         let controller = RoundController(location: LocationManager())
         try controller.startRound()
-        controller.setCurrentClub(.putter)
+        let putter = try XCTUnwrap(ClubRepository.club(id: Club.putterID))
+        controller.setCurrentClub(putter)
         try controller.logShotFromGlasses()
         try controller.logShotFromGlasses()
         try controller.logShotFromGlasses()

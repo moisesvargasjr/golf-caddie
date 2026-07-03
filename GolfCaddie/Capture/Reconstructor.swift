@@ -13,11 +13,19 @@ struct ReconstructionConfig: Equatable {
     var goodAccuracyMeters: Double
     /// GPS accuracy (m) at/above which a located full shot is least trusted (floor).
     var poorAccuracyMeters: Double
+    /// Club-table ids whose kind is putter — the "logged with the putter" check
+    /// is an id lookup here because this layer is pure (no DB). Defaults to the
+    /// seed putter id so legacy behavior holds anywhere the set isn't injected;
+    /// reconstruction call sites populate it from the real catalog (renamed /
+    /// custom putters, B33).
+    var putterClubIDs: Set<String>
 
-    init(greenRadiusMeters: Double = 25, goodAccuracyMeters: Double = 6, poorAccuracyMeters: Double = 25) {
+    init(greenRadiusMeters: Double = 25, goodAccuracyMeters: Double = 6,
+         poorAccuracyMeters: Double = 25, putterClubIDs: Set<String> = [Club.putterID]) {
         self.greenRadiusMeters = greenRadiusMeters
         self.goodAccuracyMeters = goodAccuracyMeters
         self.poorAccuracyMeters = poorAccuracyMeters
+        self.putterClubIDs = putterClubIDs
     }
 
     static let greenRadiusKey = "reconstruct.greenRadiusMeters"
@@ -91,13 +99,13 @@ enum Reconstructor {
     /// golfer toggle it).
     static func isPutt(_ shot: Shot, green: CLLocationCoordinate2D?,
                        config: ReconstructionConfig) -> Bool {
-        if shot.club == .putter { return true }
-        // A known non-putter club is a full shot / chip — never a putt, even when
-        // struck from inside the green radius (a wedge tapped from the fringe sits
-        // within it but isn't a putt; field data caught lob-wedge chips mis-flagged
-        // this way). Green-proximity is only a fallback when the club is unknown —
+        // A known club decides outright: putter-kind id ⇒ putt; any other club
+        // is a full shot / chip — never a putt, even when struck from inside
+        // the green radius (a wedge tapped from the fringe sits within it but
+        // isn't a putt; field data caught lob-wedge chips mis-flagged this
+        // way). Green-proximity is only a fallback when the club is unknown —
         // the Path B case, where a track-placed shot carries no club.
-        if shot.club != nil { return false }
+        if let club = shot.club { return config.putterClubIDs.contains(club) }
         guard let green, let lat = shot.latitude, let lng = shot.longitude else { return false }
         return Distance.meters(from: CLLocationCoordinate2D(latitude: lat, longitude: lng),
                                to: green) <= config.greenRadiusMeters

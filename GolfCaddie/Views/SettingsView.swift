@@ -21,7 +21,7 @@ struct SettingsView: View {
     // mid-round, so you're not stuck taking the phone out every stroke.
     @AppStorage("glassesInputEnabled") private var glassesInputEnabled = false
 
-    @Binding var bag: [ClubID]
+    @Binding var bag: [Club]
 
     @State private var showBagEditor = false
     @State private var pendingExport: PendingExport?
@@ -330,5 +330,7 @@ private struct ShareActivityView: UIViewControllerRepresentable {
 }
 
 #Preview {
-    SettingsView(bag: .constant(ClubConfiguration.recommendedDefault.bag))
+    SettingsView(bag: .constant(ClubConfiguration.recommendedDefault.bag.compactMap { id in
+        Club.seedCatalog.first { $0.id == id }
+    }))
 }

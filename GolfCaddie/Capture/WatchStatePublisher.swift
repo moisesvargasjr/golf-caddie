@@ -58,10 +58,11 @@ final class WatchStatePublisher {
         }
         let clubEpoch = max(phoneEpoch, LiveShotCoordinator.shared.lastWatchClubEpoch)
 
-        let bag = (try? ClubConfigurationRepository.load().bag) ?? []
+        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
         let clubs = bag.map { c in
-            WatchClub(short: c.shortName, name: c.longName,
-                      avgYards: ClubAverages.shared.average(for: c) ?? Self.defaultYards(c))
+            WatchClub(short: c.shortName, name: c.name,
+                      avgYards: ClubAverages.shared.average(for: c.id) ?? c.defaultYards,
+                      isPutter: c.kind == .putter)
         }
 
         let strokes = controller.currentHoleShots.enumerated().map { idx, shot -> WatchStroke in
@@ -73,8 +74,8 @@ final class WatchStatePublisher {
             let lie = shot.source == .manual ? "Manual" : (idx == 0 ? "Tee" : Self.lieFor(fromYards))
             return WatchStroke(
                 id: shot.id.uuidString,
-                clubShort: shot.club?.shortName,
-                clubName: shot.club?.longName ?? "—",
+                clubShort: ClubCatalog.shared.shortName(id: shot.club),
+                clubName: ClubCatalog.shared.name(id: shot.club) ?? "—",
                 lie: lie,
                 fromYards: fromYards,
                 time: Self.timeFormatter.string(from: shot.timestamp),
@@ -120,30 +121,5 @@ final class WatchStatePublisher {
         if y < 20 { return "Green" }
         if y < 60 { return "Approach" }
         return "Fairway"
-    }
-
-    /// Fallback carry when a club has no shot history yet (matches the design's
-    /// reference yardages).
-    private static func defaultYards(_ c: ClubID) -> Int {
-        switch c {
-        case .driver: 235
-        case .threeWood: 215
-        case .fiveWood: 200
-        case .threeHybrid: 200
-        case .fourHybrid: 190
-        case .fiveHybrid: 195
-        case .threeIron: 200
-        case .fourIron: 185
-        case .fiveIron: 175
-        case .sixIron: 165
-        case .sevenIron: 150
-        case .eightIron: 138
-        case .nineIron: 125
-        case .pitchingWedge: 110
-        case .gapWedge: 95
-        case .sandWedge: 80
-        case .lobWedge: 65
-        case .putter: 12
-        }
     }
 }

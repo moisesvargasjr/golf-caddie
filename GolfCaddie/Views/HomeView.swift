@@ -6,7 +6,7 @@ import SwiftUI
 /// (tap → push Summary), the Begin-new-round CTA, and navigation to the
 /// Logbook (rounds list) and Settings.
 struct HomeView: View {
-    @Binding var bag: [ClubID]
+    @Binding var bag: [Club]
     let onStartRound: (Int) -> Void
     @State private var startingHole = 1
     let actionError: String?
@@ -417,7 +417,9 @@ private struct LastRoundSummary: Equatable {
 #Preview {
     NavigationStack {
         HomeView(
-            bag: .constant(ClubConfiguration.recommendedDefault.bag),
+            bag: .constant(ClubConfiguration.recommendedDefault.bag.compactMap { id in
+                Club.seedCatalog.first { $0.id == id }
+            }),
             onStartRound: { _ in },
             actionError: nil
         )

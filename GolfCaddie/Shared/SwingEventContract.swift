@@ -34,7 +34,7 @@ struct SwingEvent: Codable, Equatable {
     /// matches the spike's ClockAnchor precedent; lets a future field test
     /// estimate watch↔phone drift without a contract change.
     var watchUptime: Double
-    /// Currently-selected club on the watch (ClubID.shortName, e.g. "7i"); nil
+    /// Currently-selected club on the watch (club shortName, e.g. "7i"); nil
     /// if the watch has no club selected yet.
     var club: String?
     /// 0…1, detector confidence (impact strength proxy); informational.
@@ -109,9 +109,15 @@ struct WatchToPhoneMessage: Codable, Equatable {
 /// One club in the bag, with average carry — the watch club selector shows the
 /// avg yards and picks the "suggested" club nearest the distance-to-green.
 struct WatchClub: Codable, Equatable, Identifiable {
-    var short: String // ClubID.shortName, e.g. "7i"
-    var name: String // ClubID.longName, e.g. "7 Iron"
+    var short: String // club shortName, e.g. "7i"
+    var name: String // club name, e.g. "7 Iron"
     var avgYards: Int
+    /// Kind-based putter flag (B33) so the watch selector can exclude
+    /// renamed/custom putters semantically instead of matching the literal
+    /// "Pt". Optional = additive: an old-phone payload decodes nil (the watch
+    /// falls back to the "Pt" match) and an old watch ignores the extra key —
+    /// contract stays v1.
+    var isPutter: Bool? = nil
     var id: String { short }
 }
 

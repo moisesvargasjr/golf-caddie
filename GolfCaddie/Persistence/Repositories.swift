@@ -2,6 +2,81 @@ import CoreLocation
 import Foundation
 import GRDB
 
+/// The `club` table (B33) — the data-driven catalog every surface resolves
+/// clubs from. Seed rows keep legacy `ClubID` rawValues as ids.
+enum ClubRepository {
+    /// Active clubs in display order; `includeArchived` adds soft-deleted rows
+    /// (needed to render historical shots' club names).
+    static func all(includeArchived: Bool = false) throws -> [Club] {
+        try Database.shared.read { db in
+            var request = Club.order(Column("sortOrder"))
+            if !includeArchived {
+                request = request.filter(Column("isArchived") == false)
+            }
+            return try request.fetchAll(db)
+        }
+    }
+
+    static func club(id: String) throws -> Club? {
+        try Database.shared.read { db in try Club.fetchOne(db, key: id) }
+    }
+
+    /// Upsert — creation and rename/edit share this. Throws on an active
+    /// shortName collision (the partial unique index; the editor validates
+    /// first, this is the backstop).
+    static func save(_ club: Club) throws {
+        try Database.shared.write { db in try club.save(db) }
+    }
+
+    /// THE wire resolver: shortName → active club. Watch commands and glasses
+    /// POST /api/club funnel through here; archived clubs are off the wire.
+    static func from(shortName: String) throws -> Club? {
+        try Database.shared.read { db in
+            try Club
+                .filter(Column("shortName") == shortName)
+                .filter(Column("isArchived") == false)
+                .fetchOne(db)
+        }
+    }
+
+    static func isReferencedByShots(id: String) throws -> Bool {
+        try Database.shared.read { db in
+            try Row.fetchOne(db, sql: "SELECT 1 FROM shot WHERE club = ? LIMIT 1", arguments: [id]) != nil
+        }
+    }
+
+    /// Delete rule: hard-delete when no shot references the id; otherwise
+    /// archive (history keeps its names). Refuses to remove the last active
+    /// putter-kind club — the PUTT flows depend on one existing.
+    static func delete(id: String) throws {
+        try Database.shared.write { db in
+            guard let club = try Club.fetchOne(db, key: id) else { return }
+            if club.kind == .putter, !club.isArchived {
+                let otherPutters = try Club
+                    .filter(Column("kind") == ClubKind.putter.rawValue)
+                    .filter(Column("isArchived") == false)
+                    .filter(Column("id") != id)
+                    .fetchCount(db)
+                guard otherPutters > 0 else { throw ClubRepositoryError.lastPutter }
+            }
+            let referenced = try Row.fetchOne(
+                db, sql: "SELECT 1 FROM shot WHERE club = ? LIMIT 1", arguments: [id]) != nil
+            if referenced {
+                var archived = club
+                archived.isArchived = true
+                try archived.save(db)
+            } else {
+                try club.delete(db)
+            }
+        }
+    }
+}
+
+enum ClubRepositoryError: Error, Equatable {
+    /// Deleting/archiving the last active putter-kind club is refused.
+    case lastPutter
+}
+
 enum ClubConfigurationRepository {
     private static let singletonID: Int64 = 1
 
@@ -13,8 +88,18 @@ enum ClubConfigurationRepository {
                 arguments: [singletonID]
             )
             guard let json else { return .empty }
-            let bag = try JSONDecoder().decode([ClubID].self, from: Data(json.utf8))
+            let bag = try JSONDecoder().decode([String].self, from: Data(json.utf8))
             return ClubConfiguration(bag: bag)
+        }
+    }
+
+    /// The bag as resolved Club rows, in bag order; drops ids that no longer
+    /// resolve (defensive) and archived clubs.
+    static func loadBagClubs() throws -> [Club] {
+        try load().bag.compactMap { id in
+            guard let club = try ClubRepository.club(id: id), !club.isArchived
+            else { return nil }
+            return club
         }
     }
 

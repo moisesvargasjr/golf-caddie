@@ -32,9 +32,9 @@ final class ClubAveragesTests: XCTestCase {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.0, lng: 0.0, club: nil)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0.0, club: .driver)
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0.0, club: "driver")
 
-        XCTAssertNil(ClubAverages.shared.average(for: .driver))
+        XCTAssertNil(ClubAverages.shared.average(for: "driver"))
     }
 
     func test_returnsRoundedAverage_atMinSamples() throws {
@@ -43,11 +43,11 @@ final class ClubAveragesTests: XCTestCase {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0.0, club: nil)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0.0, club: .driver)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 3, lat: 0.002, lng: 0.0, club: .driver)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 4, lat: 0.003, lng: 0.0, club: .driver)
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0.0, club: "driver")
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 3, lat: 0.002, lng: 0.0, club: "driver")
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 4, lat: 0.003, lng: 0.0, club: "driver")
 
-        let avg = ClubAverages.shared.average(for: .driver)
+        let avg = ClubAverages.shared.average(for: "driver")
         XCTAssertNotNil(avg)
         // Each ~0.001° lat ≈ 111 m ≈ 121 yards. Allow ±2 yards for rounding/haversine.
         XCTAssertEqual(avg!, 121, accuracy: 2)
@@ -59,18 +59,18 @@ final class ClubAveragesTests: XCTestCase {
         let round = try TestDatabase.seedRound()
         let driverHole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         try TestDatabase.seedShot(holeID: driverHole.id, sequence: 1, lat: 0.000, lng: 0, club: nil)
-        try TestDatabase.seedShot(holeID: driverHole.id, sequence: 2, lat: 0.002, lng: 0, club: .driver)
-        try TestDatabase.seedShot(holeID: driverHole.id, sequence: 3, lat: 0.004, lng: 0, club: .driver)
-        try TestDatabase.seedShot(holeID: driverHole.id, sequence: 4, lat: 0.006, lng: 0, club: .driver)
+        try TestDatabase.seedShot(holeID: driverHole.id, sequence: 2, lat: 0.002, lng: 0, club: "driver")
+        try TestDatabase.seedShot(holeID: driverHole.id, sequence: 3, lat: 0.004, lng: 0, club: "driver")
+        try TestDatabase.seedShot(holeID: driverHole.id, sequence: 4, lat: 0.006, lng: 0, club: "driver")
 
         let ironHole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2)
         try TestDatabase.seedShot(holeID: ironHole.id, sequence: 1, lat: 0.000, lng: 0, club: nil)
-        try TestDatabase.seedShot(holeID: ironHole.id, sequence: 2, lat: 0.001, lng: 0, club: .sevenIron)
-        try TestDatabase.seedShot(holeID: ironHole.id, sequence: 3, lat: 0.002, lng: 0, club: .sevenIron)
-        try TestDatabase.seedShot(holeID: ironHole.id, sequence: 4, lat: 0.003, lng: 0, club: .sevenIron)
+        try TestDatabase.seedShot(holeID: ironHole.id, sequence: 2, lat: 0.001, lng: 0, club: "sevenIron")
+        try TestDatabase.seedShot(holeID: ironHole.id, sequence: 3, lat: 0.002, lng: 0, club: "sevenIron")
+        try TestDatabase.seedShot(holeID: ironHole.id, sequence: 4, lat: 0.003, lng: 0, club: "sevenIron")
 
-        let driver = ClubAverages.shared.average(for: .driver)
-        let iron = ClubAverages.shared.average(for: .sevenIron)
+        let driver = ClubAverages.shared.average(for: "driver")
+        let iron = ClubAverages.shared.average(for: "sevenIron")
 
         XCTAssertNotNil(driver)
         XCTAssertNotNil(iron)
@@ -84,36 +84,36 @@ final class ClubAveragesTests: XCTestCase {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: nil)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0, club: .driver)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 3, lat: nil, lng: nil, club: .driver, hadGPS: false)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 4, lat: 0.003, lng: 0, club: .driver)
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0, club: "driver")
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 3, lat: nil, lng: nil, club: "driver", hadGPS: false)
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 4, lat: 0.003, lng: 0, club: "driver")
 
         // Only 1 valid pair remains for driver (1→2). minSamples=3 → nil.
-        XCTAssertNil(ClubAverages.shared.average(for: .driver))
+        XCTAssertNil(ClubAverages.shared.average(for: "driver"))
         // With minSamples=1, the surviving pair averages out.
-        XCTAssertNotNil(ClubAverages.shared.average(for: .driver, minSamples: 1))
+        XCTAssertNotNil(ClubAverages.shared.average(for: "driver", minSamples: 1))
     }
 
     func test_invalidate_forcesRecompute() throws {
         let round = try TestDatabase.seedRound()
         let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
         try TestDatabase.seedShot(holeID: hole.id, sequence: 1, lat: 0.000, lng: 0, club: nil)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0, club: .driver)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 3, lat: 0.002, lng: 0, club: .driver)
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 4, lat: 0.003, lng: 0, club: .driver)
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 2, lat: 0.001, lng: 0, club: "driver")
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 3, lat: 0.002, lng: 0, club: "driver")
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 4, lat: 0.003, lng: 0, club: "driver")
 
-        let first = ClubAverages.shared.average(for: .driver)
+        let first = ClubAverages.shared.average(for: "driver")
         XCTAssertNotNil(first)
 
         // Mutate the seeded data: add another pair at double the distance, which
         // would shift the average upward IF the cache is bypassed.
-        try TestDatabase.seedShot(holeID: hole.id, sequence: 5, lat: 0.005, lng: 0, club: .driver)
+        try TestDatabase.seedShot(holeID: hole.id, sequence: 5, lat: 0.005, lng: 0, club: "driver")
 
         // Without invalidate, cache returns stale value.
-        XCTAssertEqual(ClubAverages.shared.average(for: .driver), first)
+        XCTAssertEqual(ClubAverages.shared.average(for: "driver"), first)
 
         ClubAverages.shared.invalidate()
-        let after = ClubAverages.shared.average(for: .driver)
+        let after = ClubAverages.shared.average(for: "driver")
         XCTAssertNotNil(after)
         XCTAssertGreaterThan(after!, first!)
     }

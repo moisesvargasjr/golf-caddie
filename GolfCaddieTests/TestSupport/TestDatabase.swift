@@ -104,7 +104,7 @@ enum TestDatabase {
         sequence: Int,
         lat: Double? = nil,
         lng: Double? = nil,
-        club: ClubID? = nil,
+        club: String? = nil,
         hadGPS: Bool = true,
         timestamp: Date = Date()
     ) throws -> Shot {
@@ -144,7 +144,7 @@ enum TestDatabase {
         return penalty
     }
 
-    static func seedBag(_ clubs: [ClubID]) throws {
+    static func seedBag(_ clubs: [String]) throws {
         try ClubConfigurationRepository.save(ClubConfiguration(bag: clubs))
     }
 

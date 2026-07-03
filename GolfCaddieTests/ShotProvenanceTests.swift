@@ -32,7 +32,7 @@ final class ShotProvenanceTests: XCTestCase {
         let shot = Shot(
             id: UUID(), holeID: hole.id, sequenceNumber: 1, timestamp: Date(),
             latitude: nil, longitude: nil, gpsAccuracy: nil, hadGPS: false,
-            club: .putter, source: .reconstructed, notes: nil,
+            club: "putter", source: .reconstructed, notes: nil,
             isPutt: true, confidence: 0.42
         )
         try ShotRepository.insert(shot)
@@ -71,7 +71,7 @@ final class ShotProvenanceTests: XCTestCase {
         try controller.addPuttFromWatch()
         let shot = try XCTUnwrap(controller.currentHoleShots.last)
         XCTAssertEqual(shot.source, .watchManual)
-        XCTAssertEqual(shot.club, .putter)
+        XCTAssertEqual(shot.club, Club.putterID)
         XCTAssertTrue(shot.isPutt)
     }
 

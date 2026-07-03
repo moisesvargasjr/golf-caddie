@@ -15,24 +15,24 @@ import SwiftUI
 /// goes where the map is looking, so they pan the MAP instead of the
 /// PIN. Fewer moving parts; no fighting with MapKit gesture priorities.
 struct MissingShotPinSheet: View {
-    let bag: [ClubID]
+    let bag: [Club]
     /// Initial map center — the active round passes either the latest
     /// live GPS fix or the last logged shot's coordinate so the user
     /// doesn't have to scroll across the country to find their hole.
     let initialCenter: CLLocationCoordinate2D
-    let onAdd: (CLLocationCoordinate2D, ClubID?) -> Void
+    let onAdd: (CLLocationCoordinate2D, Club?) -> Void
     let onCancel: () -> Void
 
     @Environment(\.palette) private var palette
 
     @State private var cameraPosition: MapCameraPosition
     @State private var currentCenter: CLLocationCoordinate2D
-    @State private var club: ClubID?
+    @State private var club: Club?
 
     init(
-        bag: [ClubID],
+        bag: [Club],
         initialCenter: CLLocationCoordinate2D,
-        onAdd: @escaping (CLLocationCoordinate2D, ClubID?) -> Void,
+        onAdd: @escaping (CLLocationCoordinate2D, Club?) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.bag = bag
@@ -168,11 +168,11 @@ struct MissingShotPinSheet: View {
             Menu {
                 Button("(no club)", role: .destructive) { club = nil }
                 ForEach(bag) { c in
-                    Button(c.longName) { club = c }
+                    Button(c.name) { club = c }
                 }
             } label: {
                 HStack {
-                    Text(club?.longName ?? "Tap to set club")
+                    Text(club?.name ?? "Tap to set club")
                         .font(AppFont.bodyLarge)
                         .italic(club == nil)
                         .foregroundStyle(club == nil ? palette.flag : palette.ink)

@@ -166,6 +166,36 @@ enum Database {
             }
         }
 
+        // Data-driven clubs (B33): the fixed ClubID enum becomes a `club`
+        // table so clubs are renameable/creatable/deletable. Seed ids equal
+        // the old enum rawValues, so existing `shot.club` values and
+        // `clubConfiguration.bagJSON` (arrays of those rawValues) keep
+        // decoding with NO data migration. Active clubs must be
+        // shortName-unique — the short name is the watch/glasses wire key —
+        // enforced by a partial index (archived clubs may collide; they're
+        // off the wire).
+        migrator.registerMigration("v5_custom_clubs") { db in
+            try db.create(table: "club") { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text).notNull()
+                t.column("shortName", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("defaultYards", .integer).notNull()
+                t.column("sortOrder", .integer).notNull()
+                t.column("isArchived", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(
+                index: "club_shortName_active_idx",
+                on: "club",
+                columns: ["shortName"],
+                options: .unique,
+                condition: Column("isArchived") == false
+            )
+            for club in Club.seedCatalog {
+                try club.insert(db)
+            }
+        }
+
         return migrator
     }
 }

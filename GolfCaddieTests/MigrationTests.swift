@@ -13,7 +13,7 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(
             Database.migrator.migrations,
             ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
-             "v4_shot_putt_confidence"]
+             "v4_shot_putt_confidence", "v5_custom_clubs"]
         )
     }
 
@@ -109,6 +109,82 @@ final class MigrationTests: XCTestCase {
         XCTAssertTrue(tables.contains("localCourseAnchor"))
         let indexes = try indexNames(q)
         XCTAssertTrue(indexes.contains("localCourseAnchor_course_idx"))
+    }
+
+    // MARK: - v5 (B33 custom clubs)
+
+    func test_v5_seedsCatalogWithLegacyIDs() throws {
+        let q = try TestDatabase.makeInMemory()
+        let rows = try q.read { db in
+            try Row.fetchAll(db, sql: "SELECT id, name, shortName, kind, isArchived FROM club ORDER BY sortOrder")
+        }
+        XCTAssertEqual(rows.count, 18)
+        XCTAssertEqual(rows.first?["id"] as String?, "driver")
+        XCTAssertEqual(rows.last?["id"] as String?, "putter")
+        XCTAssertEqual(rows.last?["kind"] as String?, "putter")
+        // Every seed id is a pinned legacy rawValue (the strings the deleted
+        // ClubID enum used) — the whole point of the zero-data-migration design.
+        let legacy = Set(Club.seedCatalog.map(\.id))
+        for row in rows {
+            let id = row["id"] as String? ?? ""
+            XCTAssertTrue(legacy.contains(id), "seed id '\(id)' is not a legacy rawValue")
+        }
+        // Active shortName uniqueness enforced by the partial index.
+        let indexes = try indexNames(q)
+        XCTAssertTrue(indexes.contains("club_shortName_active_idx"))
+    }
+
+    /// The B33 regression guard: a v4 DB with a legacy bagJSON and shot rows
+    /// carrying enum rawValues must migrate to v5 with both still readable.
+    func test_v5_upgradePreservesLegacyBagAndShots() throws {
+        let q = try TestDatabase.makeInMemory(upTo: "v4_shot_putt_confidence")
+        let holeID = UUID().uuidString
+        let roundID = UUID().uuidString
+        try q.write { db in
+            try db.execute(
+                sql: "INSERT INTO clubConfiguration (id, bagJSON) VALUES (1, ?)",
+                arguments: [#"["driver","gapWedge","putter"]"#]
+            )
+            try db.execute(
+                sql: "INSERT INTO round (id, startedAt) VALUES (?, ?)",
+                arguments: [roundID, Date()]
+            )
+            try db.execute(
+                sql: "INSERT INTO hole (id, roundID, holeNumber) VALUES (?, ?, 1)",
+                arguments: [holeID, roundID]
+            )
+            try db.execute(
+                sql: """
+                INSERT INTO shot (id, holeID, sequenceNumber, timestamp, hadGPS, club, source)
+                VALUES (?, ?, 1, ?, 0, 'gapWedge', 'manual')
+                """,
+                arguments: [UUID().uuidString, holeID, Date()]
+            )
+        }
+
+        try Database.migrator.migrate(q)
+
+        // The legacy shot row still decodes through the Shot model, club intact.
+        let shots = try q.read { db in
+            try Shot.filter(Column("holeID") == holeID).fetchAll(db)
+        }
+        XCTAssertEqual(shots.count, 1)
+        XCTAssertEqual(shots.first?.club, "gapWedge")
+
+        // The legacy bagJSON still decodes (same bytes, same shape).
+        let bagJSON = try q.read { db in
+            try String.fetchOne(db, sql: "SELECT bagJSON FROM clubConfiguration WHERE id = 1")
+        }
+        let bag = try JSONDecoder().decode([String].self, from: Data((bagJSON ?? "[]").utf8))
+        XCTAssertEqual(bag, ["driver", "gapWedge", "putter"])
+
+        // And each bag id resolves to a seeded club row.
+        for id in bag {
+            let exists = try q.read { db in
+                try Row.fetchOne(db, sql: "SELECT 1 FROM club WHERE id = ?", arguments: [id]) != nil
+            }
+            XCTAssertTrue(exists, "bag id '\(id)' has no club row after v5")
+        }
     }
 
     // MARK: - Idempotence

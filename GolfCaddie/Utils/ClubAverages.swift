@@ -6,21 +6,21 @@ import Foundation
 ///
 /// Cheap to query (returns nil when fewer than 3 samples exist for a club —
 /// the call site hides the label in that case). Recomputed on demand; cache
-/// keyed by ClubID with a single global invalidation timestamp.
+/// keyed by club-table id with a single global invalidation timestamp.
 @MainActor
 final class ClubAverages {
     static let shared = ClubAverages()
 
-    private var cache: [ClubID: Int] = [:]
+    private var cache: [String: Int] = [:]
     private var lastComputeAt: Date?
     /// How long to trust the cache. A round can move averages a little; one
     /// minute is fine for an in-play overlay (no need for live updates).
     private let ttl: TimeInterval = 60
 
-    /// Yards per club, computed from successive-shot GPS distances across all
-    /// rounds. Returns nil when fewer than `minSamples` distance samples
+    /// Yards per club id, computed from successive-shot GPS distances across
+    /// all rounds. Returns nil when fewer than `minSamples` distance samples
     /// exist for that club.
-    func average(for club: ClubID, minSamples: Int = 3) -> Int? {
+    func average(for club: String, minSamples: Int = 3) -> Int? {
         if cache.isEmpty || lastComputeAt.map({ Date().timeIntervalSince($0) > ttl }) ?? true {
             recompute(minSamples: minSamples)
         }
@@ -28,7 +28,7 @@ final class ClubAverages {
     }
 
     private func recompute(minSamples: Int) {
-        var sums: [ClubID: (sum: Double, n: Int)] = [:]
+        var sums: [String: (sum: Double, n: Int)] = [:]
         // For each round, pull its shots in sequence; for shot i with club X,
         // distance to shot i+1 (if both have GPS) attributes that distance to
         // club X (the club that hit the ball ending at shot i+1).
@@ -59,7 +59,7 @@ final class ClubAverages {
                 }
             }
         }
-        var result: [ClubID: Int] = [:]
+        var result: [String: Int] = [:]
         for (club, entry) in sums where entry.n >= minSamples {
             result[club] = Int((entry.sum / Double(entry.n)).rounded())
         }

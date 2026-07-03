@@ -24,9 +24,9 @@ final class IsPuttDerivationTests: XCTestCase {
     // MARK: - The helper itself
 
     func testDerivedIsPuttTruthTable() {
-        XCTAssertTrue(Shot.derivedIsPutt(club: .putter))
-        XCTAssertTrue(Shot.derivedIsPutt(club: .putter, explicit: false))
-        XCTAssertFalse(Shot.derivedIsPutt(club: .sevenIron, explicit: true),
+        XCTAssertTrue(Shot.derivedIsPutt(club: seedClub("putter")))
+        XCTAssertTrue(Shot.derivedIsPutt(club: seedClub("putter"), explicit: false))
+        XCTAssertFalse(Shot.derivedIsPutt(club: seedClub("sevenIron"), explicit: true),
                        "a known non-putter club clears an explicit flag (B28 rule)")
         XCTAssertTrue(Shot.derivedIsPutt(club: nil, explicit: true),
                       "unknown club keeps the caller's flag")
@@ -39,7 +39,7 @@ final class IsPuttDerivationTests: XCTestCase {
     func testInsertMissingShotWithPutterFlagsPutt() throws {
         let controller = makeActiveController()
         try controller.insertMissingShot(at: CLLocationCoordinate2D(latitude: 33.02, longitude: -117.06),
-                                         club: .putter)
+                                         club: seedClub("putter"))
         let shot = try XCTUnwrap(controller.currentHoleShots.last)
         XCTAssertEqual(shot.source, .manual)
         XCTAssertTrue(shot.isPutt)
@@ -49,7 +49,7 @@ final class IsPuttDerivationTests: XCTestCase {
     func testInsertMissingShotWithIronStaysFullShot() throws {
         let controller = makeActiveController()
         try controller.insertMissingShot(at: CLLocationCoordinate2D(latitude: 33.02, longitude: -117.06),
-                                         club: .sevenIron)
+                                         club: seedClub("sevenIron"))
         let shot = try XCTUnwrap(controller.currentHoleShots.last)
         XCTAssertFalse(shot.isPutt)
     }
@@ -59,11 +59,16 @@ final class IsPuttDerivationTests: XCTestCase {
     @MainActor
     func testWatchAddShotWithPutterClubFlagsPutt() throws {
         let controller = makeActiveController()
-        controller.setCurrentClub(.putter)
+        controller.setCurrentClub(seedClub("putter"))
         try controller.addShotFromWatch() // sends isPutt=false today — must derive
         let shot = try XCTUnwrap(controller.currentHoleShots.last)
-        XCTAssertEqual(shot.club, .putter)
+        XCTAssertEqual(shot.club, Club.putterID)
         XCTAssertTrue(shot.isPutt)
+    }
+
+    /// A seed-catalog Club row by id (same rows v5 seeds into the DB).
+    private func seedClub(_ id: String) -> Club {
+        Club.seedCatalog.first { $0.id == id }!
     }
 
     @MainActor

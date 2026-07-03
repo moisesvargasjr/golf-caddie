@@ -3,7 +3,7 @@ import SwiftUI
 /// "The Logbook." — list of past rounds. Each row shows date column + course
 /// name + score/delta. Tap a row to push the Summary for that round.
 struct RoundListView: View {
-    let bag: [ClubID]
+    let bag: [Club]
 
     @Environment(\.palette) private var palette
     @Environment(\.dismiss) private var dismiss
@@ -363,7 +363,9 @@ private struct RoundRowData: Identifiable {
 
 #Preview {
     NavigationStack {
-        RoundListView(bag: ClubConfiguration.recommendedDefault.bag)
+        RoundListView(bag: ClubConfiguration.recommendedDefault.bag.compactMap { id in
+            Club.seedCatalog.first { $0.id == id }
+        })
     }
     .themedRoot()
 }

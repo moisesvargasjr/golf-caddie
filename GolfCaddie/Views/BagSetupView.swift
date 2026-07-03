@@ -3,23 +3,44 @@ import SwiftUI
 /// Paper-styled bag editor. First-launch flow (when the bag is empty) shows
 /// this with no Cancel button; reached from Settings later with Cancel.
 struct BagSetupView: View {
-    @State private var bag: [ClubID]
+    @State private var bag: [Club]
     @State private var saveError: String?
     @State private var isEditing = false
-    private let onSave: ([ClubID]) -> Void
+    /// Tap any club row → edit it; "New club…" → create. Club edits apply
+    /// immediately; bag composition still only applies on Save (deliberate).
+    @State private var editor: ClubEditorSheet.Mode?
+    private let onSave: ([Club]) -> Void
     private let onCancel: (() -> Void)?
 
     @Environment(\.palette) private var palette
 
-    init(initialBag: [ClubID], onCancel: (() -> Void)? = nil, onSave: @escaping ([ClubID]) -> Void) {
-        let seed = initialBag.isEmpty ? ClubConfiguration.recommendedDefault.bag : initialBag
+    init(initialBag: [Club], onCancel: (() -> Void)? = nil, onSave: @escaping ([Club]) -> Void) {
+        // First launch (empty bag): seed the recommended 13 by resolving their
+        // ids against the catalog, so any renames carry through.
+        let seed: [Club]
+        if initialBag.isEmpty {
+            let all = (try? ClubRepository.all()) ?? []
+            seed = ClubConfiguration.recommendedDefault.bag.compactMap { id in
+                all.first { $0.id == id }
+            }
+        } else {
+            seed = initialBag
+        }
         _bag = State(initialValue: seed)
         self.onCancel = onCancel
         self.onSave = onSave
     }
 
-    private var availableClubs: [ClubID] {
-        ClubID.allCases.filter { !bag.contains($0) }
+    private var availableClubs: [Club] {
+        ((try? ClubRepository.all()) ?? []).filter { c in
+            !bag.contains { $0.id == c.id }
+        }
+    }
+
+    /// The PUTT keys (watch/phone) resolve against a bag putter-kind club —
+    /// the bag must always carry one.
+    private var bagHasPutter: Bool {
+        bag.contains { $0.kind == .putter }
     }
 
     var body: some View {
@@ -37,17 +58,15 @@ struct BagSetupView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        section(title: "Your bag (\(bag.count) of 14)") {
+                        section(title: "Your bag (\(bag.count) club\(bag.count == 1 ? "" : "s"))") {
                             currentBagList
                         }
 
-                        if !availableClubs.isEmpty {
-                            section(title: "Add club") {
-                                addClubList
-                            }
+                        section(title: "Add club") {
+                            addClubList
                         }
 
-                        Text("USGA rules allow up to 14 clubs.")
+                        Text(usgaFootnote)
                             .font(AppFont.micro)
                             .tracking(0.8)
                             .foregroundStyle(palette.ink3)
@@ -55,6 +74,14 @@ struct BagSetupView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 22)
                     .padding(.bottom, 40)
+                }
+
+                if !bagHasPutter {
+                    Text("Bag needs a putter — the PUTT keys depend on it")
+                        .font(AppFont.micro)
+                        .tracking(1.2)
+                        .foregroundStyle(palette.red)
+                        .padding(.horizontal, 24)
                 }
 
                 if let saveError {
@@ -71,7 +98,34 @@ struct BagSetupView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $editor) { mode in
+            ClubEditorSheet(
+                mode: mode,
+                onSaved: { saved in
+                    // A rename/kind change must reflect in the bag copy too;
+                    // availableClubs re-reads the repo on the next render.
+                    if let idx = bag.firstIndex(where: { $0.id == saved.id }) {
+                        bag[idx] = saved
+                    }
+                    editor = nil
+                },
+                onDeleted: { id in
+                    bag.removeAll { $0.id == id }
+                    editor = nil
+                },
+                onCancel: { editor = nil }
+            )
+        }
         .themedRoot()
+    }
+
+    /// Informational only — the 14-club cap is a competition rule, not an app
+    /// limit (B33 lifted the hard cap).
+    private var usgaFootnote: String {
+        if bag.count > 14 {
+            return "USGA rules allow up to 14 clubs in competition — you're carrying \(bag.count)."
+        }
+        return "USGA rules allow up to 14 clubs in competition."
     }
 
     // MARK: - Top
@@ -140,28 +194,42 @@ struct BagSetupView: View {
                     .padding(.vertical, 12)
             } else {
                 ForEach(Array(bag.enumerated()), id: \.element) { idx, club in
+                    // The bag can't lose its only putter via the − button; the
+                    // Save gate below is the backstop for editor-side changes.
+                    let isLastPutter = club.kind == .putter
+                        && bag.filter({ $0.kind == .putter }).count == 1
                     HStack(spacing: 12) {
-                        Text("\(idx + 1)")
-                            .font(.custom(AppFont.monoName, size: 11).weight(.bold))
-                            .foregroundStyle(palette.ink3)
-                            .tabularNumerals()
-                            .frame(width: 28, alignment: .leading)
-                        Text(club.shortName)
-                            .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
-                            .foregroundStyle(palette.ink2)
-                            .frame(width: 36, alignment: .leading)
-                        Text(club.longName)
-                            .font(AppFont.bodyLarge)
-                            .foregroundStyle(palette.ink)
-                        Spacer()
+                        Button {
+                            editor = .edit(club)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Text("\(idx + 1)")
+                                    .font(.custom(AppFont.monoName, size: 11).weight(.bold))
+                                    .foregroundStyle(palette.ink3)
+                                    .tabularNumerals()
+                                    .frame(width: 28, alignment: .leading)
+                                Text(club.shortName)
+                                    .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                                    .foregroundStyle(palette.ink2)
+                                    .frame(width: 36, alignment: .leading)
+                                Text(club.name)
+                                    .font(AppFont.bodyLarge)
+                                    .foregroundStyle(palette.ink)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
                         if isEditing {
                             Button(role: .destructive) {
-                                bag.removeAll { $0 == club }
+                                bag.removeAll { $0.id == club.id }
                             } label: {
                                 Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(palette.flag)
+                                    .foregroundStyle(isLastPutter ? palette.ink3 : palette.flag)
                             }
                             .buttonStyle(.plain)
+                            .disabled(isLastPutter)
                         }
                     }
                     .padding(.vertical, 10)
@@ -174,30 +242,59 @@ struct BagSetupView: View {
     private var addClubList: some View {
         VStack(spacing: 0) {
             ForEach(availableClubs, id: \.self) { club in
-                let canAdd = bag.count < 14
-                Button {
-                    guard canAdd else { return }
-                    bag.append(club)
-                } label: {
-                    HStack {
-                        Text(club.shortName)
-                            .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
-                            .foregroundStyle(palette.ink2)
-                            .frame(width: 36, alignment: .leading)
-                        Text(club.longName)
-                            .font(AppFont.bodyLarge)
-                            .foregroundStyle(palette.ink)
-                        Spacer()
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(canAdd ? palette.flag : palette.ink3)
+                HStack(spacing: 12) {
+                    Button {
+                        editor = .edit(club)
+                    } label: {
+                        HStack {
+                            Text(club.shortName)
+                                .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                                .foregroundStyle(palette.ink2)
+                                .frame(width: 36, alignment: .leading)
+                            Text(club.name)
+                                .font(AppFont.bodyLarge)
+                                .foregroundStyle(palette.ink)
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 10)
-                    .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        bag.append(club)
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(palette.flag)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(!canAdd)
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
             }
+
+            newClubRow
         }
+    }
+
+    private var newClubRow: some View {
+        Button {
+            editor = .create
+        } label: {
+            HStack {
+                Text("New club…")
+                    .font(AppFont.bodyLarge)
+                    .italic()
+                    .foregroundStyle(palette.flag)
+                Spacer()
+                Text("›")
+                    .font(AppFont.metadata)
+                    .foregroundStyle(palette.ink2)
+            }
+            .padding(.vertical, 10)
+            .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var saveButton: some View {
@@ -216,17 +313,17 @@ struct BagSetupView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(bag.isEmpty ? palette.ink3 : palette.ink)
+            .background(bag.isEmpty || !bagHasPutter ? palette.ink3 : palette.ink)
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
         }
         .buttonStyle(.plain)
-        .disabled(bag.isEmpty)
+        .disabled(bag.isEmpty || !bagHasPutter)
     }
 
     private func save() {
         do {
-            try ClubConfigurationRepository.save(ClubConfiguration(bag: bag))
+            try ClubConfigurationRepository.save(ClubConfiguration(bag: bag.map(\.id)))
             onSave(bag)
         } catch {
             saveError = "Couldn't save bag: \(error.localizedDescription)"
@@ -239,5 +336,7 @@ struct BagSetupView: View {
 }
 
 #Preview("Configured") {
-    BagSetupView(initialBag: ClubConfiguration.recommendedDefault.bag) { _ in }
+    BagSetupView(initialBag: ClubConfiguration.recommendedDefault.bag.compactMap { id in
+        Club.seedCatalog.first { $0.id == id }
+    }) { _ in }
 }

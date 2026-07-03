@@ -9,7 +9,7 @@ import SwiftUI
 /// missing shots / log penalties, then confirms and advances the hole.
 struct HoleReviewSheet: View {
     let hole: Hole
-    let bag: [ClubID]
+    let bag: [Club]
     /// When true, presented AFTER the hole was already confirmed (the
     /// glasses-advance retro-summary path added 2026-05-22). Swaps the
     /// masthead and CTA labels so it reads as "look at what just happened"
@@ -35,6 +35,11 @@ struct HoleReviewSheet: View {
     @State private var showAddShotSheet = false
     @State private var showPinMap = false
     @State private var loadError: String?
+    // Real putter-kind ids for the live green-split (renamed/custom putters,
+    // archived included so history classifies) — same injection as
+    // RoundController.reconstructHole. Loaded in reload(); the seed-id default
+    // holds until then.
+    @State private var putterClubIDs: Set<String> = [Club.putterID]
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
 
@@ -51,7 +56,9 @@ struct HoleReviewSheet: View {
                 .map { ReconstructedShot(shot: $0, isPutt: $0.isPutt, confidence: $0.confidence ?? 1.0) }
             return HoleReconstruction(shots: rs, enteredScore: nil)
         }
-        return Reconstructor.reconstruct(shots: shots, green: greenCoordinate)
+        var config = ReconstructionConfig.default
+        config.putterClubIDs = putterClubIDs
+        return Reconstructor.reconstruct(shots: shots, green: greenCoordinate, config: config)
     }
     private var classifications: [UUID: ReconstructedShot] {
         Dictionary(uniqueKeysWithValues: reconstruction.shots.map { ($0.shot.id, $0) })
@@ -285,12 +292,12 @@ struct HoleReviewSheet: View {
 
             Menu {
                 ForEach(bag) { c in
-                    Button(c.longName) { updateShotClub(shot, club: c) }
+                    Button(c.name) { updateShotClub(shot, club: c) }
                 }
                 Divider()
                 Button("(no club)", role: .destructive) { updateShotClub(shot, club: nil) }
             } label: {
-                Text(shot.club?.longName ?? "tap to set club")
+                Text(ClubCatalog.shared.name(id: shot.club) ?? "tap to set club")
                     .font(AppFont.bodyLarge)
                     .italic(shot.club == nil)
                     .foregroundStyle(shot.club == nil ? palette.flag : palette.ink)
@@ -473,6 +480,10 @@ struct HoleReviewSheet: View {
     }
 
     private func reload() {
+        let putterIDs = ((try? ClubRepository.all(includeArchived: true)) ?? [])
+            .filter { $0.kind == .putter }
+            .map(\.id)
+        if !putterIDs.isEmpty { putterClubIDs = Set(putterIDs) }
         do {
             shots = try ShotRepository.shotsForHole(hole.id)
             penalties = try PenaltyRepository.penaltiesForHole(hole.id)
@@ -498,9 +509,9 @@ struct HoleReviewSheet: View {
         }
     }
 
-    private func updateShotClub(_ shot: Shot, club: ClubID?) {
+    private func updateShotClub(_ shot: Shot, club: Club?) {
         var updated = shot
-        updated.club = club
+        updated.club = club?.id
         // B31: the putt flag follows the club — putter sets it, any other known
         // club clears a stale one (B28 rule at edit time).
         updated.isPutt = Shot.derivedIsPutt(club: club, explicit: updated.isPutt)
@@ -557,7 +568,7 @@ struct HoleReviewSheet: View {
         }
     }
 
-    private func addMissingShot(club: ClubID?, position: Int) {
+    private func addMissingShot(club: Club?, position: Int) {
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,
@@ -567,7 +578,7 @@ struct HoleReviewSheet: View {
             longitude: nil,
             gpsAccuracy: nil,
             hadGPS: false,
-            club: club,
+            club: club?.id,
             source: .manual,
             notes: nil
         )
