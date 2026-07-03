@@ -65,7 +65,7 @@ private struct ListeningBar: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 14)
+        .frame(height: WT.s(14))
         .onAppear { pulse = true }
     }
 }
@@ -121,7 +121,7 @@ private struct WatchStartScreen: View {
             Text(s.isActive ? "ROUND IN PROGRESS" : "NO ACTIVE ROUND")
                 .font(WT.mono(11)).tracking(2).foregroundStyle(WT.ink3)
             Text(s.courseName ?? "Golf Caddie")
-                .font(WT.serif(26)).foregroundStyle(WT.ink)
+                .font(WT.serif(WT.s(26))).foregroundStyle(WT.ink)
                 .lineLimit(2).minimumScaleFactor(0.6)
                 .padding(.top, 4)
             HStack(spacing: 18) {
@@ -166,7 +166,7 @@ private struct WatchStartScreen: View {
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
-            Text(value).font(WT.serif(28)).foregroundStyle(WT.ink)
+            Text(value).font(WT.serif(WT.s(28))).foregroundStyle(WT.ink)
         }
     }
 }
@@ -202,7 +202,7 @@ private struct WatchPlayView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(maxHeight: .infinity)
-                PageDots(page: page).frame(height: 10).padding(.vertical, 3)
+                PageDots(page: page).frame(height: WT.s(10)).padding(.vertical, WT.s(3))
             }
             #if DEBUG
             // Validation ground-truth MARK (M8 only) — top-right corner tap (B20).
@@ -248,7 +248,7 @@ private struct YardageScreen: View {
                 .font(WT.mono(9)).tracking(1.4).foregroundStyle(WT.ink2)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(yards.map(String.init) ?? "–––")
-                .font(WT.serif(34)).foregroundStyle(WT.ink)
+                .font(WT.serif(WT.s(34))).foregroundStyle(WT.ink)
                 .minimumScaleFactor(0.5).lineLimit(1)
                 .shadow(color: .black.opacity(0.8), radius: 8, y: 2)
             // Front/back folded into one compact line (was a full row) so the
@@ -277,10 +277,10 @@ private struct YardageScreen: View {
                     WKInterfaceDevice.current().play(.success)
                 } label: {
                     Text("MARK").font(WT.mono(11)).tracking(1.0)
-                        .frame(minHeight: 26)
+                        .frame(minHeight: WT.s(26))
                 }
                 .buttonStyle(.bordered).tint(WT.ink2)
-                .frame(width: 58)
+                .frame(width: WT.s(58))
 
                 Button {
                     controller.sendPutt()
@@ -290,18 +290,17 @@ private struct YardageScreen: View {
                         Text("PUTT +1").font(WT.mono(14)).tracking(0.8)
                             .lineLimit(1).minimumScaleFactor(0.75)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 26)
+                    .frame(maxWidth: .infinity, minHeight: WT.s(26))
                 }
                 .buttonStyle(.borderedProminent).tint(WT.accent)
             }
         }
         // The paged region overlaps the LISTENING meter row, so the top-anchored
-        // yardage block needs ~14pt clearance to sit cleanly below it. The
-        // flexible Spacer above absorbs this, keeping the action row pinned to
-        // the bottom. (The HOLE·PAR context line stays tucked under the meter —
-        // there isn't room for it plus the number, FRONT/BACK, club, and keys on
-        // 40mm; the hole/par is glanceable on the Strokes/Score pages.)
-        .padding(.top, 14)
+        // yardage block needs clearance = the meter's scaled height plus a few
+        // points of slack (the scaled value alone left the HOLE·PAR line half
+        // under the meter on 40mm). The flexible Spacer above absorbs it,
+        // keeping the action row pinned to the bottom.
+        .padding(.top, WT.s(14) + 4)
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 6)
     }
@@ -329,7 +328,7 @@ private struct ClubSelector: View {
         let suggested = suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0)
 
         HStack(spacing: 9) {
-            Text(club?.short ?? "—").font(WT.serif(28)).foregroundStyle(WT.accent)
+            Text(club?.short ?? "—").font(WT.serif(WT.s(28))).foregroundStyle(WT.accent)
             VStack(alignment: .leading, spacing: 1) {
                 Text(club?.name ?? "No clubs").font(WT.serif(15)).foregroundStyle(WT.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -600,7 +599,7 @@ private struct ScoreScreen: View {
             })
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("\(shots)").font(WT.serif(56)).foregroundStyle(WT.ink)
+                    Text("\(shots)").font(WT.serif(WT.s(56))).foregroundStyle(WT.ink)
                     Text("STROKES · HOLE \(s.holeNumber)")
                         .font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
                 }
@@ -608,7 +607,7 @@ private struct ScoreScreen: View {
                 if let rel {
                     VStack(alignment: .trailing, spacing: 0) {
                         Text(rel == 0 ? "EVEN" : rel > 0 ? "+\(rel)" : "\(rel)")
-                            .font(WT.serif(30))
+                            .font(WT.serif(WT.s(30)))
                             .foregroundStyle(rel > 0 ? WT.accent : rel < 0 ? WT.green : WT.ink2)
                         Text("TO PAR").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
                     }
@@ -637,14 +636,14 @@ private struct ScoreScreen: View {
                     WatchSession.shared.send(.command(.previousHole))
                     WKInterfaceDevice.current().play(.click)
                 } label: {
-                    Text("‹").font(WT.serif(20)).frame(width: 40, height: 40)
+                    Text("‹").font(WT.serif(20)).frame(width: WT.s(40), height: WT.s(40))
                 }
                 .buttonStyle(.bordered).tint(WT.ink2)
                 Button {
                     WatchSession.shared.send(.command(.advanceHole))
                     WKInterfaceDevice.current().play(.success)
                 } label: {
-                    Text("Next Hole ›").font(WT.serif(16)).frame(maxWidth: .infinity, minHeight: 40)
+                    Text("Next Hole ›").font(WT.serif(16)).frame(maxWidth: .infinity, minHeight: WT.s(40))
                 }
                 .buttonStyle(.borderedProminent).tint(WT.accent)
             }
@@ -689,7 +688,7 @@ private struct DetectCard: View {
                     }
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(club?.name ?? "Stroke").font(WT.serif(26)).foregroundStyle(WT.ink)
+                            Text(club?.name ?? "Stroke").font(WT.serif(WT.s(26))).foregroundStyle(WT.ink)
                                 .lineLimit(1).minimumScaleFactor(0.6)
                             Text("\(club?.short ?? "—") · from \(session.phoneState.distanceToGreenYards.map(String.init) ?? "—") yd")
                                 .font(WT.mono(11)).foregroundStyle(WT.ink2)
@@ -697,12 +696,12 @@ private struct DetectCard: View {
                         }
                         Spacer(minLength: 0)
                         ZStack {
-                            Circle().stroke(WT.ink.opacity(0.14), lineWidth: 5).frame(width: 58, height: 58)
+                            Circle().stroke(WT.ink.opacity(0.14), lineWidth: 5).frame(width: WT.s(58), height: WT.s(58))
                             Circle().trim(from: 0, to: pct)
                                 .stroke(WT.accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
-                                .frame(width: 58, height: 58)
-                            Text("\(Int(ceil(remaining)))").font(WT.serif(24)).foregroundStyle(WT.ink)
+                                .frame(width: WT.s(58), height: WT.s(58))
+                            Text("\(Int(ceil(remaining)))").font(WT.serif(WT.s(24))).foregroundStyle(WT.ink)
                         }
                     }
                     HStack(spacing: 8) {
@@ -716,7 +715,7 @@ private struct DetectCard: View {
                         .buttonStyle(.borderedProminent).tint(WT.accent)
                     }
                 }
-                .padding(14)
+                .padding(WT.s(14))
                 .background(WT.surface, in: RoundedRectangle(cornerRadius: 22))
                 .overlay(RoundedRectangle(cornerRadius: 22).stroke(WT.lineStrong, lineWidth: 1))
                 .padding(.horizontal, 6)
