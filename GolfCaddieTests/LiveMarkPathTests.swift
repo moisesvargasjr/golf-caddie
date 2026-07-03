@@ -101,4 +101,33 @@ final class LiveMarkPathTests: XCTestCase {
         XCTAssertEqual(controller.currentHoleShots.count, 1)
         XCTAssertFalse(try XCTUnwrap(controller.currentHoleShots.last).isPutt)
     }
+
+    /// B34: the G2 fires doubled tap events per physical tap, and the glasses
+    /// shot path had no double-tap guard at all — every input-mode tap logged
+    /// two shots (field 2026-07). Rapid duplicates must collapse to one.
+    @MainActor
+    func testRapidGlassesShotsDedup() throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound()
+        try controller.logShotFromGlasses()
+        try controller.logShotFromGlasses() // the doubled hardware event
+        XCTAssertEqual(controller.currentHoleShots.count, 1)
+    }
+
+    /// …but glasses putts stay exempt (batch-logged rapid taps are real —
+    /// B30), and the putt flag derives from the putter club (the B31 gap this
+    /// path had).
+    @MainActor
+    func testRapidGlassesPuttTapsEachLogAndDerivePutt() throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound()
+        let putter = try XCTUnwrap(ClubRepository.club(id: Club.putterID))
+        controller.setCurrentClub(putter)
+        try controller.logShotFromGlasses()
+        try controller.logShotFromGlasses()
+        try controller.logShotFromGlasses()
+        XCTAssertEqual(controller.currentHoleShots.count, 3)
+        XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.isPutt })
+        XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.source == .glasses })
+    }
 }

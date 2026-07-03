@@ -83,6 +83,12 @@ final class RoundController {
     @ObservationIgnored
     private var lastGlassesActionAt: Date?
 
+    /// Timestamp of the last glasses-logged SHOT, for the B34 double-tap
+    /// guard. Separate from `lastGlassesActionAt` (the undo cooldown key) so
+    /// an undo can't block the next legitimate shot.
+    @ObservationIgnored
+    private var lastGlassesShotAt: Date?
+
     @ObservationIgnored
     private let glassesUndoCooldown: TimeInterval = 3.0
 
@@ -803,7 +809,7 @@ final class RoundController {
     /// during an active round continuous best-accuracy tracking is already
     /// running, so latestLocation is fresh enough. Keeps POST /api/shot under
     /// the glasses' ~5s client timeout, preventing the slow-success +
-    /// user-retry double-log. No double-tap guard (deliberate single gesture).
+    /// user-retry double-log.
     ///
     /// The shot is tagged with the round's currently-selected `currentClub`
     /// (the same source `GET /api/state` reports as `currentClub` and the same
@@ -814,6 +820,23 @@ final class RoundController {
     func logShotFromGlasses() throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
+        }
+        // B34: the G2 fires doubled tap events (same burst-y hardware behavior
+        // behind the B23 scroll coalescer), and the glasses' in-flight write
+        // guard can't catch them — the loopback POST completes faster than the
+        // gap between the duplicates — so every input-mode tap logged TWO
+        // shots (field 2026-07). Same guard as the phone Mark button: drop a
+        // repeat inside the window, putts EXEMPT (batch-logged rapid taps are
+        // real — B30). Dedicated timestamp, NOT lastGlassesActionAt: an undo
+        // must not block the next legitimate shot. Silent return (200 OK) per
+        // the undo-cooldown precedent — the next poll reconciles the count.
+        let isPutt = Shot.derivedIsPutt(club: currentClub)
+        if !isPutt {
+            if let last = lastGlassesShotAt,
+               Date().timeIntervalSince(last) < doubleTapThreshold {
+                return
+            }
+            lastGlassesShotAt = Date()
         }
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
@@ -829,7 +852,8 @@ final class RoundController {
             hadGPS: hasFix,
             club: currentClub?.id,
             source: .glasses,
-            notes: nil
+            notes: nil,
+            isPutt: isPutt // B31 gap: this path never derived the putt flag
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
