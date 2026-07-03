@@ -209,6 +209,32 @@ and analyzed (`/tmp/golf-dbs/iphone/golfcaddie.sqlite` — **personal GPS, never
   without the phone. Needs a new watch→phone command (the watch can only add/delete a shot today,
   not mutate one), a phone handler, and a `StrokeRow` affordance. 🔲 **next.**
 
+## 2.7 Field test 6 — Oaks North South + Vineyard prep (2026-07-02): what the round told us
+
+Watch + glasses + phone. Curated + published **The Vineyard at Escondido** and **The
+Fountains** (18-hole, greens+tees) to coursedata main.
+
+- **B30 — phone PUTT button dropped batched putts.** Tracking mode, Oaks North South h1
+  (par 3): 3 full shots + 3 rapid taps on the phone's big PUTT button → hole scored **3, not
+  6**. Cause: `markShotInternal`'s double-tap guard (`.button`/`.actionButton`, 2 s window)
+  swallowed the rapid putt taps — the **phone-side sibling of the reverted watch debounce
+  (B26)** that I missed. **Fix:** exempt putts from the guard (`&& !isPutt`); the full-shot
+  guard stays. Tests: `testRapidPhonePuttsEachLog`, `testRapidFullShotMarksStillDedup`.
+  ✅ fixed on `main` — ships in the next build.
+- **B22 — glasses freeze, ROOT-CAUSED (not yet fixed).** Field diagnosis: a glasses gesture
+  pulls *fresh* data with the phone pocketed ⇒ the phone server is fine; the stall is
+  glasses-side. `main.ts` calls `pausePolling()` on `FOREGROUND_EXIT` and only
+  `resumePolling()` on `FOREGROUND_ENTER`; the G2 fires EXIT on idle/display-doze but not ENTER
+  reliably, so the poll loop stays dead until a manual event. **Planned fix:** drop the
+  foreground/gesture gating; drive the poll rate from *content change* (fast while yardage
+  ticks down, auto-slow when static, snap fast on any change) so it never freezes and needs no
+  interaction — keeps the glasses output-only. 🔲 next glasses build (0.4.3).
+- **B9 — in-round map, sharpened.** The yardage card is oversized and covers the hole; the map
+  has no green marker, doesn't frame the green, and draws no you→green line. Want: green flag
+  marker + dashed you→green line + auto-frame tee/you/green + slim the yardage card. 🔲
+- **B29 — course-picker pull-to-refresh.** The 1-hr sync throttle with no manual refresh made
+  same-day course publishing a wait; add pull-to-refresh so a fresh catalog is one gesture. 🔲
+
 ## 3. What already exists (inventory — saves the implementer days)
 
 Verified in code 2026-06-20. The reconstruction "hero" is far from greenfield:
