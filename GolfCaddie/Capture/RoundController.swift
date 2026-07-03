@@ -491,6 +491,22 @@ final class RoundController {
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
     }
 
+    /// Change a logged shot's club on the active hole by id (the watch
+    /// Strokes-page edit sheet, B25), re-deriving `isPutt` from the new club
+    /// (B31). Mutates `currentHoleShots` in place so the WatchStatePublisher's
+    /// next tick carries the edit back to the watch. No-op if the shot isn't
+    /// on the active hole. (Past-hole edits stay in HoleDetailView /
+    /// HoleReviewSheet — they don't touch the live list.)
+    func updateShotClub(id: UUID, club: ClubID?) throws {
+        guard case .active = state else { return }
+        guard let idx = currentHoleShots.firstIndex(where: { $0.id == id }) else { return }
+        var shot = currentHoleShots[idx]
+        shot.club = club
+        shot.isPutt = Shot.derivedIsPutt(club: club, explicit: shot.isPutt)
+        try ShotRepository.update(shot)
+        currentHoleShots[idx] = shot
+    }
+
     /// Add a 1-stroke penalty to the active hole from the phone Penalty
     /// sheet. Routes the insert through the controller so the in-memory
     /// `currentHolePenalties` refreshes — without that, the @Observable

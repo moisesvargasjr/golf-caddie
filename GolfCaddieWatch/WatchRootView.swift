@@ -415,6 +415,7 @@ private struct StrokesScreen: View {
     @EnvironmentObject private var controller: LiveSessionController
     @ObservedObject private var session = WatchSession.shared
     @State private var adding = false
+    @State private var editing: WatchStroke?
 
     var body: some View {
         let strokes = session.phoneState.strokes
@@ -432,9 +433,13 @@ private struct StrokesScreen: View {
                         .listRowBackground(Color.clear)
                 }
                 ForEach(Array(strokes.enumerated()), id: \.element.id) { i, s in
-                    StrokeRow(n: i + 1, stroke: s) {
-                        WatchSession.shared.send(.command(.removeStroke(id: s.id)))
+                    // Tap → edit sheet (change club / delete). Replaced the
+                    // in-row two-tap delete (B25); delete is still two taps
+                    // total, and club edit is the same two taps.
+                    Button { editing = s } label: {
+                        StrokeRow(n: i + 1, stroke: s)
                     }
+                    .buttonStyle(.plain)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                 }
@@ -452,14 +457,13 @@ private struct StrokesScreen: View {
             .padding(.bottom, 14)
         }
         .sheet(isPresented: $adding) { AddSheet() }
+        .sheet(item: $editing) { EditStrokeSheet(stroke: $0) }
     }
 }
 
 private struct StrokeRow: View {
     let n: Int
     let stroke: WatchStroke
-    let onRemove: () -> Void
-    @State private var armed = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -481,50 +485,99 @@ private struct StrokeRow: View {
                     .font(WT.mono(11)).foregroundStyle(WT.ink3).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Button {
-                if armed { onRemove() } else { armed = true }
-            } label: {
-                Text(armed ? "DEL" : "−")
-                    .font(WT.mono(armed ? 11 : 18))
-                    .foregroundStyle(armed ? WT.onAccent : WT.ink3)
-                    .padding(.horizontal, armed ? 8 : 0)
-                    .frame(minWidth: 30, minHeight: 28)
-                    .background(armed ? WT.accent : .clear, in: Capsule())
-            }
-            .buttonStyle(.plain)
+            Text("›")
+                .font(WT.serif(15)).foregroundStyle(WT.ink3)
         }
+    }
+}
+
+/// The 3-col club grid shared by "+ ADD STROKE" and the stroke edit sheet
+/// (B25) — same cells, same data (`phoneState.clubs`, putter included).
+/// `highlightShort` rings the stroke's current club in the edit flow.
+private struct ClubGridPicker: View {
+    var highlightShort: String? = nil
+    let onPick: (WatchClub) -> Void
+    @ObservedObject private var session = WatchSession.shared
+
+    private let cols = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        LazyVGrid(columns: cols, spacing: 8) {
+            ForEach(session.phoneState.clubs) { club in
+                Button {
+                    onPick(club)
+                } label: {
+                    VStack(spacing: 2) {
+                        Text(club.short).font(WT.serif(20)).foregroundStyle(WT.accent)
+                        Text("\(club.avgYards)y").font(WT.mono(9)).foregroundStyle(WT.ink3)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .background(WT.surface2, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(club.short == highlightShort ? WT.accent : .clear, lineWidth: 1.6)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 4)
     }
 }
 
 private struct AddSheet: View {
     @EnvironmentObject private var controller: LiveSessionController
-    @ObservedObject private var session = WatchSession.shared
     @Environment(\.dismiss) private var dismiss
-
-    private let cols = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
         ScrollView {
             Text("TAP A CLUB TO ADD")
                 .font(WT.mono(11)).tracking(1.4).foregroundStyle(WT.ink2)
                 .padding(.vertical, 8)
-            LazyVGrid(columns: cols, spacing: 8) {
-                ForEach(session.phoneState.clubs) { club in
-                    Button {
-                        WatchSession.shared.send(.command(.addShot(clubShortName: club.short)))
-                        dismiss()
-                    } label: {
-                        VStack(spacing: 2) {
-                            Text(club.short).font(WT.serif(20)).foregroundStyle(WT.accent)
-                            Text("\(club.avgYards)y").font(WT.mono(9)).foregroundStyle(WT.ink3)
-                        }
-                        .frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(WT.surface2, in: RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                }
+            ClubGridPicker { club in
+                WatchSession.shared.send(.command(.addShot(clubShortName: club.short)))
+                dismiss()
             }
+        }
+        .background(WT.bg)
+    }
+}
+
+/// Tap-a-stroke edit sheet (B25): pick a club to change the logged stroke's
+/// club (isPutt re-derives on the phone, B31), or DELETE it. No optimistic
+/// local state — dismiss and let the ~4 s phone-state tick catch the row up.
+private struct EditStrokeSheet: View {
+    let stroke: WatchStroke
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 2) {
+                Text("EDIT STROKE")
+                    .font(WT.mono(11)).tracking(1.4).foregroundStyle(WT.ink2)
+                Text(stroke.clubName)
+                    .font(WT.serif(17)).foregroundStyle(WT.ink)
+            }
+            .padding(.vertical, 8)
+
+            ClubGridPicker(highlightShort: stroke.clubShort) { club in
+                WatchSession.shared.send(.command(.editStrokeClub(id: stroke.id, clubShortName: club.short)))
+                dismiss()
+            }
+
+            Button {
+                WatchSession.shared.send(.command(.removeStroke(id: stroke.id)))
+                dismiss()
+            } label: {
+                Text("✕ DELETE")
+                    .font(WT.mono(13)).tracking(1)
+                    .foregroundStyle(WT.onAccent)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .background(WT.accent, in: Capsule())
+            }
+            .buttonStyle(.plain)
             .padding(.horizontal, 4)
+            .padding(.top, 10)
         }
         .background(WT.bg)
     }

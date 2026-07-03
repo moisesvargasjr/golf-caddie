@@ -54,6 +54,12 @@ enum WatchCommand: Codable, Equatable {
     /// Remove a stroke by its shot id (the per-row tap-to-delete); nil → undo
     /// the most recent action.
     case removeStroke(id: String?)
+    /// Change a logged stroke's club by shot id (the Strokes-page edit sheet,
+    /// B25). nil clubShortName reserved for "clear club" (no UI sends it yet).
+    /// NOTE: an OLD phone build fails to decode this case and silently drops
+    /// the message (try? in SpikeSessionReceiver) — acceptable because watch +
+    /// phone ship in the same build; not a version bump (shape is additive).
+    case editStrokeClub(id: String, clubShortName: String?)
     case puttPlusOne
     case clubChange(shortName: String, epoch: Int)
     /// Confirm the current hole and advance to the next (the watch "Next Hole").

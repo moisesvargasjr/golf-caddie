@@ -111,6 +111,16 @@ final class LiveShotCoordinator {
             } else {
                 try? controller?.undoLastAction()
             }
+        case let .editStrokeClub(id, clubShortName):
+            guard let uuid = UUID(uuidString: id) else { break }
+            if let short = clubShortName {
+                // Unknown short (mismatched builds) must NOT clear the club —
+                // drop the edit, same posture as addShot's unknown-club skip.
+                guard let club = ClubID.from(shortName: short) else { break }
+                try? controller?.updateShotClub(id: uuid, club: club)
+            } else {
+                try? controller?.updateShotClub(id: uuid, club: nil)
+            }
         case .puttPlusOne:
             try? controller?.addPuttFromWatch()
         case let .clubChange(shortName, epoch):
