@@ -221,6 +221,14 @@ Fountains** (18-hole, greens+tees) to coursedata main.
   (B26)** that I missed. **Fix:** exempt putts from the guard (`&& !isPutt`); the full-shot
   guard stays. Tests: `testRapidPhonePuttsEachLog`, `testRapidFullShotMarksStillDedup`.
   ✅ fixed on `main` — ships in the next build.
+- **B31 — casual/manual-added putter shots aren't flagged as putts.** DB scan of today's
+  rounds: 4 shots with `club == .putter` but `isPutt = 0`, all `source == .manual`
+  (Oaks North South h1 ×3, East h5 ×1). The `.button` (phone PUTT) and `.watchManual` (watch)
+  paths flag putts correctly (22/22 and 25/25 today); only the casual/manual-add path misses
+  it. Effect: they count toward the score (correct) but display as full shots in the hole
+  split and pollute per-club stats. **Fix:** derive `isPutt` from the club — when a shot's
+  club is set to putter (manual add or club edit), flag it as a putt. Small; same family as
+  B28 (putter ⇒ putt) but on the write path, not the reconstruction classifier. 🔲
 - **B22 — glasses freeze, ROOT-CAUSED (not yet fixed).** Field diagnosis: a glasses gesture
   pulls *fresh* data with the phone pocketed ⇒ the phone server is fine; the stall is
   glasses-side. `main.ts` calls `pausePolling()` on `FOREGROUND_EXIT` and only
