@@ -35,6 +35,11 @@ struct HoleReviewSheet: View {
     @State private var showAddShotSheet = false
     @State private var showPinMap = false
     @State private var loadError: String?
+    // Real putter-kind ids for the live green-split (renamed/custom putters,
+    // archived included so history classifies) — same injection as
+    // RoundController.reconstructHole. Loaded in reload(); the seed-id default
+    // holds until then.
+    @State private var putterClubIDs: Set<String> = [Club.putterID]
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
 
@@ -51,7 +56,9 @@ struct HoleReviewSheet: View {
                 .map { ReconstructedShot(shot: $0, isPutt: $0.isPutt, confidence: $0.confidence ?? 1.0) }
             return HoleReconstruction(shots: rs, enteredScore: nil)
         }
-        return Reconstructor.reconstruct(shots: shots, green: greenCoordinate)
+        var config = ReconstructionConfig.default
+        config.putterClubIDs = putterClubIDs
+        return Reconstructor.reconstruct(shots: shots, green: greenCoordinate, config: config)
     }
     private var classifications: [UUID: ReconstructedShot] {
         Dictionary(uniqueKeysWithValues: reconstruction.shots.map { ($0.shot.id, $0) })
@@ -473,6 +480,10 @@ struct HoleReviewSheet: View {
     }
 
     private func reload() {
+        let putterIDs = ((try? ClubRepository.all(includeArchived: true)) ?? [])
+            .filter { $0.kind == .putter }
+            .map(\.id)
+        if !putterIDs.isEmpty { putterClubIDs = Set(putterIDs) }
         do {
             shots = try ShotRepository.shotsForHole(hole.id)
             penalties = try PenaltyRepository.penaltiesForHole(hole.id)

@@ -129,6 +129,18 @@ final class ClubRepositoryTests: XCTestCase {
         )
     }
 
+    /// The editor's Problem → inline-copy mapping (ClubEditorSheet.swift).
+    func testProblemEditorCopy() {
+        XCTAssertEqual(ClubValidation.Problem.nameEmpty.editorCopy, "Name required")
+        XCTAssertEqual(ClubValidation.Problem.nameTooLong.editorCopy, "Name too long (24 max)")
+        XCTAssertEqual(ClubValidation.Problem.shortNameEmpty.editorCopy, "Short name required")
+        XCTAssertEqual(ClubValidation.Problem.shortNameTooLong.editorCopy, "3 characters max")
+        XCTAssertEqual(
+            ClubValidation.Problem.shortNameTaken(by: "Gap Wedge").editorCopy,
+            "Short name taken by Gap Wedge"
+        )
+    }
+
     // MARK: - helpers
 
     /// Raw insert — keeps this helper independent of the Shot model (the club
