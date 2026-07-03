@@ -67,6 +67,7 @@
 		8560129CF8022BF3D73DC681 /* WatchStatePublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAD0B7E81AC25EB8B83B9463 /* WatchStatePublisher.swift */; };
 		87DB96901A57C4300CA25B7C /* Distance.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5603EA63F132D1CF2E0BBA /* Distance.swift */; };
 		8DB18581CE5F8E81598E66AE /* TracePointRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F44C2D883B910A964ED558B /* TracePointRepositoryTests.swift */; };
+		90E013D2FA35B580E792CDA1 /* ClubRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD6949066E849BBA391ED41 /* ClubRepositoryTests.swift */; };
 		95AD9FF04B01CA91C846B5FD /* DistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50E81AFF23C93859674DBC3 /* DistanceTests.swift */; };
 		96D74403972662372AD70656 /* WorkoutKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EE4984E072F75275181202 /* WorkoutKeeper.swift */; };
 		9726158DC21C77DBB75448BD /* HoleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C87D45D677F510D8534863B6 /* HoleDetailView.swift */; };
@@ -94,9 +95,11 @@
 		D64EE03942171ADEAC1E7631 /* HoleReconstructionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AD27F0EAF79D4FDB5F7F21 /* HoleReconstructionCard.swift */; };
 		DC8BE80DAAB549E9454A615C /* PathBReconstructorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93BC82B8625652553A724C9 /* PathBReconstructorTests.swift */; };
 		E2DD95E6606B16CA5F9708BC /* Shot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA158C6DE12A37EE04DDB8A /* Shot.swift */; };
+		E40803A8881963B7E9F998A2 /* ClubValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928974233C727A81AEE4C39F /* ClubValidation.swift */; };
 		E92720B1E160C818CD26CE54 /* RoundReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B17A3F3D410A32FD5F0025 /* RoundReviewView.swift */; };
 		EC4CC5CEB96985DE19576B95 /* ReconstructorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D1CB046E09AF9D51F5458D /* ReconstructorTests.swift */; };
 		F500EC7B8F71C46594272715 /* TracePointRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C994A588B1A1EC1A70BC968 /* TracePointRepository.swift */; };
+		F5600B480A2E8A325771D9AD /* ClubCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FC27DDE8AF0E9290B9D77F /* ClubCatalog.swift */; };
 		F800F27EC23275A8AB28A172 /* LiveShotCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A6FE612B4F81639031484C /* LiveShotCoordinator.swift */; };
 		F9437FBF4074F34BFCF88C0E /* GolfCaddieWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6540B9B83E5D036D2B334BB /* GolfCaddieWatchApp.swift */; };
 		FB9EBD2ADBA0FBEA9DAA17D0 /* LiveMarkPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EFCC0D060DCC7796FA384D2 /* LiveMarkPathTests.swift */; };
@@ -198,6 +201,8 @@
 		842BC140AF421DC76E8BD211 /* InRoundScorecardSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InRoundScorecardSheet.swift; sourceTree = "<group>"; };
 		884D9CFC0229E054A051082C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
+		8FD6949066E849BBA391ED41 /* ClubRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubRepositoryTests.swift; sourceTree = "<group>"; };
+		928974233C727A81AEE4C39F /* ClubValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubValidation.swift; sourceTree = "<group>"; };
 		92BF9C5A95AE6CF9E14289EA /* ShotReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShotReconciler.swift; sourceTree = "<group>"; };
 		92F47E9B144E050165B3CCD7 /* WatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSession.swift; sourceTree = "<group>"; };
 		93149E8D0685E58AA5236942 /* GolfCaddieWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GolfCaddieWatch.entitlements; sourceTree = "<group>"; };
@@ -208,6 +213,7 @@
 		9C4C8B7425BAF1C70663535C /* TestDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabase.swift; sourceTree = "<group>"; };
 		9ED96BDB38383FABAC3BC492 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A5F9D1D1F38C2FB8EA42882E /* GolfCaddieApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfCaddieApp.swift; sourceTree = "<group>"; };
+		A5FC27DDE8AF0E9290B9D77F /* ClubCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubCatalog.swift; sourceTree = "<group>"; };
 		A773DA8CA78F51BAA06E458F /* parity_gyro.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = parity_gyro.bin; sourceTree = "<group>"; };
 		AACE405237B270A6D4E74FBA /* HoleReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleReviewSheet.swift; sourceTree = "<group>"; };
 		AAD0B7E81AC25EB8B83B9463 /* WatchStatePublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStatePublisher.swift; sourceTree = "<group>"; };
@@ -254,6 +260,7 @@
 			isa = PBXGroup;
 			children = (
 				834A29B7FA85FCD58F7784FA /* ClubAveragesTests.swift */,
+				8FD6949066E849BBA391ED41 /* ClubRepositoryTests.swift */,
 				C50E81AFF23C93859674DBC3 /* DistanceTests.swift */,
 				14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */,
 				1C07BB10722BB642D1510227 /* IsPuttDerivationTests.swift */,
@@ -416,6 +423,8 @@
 			children = (
 				35A3CB04BABA68C70A9DB968 /* BatteryMonitor.swift */,
 				64F0AEAEB00F6F5EEF0CE661 /* ClubAverages.swift */,
+				A5FC27DDE8AF0E9290B9D77F /* ClubCatalog.swift */,
+				928974233C727A81AEE4C39F /* ClubValidation.swift */,
 				BF5603EA63F132D1CF2E0BBA /* Distance.swift */,
 				0B123209BD00D13CDF3193DD /* Haptics.swift */,
 			);
@@ -639,6 +648,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B3BFD56BF49966147EE43E8C /* ClubAveragesTests.swift in Sources */,
+				90E013D2FA35B580E792CDA1 /* ClubRepositoryTests.swift in Sources */,
 				95AD9FF04B01CA91C846B5FD /* DistanceTests.swift in Sources */,
 				C484E3007DAC72948353A765 /* GlassesStateMapperTests.swift in Sources */,
 				7699F5EC014A132209E6E9F9 /* IsPuttDerivationTests.swift in Sources */,
@@ -684,7 +694,9 @@
 				B49B8267DE6AAD4FD181D2FD /* BatteryMonitor.swift in Sources */,
 				0FB77782B842E8B14A88BD67 /* Club.swift in Sources */,
 				AD67093420786372B137F195 /* ClubAverages.swift in Sources */,
+				F5600B480A2E8A325771D9AD /* ClubCatalog.swift in Sources */,
 				63FC2C6E4606E4ECB82C5E2E /* ClubConfiguration.swift in Sources */,
+				E40803A8881963B7E9F998A2 /* ClubValidation.swift in Sources */,
 				6692E9C57FAA295FFF00D809 /* CourseDetector.swift in Sources */,
 				408A9E803461EA57CEDD2A13 /* CoursePickerSheet.swift in Sources */,
 				FE00F9007082FC6220E47E2F /* CourseSyncClient.swift in Sources */,
