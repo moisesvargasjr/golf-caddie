@@ -4,14 +4,17 @@ import SwiftUI
 
 /// Full-bleed satellite map used during an active round. Renders shot pins as
 /// custom circular annotations (white background for prior shots, flag-orange
-/// for the latest), connected by a dashed white polyline.
+/// for the latest), connected by a dashed white polyline; the green anchor
+/// gets a flag marker and a dashed you → green target line (B9).
 struct ActiveRoundMap: View {
     let shots: [Shot]
     /// Bearing in degrees from tee → green for the current hole, or nil when
     /// the hole has no curated/captured anchors (map falls back to north up).
     let holeHeading: Double?
-    /// Green anchor for the current hole; the map frames ball → green around it.
+    /// Green anchor for the current hole; drawn as a flag marker and framed.
     let green: CLLocationCoordinate2D?
+    /// Tee anchor for the current hole; framing only, no marker (B9).
+    let tee: CLLocationCoordinate2D?
     /// "Auto-frame the hole" — true keeps the map fit to ball → green as you
     /// walk; a manual pan/zoom flips it off, and the recenter control flips it on.
     @Binding var followMode: Bool
@@ -21,6 +24,7 @@ struct ActiveRoundMap: View {
             shots: shots,
             holeHeading: holeHeading,
             green: green,
+            tee: tee,
             isFollowing: followMode,
             onFollowModeChange: { newValue in
                 if followMode != newValue {
@@ -35,6 +39,7 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     let shots: [Shot]
     let holeHeading: Double?
     let green: CLLocationCoordinate2D?
+    let tee: CLLocationCoordinate2D?
     let isFollowing: Bool
     let onFollowModeChange: (Bool) -> Void
 
@@ -57,6 +62,7 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         let coord = context.coordinator
         coord.onFollowModeChange = onFollowModeChange
         coord.green = green
+        coord.tee = tee
         coord.holeHeading = holeHeading
         coord.shotCoords = shots.compactMap { shot in
             guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
@@ -64,11 +70,13 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         }
 
         syncAnnotations(in: map)
+        syncGreenAnnotation(in: map)
         syncPolyline(in: map)
+        coord.syncTargetLine(map)
 
         // Re-frame ball → green when auto-frame is on AND something that changes
-        // the framing changed (hole/green/heading, or the shot set). Walking is
-        // handled separately in didUpdate userLocation (throttled by distance).
+        // the framing changed (hole/green/tee/heading, or the shot set). Walking
+        // is handled separately in didUpdate userLocation (throttled by distance).
         let key = frameKey()
         if isFollowing, coord.lastFrameKey != key {
             coord.lastFrameKey = key
@@ -84,8 +92,26 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     /// Identity of the current framing inputs; a change triggers a re-fit.
     private func frameKey() -> String {
         let g = green.map { "\($0.latitude),\($0.longitude)" } ?? "-"
+        let t = tee.map { "\($0.latitude),\($0.longitude)" } ?? "-"
         let h = holeHeading.map { String(Int($0)) } ?? "-"
-        return "\(g)|\(h)|\(shots.count)"
+        return "\(g)|\(t)|\(h)|\(shots.count)"
+    }
+
+    /// Add/move/remove the single green-flag marker to track the `green` input.
+    private func syncGreenAnnotation(in map: MKMapView) {
+        let existing = map.annotations.compactMap { $0 as? GreenAnnotation }.first
+        switch (existing, green) {
+        case let (ann?, g?):
+            if ann.coordinate.latitude != g.latitude || ann.coordinate.longitude != g.longitude {
+                ann.coordinate = g
+            }
+        case let (nil, g?):
+            map.addAnnotation(GreenAnnotation(coordinate: g))
+        case let (ann?, nil):
+            map.removeAnnotation(ann)
+        case (nil, nil):
+            break
+        }
     }
 
     private func syncAnnotations(in map: MKMapView) {
@@ -122,8 +148,9 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     /// Rebuilds the dashed connecting polyline whenever the shot set changes.
     /// One overlay is cheaper to fully replace than to mutate.
     private func syncPolyline(in map: MKMapView) {
-        // Remove existing.
-        let oldLines = map.overlays.compactMap { $0 as? MKPolyline }
+        // Remove existing — but only the shot trail; the you → green target
+        // line is owned by syncTargetLine and must survive shot-set changes.
+        let oldLines = map.overlays.compactMap { $0 as? MKPolyline }.filter { !($0 is TargetLinePolyline) }
         map.removeOverlays(oldLines)
 
         let coords = shots.compactMap { shot -> CLLocationCoordinate2D? in
@@ -141,28 +168,56 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         // Framing inputs, kept fresh by updateUIView so the location-driven
         // reframe (didUpdate) can read them.
         var green: CLLocationCoordinate2D?
+        var tee: CLLocationCoordinate2D?
         var holeHeading: Double?
         var shotCoords: [CLLocationCoordinate2D] = []
 
         var lastFrameKey: String?
         var wasFollowing = false
         private var lastFrameUserCoord: CLLocationCoordinate2D?
+        private var lastTargetLineUserCoord: CLLocationCoordinate2D?
         private var programmaticChange = false
 
         init(onFollowModeChange: @escaping (Bool) -> Void) {
             self.onFollowModeChange = onFollowModeChange
         }
 
-        /// Fit the camera to ball (user) → green (+ shots), oriented green-up.
+        /// Fit the camera to tee → ball (user) → green (+ shots), green-up.
         func reframe(_ map: MKMapView, animated: Bool) {
             var coords = shotCoords
             if let green { coords.append(green) }
+            if let tee { coords.append(tee) }
             let user = map.userLocation.location?.coordinate
             if let user, CLLocationCoordinate2DIsValid(user) { coords.append(user) }
             guard let camera = Self.cameraFitting(coords, heading: holeHeading ?? 0) else { return }
             lastFrameUserCoord = user
             programmaticChange = true
             map.setCamera(camera, animated: animated)
+        }
+
+        /// Rebuild the dashed you → green target line. Runs on hole/green
+        /// changes (updateUIView) and as the user walks (didUpdate, gated to
+        /// ≥12 m like the walking reframe so overlay churn stays bounded).
+        /// Unlike the reframe this ignores follow mode — the line should track
+        /// the player even on a manually panned map.
+        func syncTargetLine(_ map: MKMapView, movementGated: Bool = false) {
+            let user = map.userLocation.location?.coordinate
+            guard let green, let user, CLLocationCoordinate2DIsValid(user) else {
+                let old = map.overlays.compactMap { $0 as? TargetLinePolyline }
+                if !old.isEmpty { map.removeOverlays(old) }
+                lastTargetLineUserCoord = nil
+                return
+            }
+            if movementGated, let last = lastTargetLineUserCoord {
+                let moved = CLLocation(latitude: user.latitude, longitude: user.longitude)
+                    .distance(from: CLLocation(latitude: last.latitude, longitude: last.longitude))
+                guard moved >= 12 else { return }
+            }
+            let old = map.overlays.compactMap { $0 as? TargetLinePolyline }
+            map.removeOverlays(old)
+            let line = TargetLinePolyline(coordinates: [user, green], count: 2)
+            map.addOverlay(line)
+            lastTargetLineUserCoord = user
         }
 
         /// Camera that frames `coords` with a tight margin, green-up. Distance is
@@ -179,8 +234,11 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
             return MKMapCamera(lookingAtCenter: center, fromDistance: distance, pitch: 0, heading: heading)
         }
 
-        // Re-fit as the user walks (only while auto-framing, throttled by distance).
+        // Keep the target line tracking the walk (regardless of follow mode),
+        // and re-fit as the user walks (only while auto-framing) — both
+        // throttled by distance.
         func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+            syncTargetLine(mapView, movementGated: true)
             guard wasFollowing, let here = userLocation.location else { return }
             if let last = lastFrameUserCoord {
                 let moved = here.distance(from: CLLocation(latitude: last.latitude, longitude: last.longitude))
@@ -204,6 +262,26 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
+
+            if annotation is GreenAnnotation {
+                let identifier = "GreenFlagView"
+                let view: MKMarkerAnnotationView
+                if let dequeued = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView {
+                    view = dequeued
+                    view.annotation = annotation
+                } else {
+                    view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                }
+                view.glyphImage = UIImage(systemName: "flag.fill")
+                // Flag orange #C24A2D — same as the latest-shot pin.
+                view.markerTintColor = UIColor(red: 194 / 255.0, green: 74 / 255.0, blue: 45 / 255.0, alpha: 1.0)
+                view.displayPriority = .required
+                view.animatesWhenAdded = false
+                view.isDraggable = false
+                view.canShowCallout = false
+                return view
+            }
+
             guard let shotAnn = annotation as? ShotAnnotation else { return nil }
 
             let identifier = "ShotPinView"
@@ -219,6 +297,15 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            // Target line first — it's an MKPolyline subclass, so the general
+            // branch below would otherwise claim it.
+            if let target = overlay as? TargetLinePolyline {
+                let r = MKPolylineRenderer(polyline: target)
+                r.strokeColor = UIColor.white.withAlphaComponent(0.45)
+                r.lineWidth = 1.5
+                r.lineDashPattern = [2, 5]
+                return r
+            }
             if let line = overlay as? MKPolyline {
                 let r = MKPolylineRenderer(polyline: line)
                 r.strokeColor = UIColor.white.withAlphaComponent(0.7)
@@ -231,7 +318,23 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     }
 }
 
-// MARK: - Annotation
+// MARK: - Overlays & annotations
+
+/// Marker subclass so the renderer can tell the you → green target line apart
+/// from the shot-trail polyline (both are MKPolylines on the same map).
+private final class TargetLinePolyline: MKPolyline {}
+
+/// The green-flag marker at the hole's green anchor (B9). `dynamic` so a
+/// coordinate move (local anchor recapture mid-round) animates in place
+/// instead of needing remove/re-add.
+private final class GreenAnnotation: NSObject, MKAnnotation {
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+
+    init(coordinate: CLLocationCoordinate2D) {
+        self.coordinate = coordinate
+        super.init()
+    }
+}
 
 private final class ShotAnnotation: NSObject, MKAnnotation {
     var shot: Shot

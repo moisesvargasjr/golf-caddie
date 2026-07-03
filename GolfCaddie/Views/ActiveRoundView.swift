@@ -122,6 +122,7 @@ struct ActiveRoundView: View {
                 shots: controller.currentHoleShots,
                 holeHeading: holeBearing,
                 green: holeGreenCoordinate,
+                tee: holeTeeCoordinate,
                 followMode: $mapFollowMode
             )
             .ignoresSafeArea()
@@ -1035,6 +1036,13 @@ struct ActiveRoundView: View {
     private var holeGreenCoordinate: CLLocationCoordinate2D? {
         guard let hole = controller.currentHole else { return nil }
         return GlassesStateMapper.greenCoordinate(courseId: controller.curatedCourseId, holeNumber: hole.holeNumber)
+    }
+
+    /// Tee anchor for the current hole (same local-over-curated resolution),
+    /// used by the map to keep the whole hole in frame (B9). No marker.
+    private var holeTeeCoordinate: CLLocationCoordinate2D? {
+        guard let hole = controller.currentHole else { return nil }
+        return GlassesStateMapper.teeCoordinate(courseId: controller.curatedCourseId, holeNumber: hole.holeNumber)
     }
 
     /// Distance-to-green for the current hole. Requires a curated course link
