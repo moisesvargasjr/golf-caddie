@@ -59,4 +59,31 @@ final class LiveMarkPathTests: XCTestCase {
         XCTAssertEqual(controller.currentHoleShots.count, 3)
         XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.isPutt })
     }
+
+    /// The phone PUTT button (`.button`) must not dedup rapid taps either — same
+    /// batch-logging reality. Its double-tap guard is exempt for putts; without
+    /// that, tapping 3 putts fast scored a par-3 at 3 instead of 6 (field: Oaks
+    /// North South h1, 2026-07-02 — B30).
+    @MainActor
+    func testRapidPhonePuttsEachLog() async throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound()
+        try await controller.markPutt()
+        try await controller.markPutt()
+        try await controller.markPutt()
+        XCTAssertEqual(controller.currentHoleShots.count, 3)
+        XCTAssertTrue(controller.currentHoleShots.allSatisfy { $0.isPutt })
+    }
+
+    /// But the full-shot double-tap guard stays: two rapid Mark taps within the
+    /// window collapse to one (accidental double-press protection is unchanged).
+    @MainActor
+    func testRapidFullShotMarksStillDedup() async throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound()
+        try await controller.markShot()
+        try await controller.markShot() // within the 2 s window → dropped
+        XCTAssertEqual(controller.currentHoleShots.count, 1)
+        XCTAssertFalse(try XCTUnwrap(controller.currentHoleShots.last).isPutt)
+    }
 }

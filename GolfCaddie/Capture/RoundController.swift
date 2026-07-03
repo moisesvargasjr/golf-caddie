@@ -848,10 +848,14 @@ final class RoundController {
 
     private func markShotInternal(source: ShotSource, club: ClubID?, isPutt: Bool = false) async throws {
         // The double-tap guard exists for the physical Action button / on-screen
-        // double-press. A deliberate single glasses gesture must not be deduped
-        // against it (would return state without the shot, breaking
-        // read-after-write); the glasses path doesn't go through here anyway.
-        if source == .button || source == .actionButton {
+        // double-press on a *full shot* (you don't hit two in a second). Putts are
+        // EXEMPT: they're commonly batch-logged a few rapid taps at a time after
+        // the fact (sink it, then catch up), and this guard was silently dropping
+        // them — a par-3 played to 6 got scored 3 (field: Oaks North South h1,
+        // 2026-07-02; same lesson as the reverted watch debounce B26). A deliberate
+        // single glasses gesture must not be deduped either; the glasses path
+        // doesn't go through here anyway.
+        if (source == .button || source == .actionButton) && !isPutt {
             if let last = lastMarkAt, Date().timeIntervalSince(last) < doubleTapThreshold {
                 return
             }
