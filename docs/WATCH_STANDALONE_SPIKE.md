@@ -179,10 +179,17 @@ Only the disconnected segment says anything about the Ultra 4's own GPS.
 
 - **Front nine:** phone in pocket, paired as usual — baseline; shows whether the watch is
   just borrowing the phone's GPS.
-- **Back nine:** phone Bluetooth off, phone still tracking in the pocket — two independent
-  tracks and a true standalone test. Queued swings are fused to the phone breadcrumb by
-  *timestamp* (`TracePointRepository.nearest(toTimestamp:)`), so late delivery should
-  still place shots correctly — confirm in the round.
+- **Back nine:** phone Bluetooth off, phone still tracking in the pocket **with the phone
+  round still running** — two independent tracks and a true standalone test. Use the
+  watch's Next Hole as normal: the watch steps its own hole immediately (the phone can't
+  answer), so the wrist yardage stays on the hole being played.
+- **On reconnect** the queued hole's-worth of watch traffic replays in order: a hole change
+  first commits the swings played before it, later taps wait their turn, and a late
+  MARK/putt is stamped with the watch's tap time and the breadcrumb from then (no
+  breadcrumb near that time ⇒ no GPS, never the phone's current position). Found by
+  reading the replay path before the round — previously every queued Next Hole applied
+  first and all swings were logged to the last hole. **Check after the round:** back-nine
+  swings sit on their own holes in the phone scorecard.
 
 ### Pass criteria
 

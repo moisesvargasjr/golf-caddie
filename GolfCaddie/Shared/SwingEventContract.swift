@@ -87,6 +87,12 @@ enum WatchCommand: Codable, Equatable {
 struct IdentifiedCommand: Codable, Equatable {
     var id: UUID
     var command: WatchCommand
+    /// Watch wall-clock (unix s) when the golfer tapped. Commands are queued, so
+    /// they can arrive long after the fact (phone out of range for holes at a
+    /// time): the phone uses this to timestamp + locate a late MARK/putt at the
+    /// moment it happened, not at delivery. Optional = additive (an old watch
+    /// sends none → the phone treats it as live, as before).
+    var sentAt: Double? = nil
 }
 
 /// The single `transferUserInfo` payload type — a tagged union so one decode
@@ -105,9 +111,12 @@ struct WatchToPhoneMessage: Codable, Equatable {
     /// Wrap a command for transport. A fresh `id` is minted per call (one user
     /// action = one id); pass an explicit `id` to reproduce a logical command on
     /// a resend (the same envelope re-sent keeps its id, so the phone dedups it).
-    static func command(_ command: WatchCommand, id: UUID = UUID()) -> WatchToPhoneMessage {
+    static func command(
+        _ command: WatchCommand, id: UUID = UUID(), sentAt: Date? = Date()
+    ) -> WatchToPhoneMessage {
         WatchToPhoneMessage(kind: .command, swing: nil,
-                            command: IdentifiedCommand(id: id, command: command))
+                            command: IdentifiedCommand(id: id, command: command,
+                                                       sentAt: sentAt?.timeIntervalSince1970))
     }
 
     func encoded() throws -> Data { try JSONEncoder().encode(self) }

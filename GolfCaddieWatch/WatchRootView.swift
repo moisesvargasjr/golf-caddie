@@ -278,7 +278,8 @@ private struct YardageScreen: View {
         let local = caddie.localYards
         let yards = local ?? (s.isActive ? s.distanceToGreenYards : nil)
         let source = local != nil ? " · W" : (yards != nil ? " · P" : "")
-        let par = s.isActive ? s.par : caddie.hole?.par
+        // The phone's par is for ITS hole; when the watch has stepped ahead, use the catalog's.
+        let par = (s.isActive && !caddie.holeIsAheadOfPhone) ? s.par : caddie.hole?.par
         VStack(spacing: 2) {
             // Compact single info line (saves two rows on a 40mm screen).
             Text("HOLE \(caddie.holeNumber) · PAR \(par.map(String.init) ?? "–") · TO GREEN\(source)")
@@ -667,6 +668,7 @@ private struct EditStrokeSheet: View {
 
 private struct ScoreScreen: View {
     @EnvironmentObject private var controller: LiveSessionController
+    @EnvironmentObject private var caddie: WatchCaddie
     @ObservedObject private var session = WatchSession.shared
 
     var body: some View {
@@ -715,6 +717,7 @@ private struct ScoreScreen: View {
             HStack(spacing: 6) {
                 Button {
                     WatchSession.shared.send(.command(.previousHole))
+                    caddie.holeStepRequested(by: -1)
                     WKInterfaceDevice.current().play(.click)
                 } label: {
                     Text("‹").font(WT.serif(20)).frame(width: WT.s(40), height: WT.s(40))
@@ -722,6 +725,7 @@ private struct ScoreScreen: View {
                 .buttonStyle(.bordered).tint(WT.ink2)
                 Button {
                     WatchSession.shared.send(.command(.advanceHole))
+                    caddie.holeStepRequested(by: 1)
                     WKInterfaceDevice.current().play(.success)
                 } label: {
                     Text("Next Hole ›").font(WT.serif(16)).frame(maxWidth: .infinity, minHeight: WT.s(40))
