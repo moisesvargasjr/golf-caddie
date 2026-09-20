@@ -138,7 +138,11 @@ final class WatchSession: NSObject, ObservableObject {
         #if DEBUG
         outstanding = WCSession.default.outstandingFileTransfers.count
         #endif
-        outstandingMessages = WCSession.default.outstandingUserInfoTransfers.count
+        // Round traffic only. The one-off catalog request also rides
+        // transferUserInfo, and watch-only it showed "SYNC 1" with nothing
+        // shot-related queued.
+        outstandingMessages = WCSession.default.outstandingUserInfoTransfers
+            .filter { $0.userInfo[ShotContract.payloadKey] != nil }.count
     }
 
     #if DEBUG

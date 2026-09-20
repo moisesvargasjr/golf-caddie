@@ -189,10 +189,17 @@ private struct WatchPlayView: View {
                 // middle of the Ultra's screen and clipped the action row.
                 TabView(selection: $page) {
                     YardageScreen().tag(0)
-                    StrokesScreen().tag(1)
+                    // Strokes and the club grid come from a phone round; watch-only
+                    // the page read "STROKES · H0" and ADD STROKE opened an empty grid.
+                    if session.phoneState.isActive {
+                        StrokesScreen().tag(1)
+                    }
                     ScoreScreen().tag(2)
                 }
                 .tabViewStyle(.page)
+                .onChange(of: session.phoneState.isActive) { _, active in
+                    if !active, page == 1 { page = 0 }
+                }
             }
             #if DEBUG
             // Validation ground-truth MARK (M8 only) — top-right corner tap (B20).
@@ -345,7 +352,9 @@ private struct YardageHero: View {
     var body: some View {
         Group {
             if let yards {
-                Text("\(yards)").font(WT.serif(size)).foregroundStyle(WT.ink)
+                // String(…), not "\(yards)": Text's interpolation localizes an Int
+                // with grouping, and the device showed "1,211".
+                Text(String(yards)).font(WT.serif(size)).foregroundStyle(WT.ink)
                     .minimumScaleFactor(0.4).lineLimit(1)
             } else {
                 VStack(spacing: 4) {
@@ -556,6 +565,7 @@ private struct ClubSelector: View {
 
 private struct StrokesScreen: View {
     @EnvironmentObject private var controller: LiveSessionController
+    @EnvironmentObject private var caddie: WatchCaddie
     @ObservedObject private var session = WatchSession.shared
     @State private var adding = false
     @State private var editing: WatchStroke?
@@ -564,7 +574,7 @@ private struct StrokesScreen: View {
         let strokes = session.phoneState.strokes
         VStack(spacing: 0) {
             WatchHeader(left: {
-                Text("STROKES · H\(session.phoneState.holeNumber)")
+                Text("STROKES · H\(caddie.holeNumber)")
                     .font(WT.mono(12)).tracking(1.4).foregroundStyle(WT.ink2)
             })
             .padding(.horizontal, 8).padding(.bottom, 2)
