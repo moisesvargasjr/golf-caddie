@@ -105,6 +105,25 @@ final class WatchReplayOrderingTests: XCTestCase {
         XCTAssertEqual(controller.currentHoleShots.count, 2)
     }
 
+    /// The exact device path for a watch MARK: encoded on the watch, decoded by
+    /// the WC delegate, handed to `receive` (a background thread → main).
+    func testMarkFromTheWatchLogsAShotThroughReceive() async throws {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        let coordinator = LiveShotCoordinator(steps: Walked())
+        coordinator.attach(controller: controller, location: location)
+
+        let wire = try WatchToPhoneMessage.command(.addShot(clubShortName: nil)).encoded()
+        let decoded = try WatchToPhoneMessage.decode(wire)
+        await Task.detached { coordinator.receive(decoded) }.value
+        try await Task.sleep(nanoseconds: 200_000_000)
+        await coordinator.waitUntilIdle()
+
+        XCTAssertEqual(controller.currentHoleShots.count, 1)
+        XCTAssertEqual(controller.currentHoleShots.first?.source, .watchManual)
+    }
+
     func testSentAtIsOptionalOnTheWire() throws {
         let legacy = Data(#"{"kind":"command","command":{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","command":{"puttPlusOne":{}}}}"#.utf8)
         let decoded = try WatchToPhoneMessage.decode(legacy)
