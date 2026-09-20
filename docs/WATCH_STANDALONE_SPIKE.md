@@ -1,10 +1,9 @@
 # Watch-standalone spike — on-wrist GPS, course cache, local yardage
 
-> **Status (2026-09-19):** steps 1–5 built on `spike/watch-standalone` (PR #14, review
-> round 1 addressed) — watch target builds, 155 phone tests green, **not yet run on a
-> device**. A simulator build and phone unit tests establish none of the device outcomes
-> below (permissions, wrist-down updates, disconnected yardage, saved route, GPS, battery). Steps 6–8 (telemetry,
-> analysis script, Action Button) follow.
+> **Status (2026-09-19):** steps 1–6 built on `spike/watch-standalone` (PR #14, review
+> round 1 addressed) — watch + phone build in Debug and Release, 159 phone tests green,
+> **not yet run on a device**. A simulator build and phone unit tests establish none of the device outcomes
+> below (permissions, wrist-down updates, disconnected yardage, saved route, GPS, battery). Steps 7–8 (analysis script, Action Button) follow.
 > **Supersedes** `WATCH_FEASIBILITY.md`, which predates the watch app and assumed a
 > Series 6 battery budget.
 
@@ -98,9 +97,25 @@ Out of scope: shot logging on the watch, round ownership, a watch database.
    device's GPS receiver produced the fix. The wrist value is actively cleared 20 s after
    the last good fix (timer-driven, not redraw-driven). Phone round active → the hole comes from the phone. No phone
    round → **watch-only**: course auto-picked, holes stepped with +/−.
-6. **Telemetry** *(follow-up)*. Log every watch fix (time, lat, lng, accuracy, speed) +
-   battery every 5 min; transfer to the phone at round end behind a "Watch GPS spike"
-   Settings toggle so it works in TestFlight builds.
+6. **Telemetry** *(built)*. `WatchTelemetryRecorder` writes a session folder
+   `telemetry-<yyyyMMdd-HHmmss>-<4hex>` per start→stop (format pinned in
+   `Shared/WatchTelemetryFormat.swift` + tests):
+   - `fixes.csv` — **every** fix received, unfiltered: `receivedAt, fixTime, lat, lng,
+     hAcc, vAcc, alt, speed, speedAcc, course, reachable, hole, localYards, phoneYards`.
+     `fixTime` is the join key against phone breadcrumbs; `reachable` (phone WC-reachable)
+     segments the paired vs Bluetooth-off halves; the yardage columns give the
+     watch-vs-phone yardage comparison directly.
+   - `battery.csv` — level at start, every 5 min, at stop. `session.json` — device model,
+     OS, build, fix count, battery start/end.
+   - **On by default** (start-screen `GPS LOG ON/OFF`) — a forgotten toggle would waste a
+     round. The toggle lives on the watch, not phone Settings, so it works watch-only.
+   - Transfer at stop via `transferFile`; the watch deletes a file only after a confirmed
+     `didFinish`, shows `N TO SEND` on the start screen, and re-queues leftovers at launch.
+   - Phone stores to `Documents/WatchTelemetry/<session>/` in **Release too**; export from
+     Settings → *Watch GPS Log* (share a zip) or Finder file sharing.
+   - Phone-side data for the comparison is the existing round DB (Settings → Backup):
+     breadcrumbs are throttled (≥1 s and ≥1 m, or 5 s when still) and only recorded during
+     an **active phone round** — so the back-nine protocol needs a phone round running.
 7. **Analysis script** *(follow-up)*. `scripts/` tool: phone DB export + watch track →
    median / p95 track gap, yardage disagreement at each shot time, `Reconstructor`
    placement error on the watch track vs the 12 m phone baseline.
@@ -139,7 +154,12 @@ Out of scope: shot logging on the watch, round ownership, a watch database.
    yardage follows.
 6. **Expiry.** Walk indoors / cover the watch until fixes stop: within ~20 s `W` drops to
    `P` (phone-led) or `–––` (watch-only).
-7. **Saved workout.** End a >2 min session: a Golf workout with a route map appears in
+7. **Telemetry.** After a session the start screen shows `N TO SEND`, draining to nothing
+   once the phone app is open; the session appears under Settings → Watch GPS Log with
+   `fixes.csv`, `battery.csv`, `session.json`; `fixes.csv` has ~1 row/s including
+   wrist-down stretches. Repeat with the phone unreachable at stop: files wait, then
+   deliver on reconnect / next watch launch.
+8. **Saved workout.** End a >2 min session: a Golf workout with a route map appears in
    Fitness. End a <2 min session: nothing is saved.
 
 ### GPS-routing check (before trusting paired-vs-disconnected conclusions)

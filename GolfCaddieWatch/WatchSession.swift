@@ -51,6 +51,60 @@ final class WatchSession: NSObject, ObservableObject {
         WCSession.default.transferUserInfo([ShotContract.catalogRequestKey: true])
     }
 
+    // MARK: - GPS/battery telemetry transfer (spike step 6 — Release builds too)
+
+    /// Telemetry files still on the watch awaiting confirmed delivery.
+    @Published private(set) var telemetryPending = 0
+    /// The session currently being recorded — never (re)queued mid-write.
+    var activeTelemetrySessionId: String?
+
+    /// Queue a finished session's files. A file is deleted only once
+    /// `didFinish fileTransfer` confirms delivery; anything left behind (failed
+    /// transfer, app killed) is re-queued by `requeueTelemetry` at next launch.
+    func sendTelemetry(sessionDir: URL, sessionId: String) {
+        guard WCSession.isSupported() else { return }
+        let queued = Set(WCSession.default.outstandingFileTransfers.map { $0.file.fileURL.standardizedFileURL.path })
+        let files = (try? FileManager.default.contentsOfDirectory(at: sessionDir, includingPropertiesForKeys: nil)) ?? []
+        for url in files where !queued.contains(url.standardizedFileURL.path) {
+            WCSession.default.transferFile(url, metadata: [
+                ShotContract.fileKindKey: WatchTelemetryFormat.fileKind,
+                WatchTelemetryFormat.sessionIdKey: sessionId,
+                WatchTelemetryFormat.filenameKey: url.lastPathComponent,
+            ])
+        }
+        refreshTelemetryPending()
+    }
+
+    func requeueTelemetry() {
+        for dir in telemetryDirs() where dir.lastPathComponent != activeTelemetrySessionId {
+            sendTelemetry(sessionDir: dir, sessionId: dir.lastPathComponent)
+        }
+        refreshTelemetryPending()
+    }
+
+    private func telemetryDirs() -> [URL] {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dirs = (try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? []
+        return dirs.filter { $0.lastPathComponent.hasPrefix(WatchTelemetryFormat.sessionPrefix) }
+    }
+
+    private func refreshTelemetryPending() {
+        telemetryPending = telemetryDirs()
+            .filter { $0.lastPathComponent != activeTelemetrySessionId }
+            .reduce(0) { $0 + ((try? FileManager.default.contentsOfDirectory(atPath: $1.path).count) ?? 0) }
+    }
+
+    /// Delivery confirmed → the watch copy can go (and the folder, once empty).
+    private func telemetryDelivered(_ url: URL) {
+        let fm = FileManager.default
+        try? fm.removeItem(at: url)
+        let dir = url.deletingLastPathComponent()
+        if ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).isEmpty { try? fm.removeItem(at: dir) }
+        refreshTelemetryPending()
+    }
+
+    var isPhoneReachable: Bool { WCSession.isSupported() && WCSession.default.isReachable }
+
     var debugStatus: String {
         let s = WCSession.default
         let act = ["notActivated", "inactive", "activated"][s.activationState.rawValue]
@@ -96,7 +150,10 @@ extension WatchSession: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
                              error: Error?) {
         guard activationState == .activated else { return }
-        Task { @MainActor in self.requestCatalogIfNeeded() }
+        Task { @MainActor in
+            self.requestCatalogIfNeeded()
+            self.requeueTelemetry()
+        }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
@@ -113,10 +170,21 @@ extension WatchSession: WCSessionDelegate {
         Task { @MainActor in WatchCourseStore.shared.installPhonePush(data) }
     }
 
-    #if DEBUG
     nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
-        let filename = fileTransfer.file.fileURL.lastPathComponent
+        let url = fileTransfer.file.fileURL
+        let filename = url.lastPathComponent
         let failure = error?.localizedDescription
+        if fileTransfer.file.metadata?[ShotContract.fileKindKey] as? String == WatchTelemetryFormat.fileKind {
+            Task { @MainActor in
+                if let failure {
+                    self.lastTransferError = "\(filename): \(failure)" // file kept; re-queued next launch
+                } else {
+                    self.telemetryDelivered(url)
+                }
+            }
+            return
+        }
+        #if DEBUG
         Task { @MainActor in
             if let failure {
                 self.lastTransferError = "\(filename): \(failure)"
@@ -125,8 +193,8 @@ extension WatchSession: WCSessionDelegate {
             }
             self.refreshOutstanding()
         }
+        #endif
     }
-    #endif
 
     /// A queued swing/command transfer finished (delivered or errored). Drains
     /// the "SYNCING N" backlog as the phone acknowledges each one (B4). The

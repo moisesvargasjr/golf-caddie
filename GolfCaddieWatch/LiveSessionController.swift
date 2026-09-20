@@ -49,6 +49,8 @@ final class LiveSessionController: ObservableObject {
     private let workout = WorkoutKeeper()
     private let recorder = MotionRecorder()
     private let location = WatchLocationProvider()
+    /// GPS/battery log for the standalone spike (step 6).
+    let telemetry = WatchTelemetryRecorder()
     private var cancellables: Set<AnyCancellable> = []
     private var detector: LiveSwingDetector?
 
@@ -71,6 +73,12 @@ final class LiveSessionController: ObservableObject {
         location.onFix = { [weak self] fix in
             guard let self, self.running else { return }
             self.caddie.ingest(fix)
+            // Logged AFTER ingest so the row carries the yardage this fix produced,
+            // and unfiltered — rejected fixes are part of the measurement.
+            let phone = WatchSession.shared.phoneState
+            self.telemetry.record(
+                fix, reachable: WatchSession.shared.isPhoneReachable, hole: self.caddie.holeNumber,
+                localYards: self.caddie.localYards, phoneYards: phone.isActive ? phone.distanceToGreenYards : nil)
             if fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= WatchCaddie.maxAccuracyMeters {
                 self.workout.addRoute([fix])
             }
@@ -162,6 +170,8 @@ final class LiveSessionController: ObservableObject {
 
             try workout.start()
             try recorder.start(recordRawTo: dir)
+            telemetry.start()
+            WatchSession.shared.activeTelemetrySessionId = telemetry.activeSessionId
             location.start()
 
             detectionCount = 0
@@ -177,6 +187,7 @@ final class LiveSessionController: ObservableObject {
             workout.stop()
             recorder.stop()
             location.stop()
+            finishTelemetry()
             detector = nil
         }
     }
@@ -223,6 +234,14 @@ final class LiveSessionController: ObservableObject {
         pending = nil
     }
 
+    private func finishTelemetry() {
+        let finished = telemetry.stop()
+        WatchSession.shared.activeTelemetrySessionId = nil
+        if let finished {
+            WatchSession.shared.sendTelemetry(sessionDir: finished.dir, sessionId: finished.sessionId)
+        }
+    }
+
     #if DEBUG
     /// Validation-mode ground-truth mark (spike-only, B20).
     func mark() {
@@ -252,6 +271,7 @@ final class LiveSessionController: ObservableObject {
         #endif
         workout.stop()
         location.stop()
+        finishTelemetry()
         caddie.reset()
         detector = nil
 

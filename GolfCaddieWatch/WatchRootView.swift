@@ -148,6 +148,7 @@ private struct WatchStartScreen: View {
             if let err = controller.lastError {
                 Text(err).font(WT.mono(10)).foregroundStyle(.red).padding(.top, 4)
             }
+            TelemetryToggle(telemetry: controller.telemetry)
             #if DEBUG
             // Debug footer: validation mode (raw logging + MARK) for M8 testing (B20).
             HStack(spacing: 8) {
@@ -174,6 +175,28 @@ private struct WatchStartScreen: View {
             Text(label).font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
             Text(value).font(WT.serif(WT.s(28))).foregroundStyle(WT.ink)
         }
+    }
+}
+
+/// Standalone-spike GPS/battery log (step 6): on/off, plus how many finished
+/// files are still waiting for confirmed delivery to the phone.
+private struct TelemetryToggle: View {
+    @ObservedObject var telemetry: WatchTelemetryRecorder
+    @ObservedObject private var session = WatchSession.shared
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { telemetry.enabled.toggle() } label: {
+                Text("GPS LOG \(telemetry.enabled ? "ON" : "OFF")").font(WT.mono(9)).tracking(0.8)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(telemetry.enabled ? WT.accent : WT.ink3)
+            Spacer()
+            if session.telemetryPending > 0 {
+                Text("\(session.telemetryPending) TO SEND").font(WT.mono(9)).foregroundStyle(WT.ink2)
+            }
+        }
+        .padding(.top, 4)
     }
 }
 
