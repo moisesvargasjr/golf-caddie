@@ -21,9 +21,11 @@
 	<key>CFBundleVersion</key>
 	<string>22</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Runs a golf workout session so motion sensors stay active during recording.</string>
+	<string>Runs a golf workout during your round so GPS and motion sensors stay active, and saves the round to Fitness.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Runs a golf workout session so motion sensors stay active during recording.</string>
+	<string>Runs a golf workout during your round so GPS and motion sensors stay active, and saves the round to Fitness.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Shows your distance to the green on the watch and maps your round.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Records wrist motion at 100 Hz to develop automatic shot detection.</string>
 	<key>WKApplication</key>

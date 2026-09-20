@@ -8,6 +8,7 @@ struct GolfCaddieWatchApp: App {
         WindowGroup {
             WatchRootView()
                 .environmentObject(controller)
+                .environmentObject(controller.caddie)
         }
     }
 }

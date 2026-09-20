@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import WatchKit
@@ -42,8 +43,15 @@ final class LiveSessionController: ObservableObject {
     @Published private(set) var repCounts: [RepLabel: Int] = [:]
     #endif
 
+    /// On-wrist yardage (watch GPS + cached catalog).
+    let caddie = WatchCaddie()
+
     private let workout = WorkoutKeeper()
     private let recorder = MotionRecorder()
+    private let location = WatchLocationProvider()
+    /// GPS/battery log for the standalone spike (step 6).
+    let telemetry = WatchTelemetryRecorder()
+    private var cancellables: Set<AnyCancellable> = []
     private var detector: LiveSwingDetector?
 
     // Club state: the effective club is whichever of {phone, local Crown} has
@@ -62,7 +70,33 @@ final class LiveSessionController: ObservableObject {
         WatchSession.shared.activate()
         recorder.onRateSample = { [weak self] hz in self?.deliveredHz = hz }
         workout.onFailure = { [weak self] message in self?.lastError = "Workout: \(message)" }
+        location.onFix = { [weak self] fix in
+            guard let self, self.running else { return }
+            self.caddie.ingest(fix)
+            // Logged AFTER ingest so the row carries the yardage this fix produced,
+            // and unfiltered — rejected fixes are part of the measurement.
+            let phone = WatchSession.shared.phoneState
+            self.telemetry.record(
+                fix, reachable: WatchSession.shared.isPhoneReachable, hole: self.caddie.holeNumber,
+                localYards: self.caddie.localYards, phoneYards: phone.isActive ? phone.distanceToGreenYards : nil)
+            if fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= WatchCaddie.maxAccuracyMeters {
+                self.workout.addRoute([fix])
+            }
+        }
+        WatchSession.shared.$phoneState
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in self?.caddie.update(phoneState: state) }
+            .store(in: &cancellables)
+        WatchCourseStore.shared.$courses
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] courses in self?.caddie.update(courses: courses) }
+            .store(in: &cancellables)
+        Task { await WatchCourseStore.shared.fetchIfStale() }
     }
+
+    /// A phone round owns hole, club and shots; without one the watch runs on
+    /// its own (yardage + workout only — shot logging stays phone-side for now).
+    var phoneLed: Bool { WatchSession.shared.phoneState.isActive }
 
     var batteryPercent: Int { Int((WKInterfaceDevice.current().batteryLevel * 100).rounded()) }
 
@@ -136,6 +170,9 @@ final class LiveSessionController: ObservableObject {
 
             try workout.start()
             try recorder.start(recordRawTo: dir)
+            telemetry.start()
+            WatchSession.shared.activeTelemetrySessionId = telemetry.activeSessionId
+            location.start()
 
             detectionCount = 0
             startedAt = Date()
@@ -149,6 +186,8 @@ final class LiveSessionController: ObservableObject {
             lastError = error.localizedDescription
             workout.stop()
             recorder.stop()
+            location.stop()
+            finishTelemetry()
             detector = nil
         }
     }
@@ -157,6 +196,8 @@ final class LiveSessionController: ObservableObject {
         detectionCount += 1
         lastDetectionAt = Date()
         WKInterfaceDevice.current().play(.notification)
+        // Watch-only: there's no round to log into yet — count it, skip the card.
+        guard phoneLed else { return }
         // Raise the confirm card (one at a time). Confirm/timeout emits the
         // event; "Not a shot" drops it. The phone-side step-gate is the backstop
         // for any practice swing that auto-logs before the user dismisses.
@@ -193,6 +234,14 @@ final class LiveSessionController: ObservableObject {
         pending = nil
     }
 
+    private func finishTelemetry() {
+        let finished = telemetry.stop()
+        WatchSession.shared.activeTelemetrySessionId = nil
+        if let finished {
+            WatchSession.shared.sendTelemetry(sessionDir: finished.dir, sessionId: finished.sessionId)
+        }
+    }
+
     #if DEBUG
     /// Validation-mode ground-truth mark (spike-only, B20).
     func mark() {
@@ -221,6 +270,9 @@ final class LiveSessionController: ObservableObject {
         recorder.stop()
         #endif
         workout.stop()
+        location.stop()
+        finishTelemetry()
+        caddie.reset()
         detector = nil
 
         #if DEBUG
