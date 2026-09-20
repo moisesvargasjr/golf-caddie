@@ -53,11 +53,51 @@ final class WatchCaddie: ObservableObject {
         self.scheduleExpiry = scheduleExpiry
     }
 
-    var holeNumber: Int { phoneState.isActive ? phoneState.holeNumber : watchOnlyHole }
+    /// Holes per round, for wrapping (18 → 1 so a back-nine start rolls onto the
+    /// front; mirrors the phone's `RoundController.holesPerRound`).
+    static let holesPerRound = 18
+
+    /// Hole steps the golfer made on the watch that the phone hasn't reflected
+    /// yet. Next/Previous Hole are queued commands: the phone's hole arrives back
+    /// seconds later — or, with the phone out of range, not for holes. Applying
+    /// the step here keeps the wrist yardage on the hole actually being played;
+    /// each phone hole change consumes the part of the step it accounts for.
+    @Published private(set) var pendingHoleSteps = 0
+
+    var holeNumber: Int {
+        guard phoneState.isActive else { return watchOnlyHole }
+        let n = Self.holesPerRound
+        return ((phoneState.holeNumber - 1 + pendingHoleSteps) % n + n) % n + 1
+    }
+
+    /// True while the watch is ahead of (or behind) the phone's hole.
+    var holeIsAheadOfPhone: Bool { phoneState.isActive && pendingHoleSteps != 0 }
+
+    /// The watch sent a Next (+1) / Previous (−1) Hole command.
+    func holeStepRequested(by delta: Int) {
+        guard phoneState.isActive else { return }
+        pendingHoleSteps += delta
+        recompute()
+    }
 
     var hole: CuratedHole? { course?.hole(holeNumber) }
 
     func update(phoneState: PhoneStateUpdate) {
+        let old = self.phoneState
+        if !phoneState.isActive || !old.isActive {
+            pendingHoleSteps = 0 // round started/ended: nothing to reconcile against
+        } else if phoneState.holeNumber != old.holeNumber, pendingHoleSteps != 0 {
+            // The phone moved: consume that much of our pending step (signed,
+            // shortest way round the 18 → 1 wrap). Overshoot or a move the other
+            // way means the phone was changed by hand — it wins.
+            let n = Self.holesPerRound
+            var moved = (phoneState.holeNumber - old.holeNumber) % n
+            if moved > n / 2 { moved -= n }
+            if moved < -n / 2 { moved += n }
+            let remaining = pendingHoleSteps - moved
+            let sameDirection = (remaining >= 0) == (pendingHoleSteps >= 0)
+            pendingHoleSteps = sameDirection && abs(remaining) < abs(pendingHoleSteps) ? remaining : 0
+        }
         self.phoneState = phoneState
         recompute()
     }

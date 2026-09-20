@@ -143,6 +143,63 @@ final class WatchCaddieTests: XCTestCase {
         XCTAssertGreaterThan(notified, 0)
     }
 
+    // MARK: - Optimistic hole (Next/Previous Hole before the phone reflects it)
+
+    private func activePhone(hole: Int) -> PhoneStateUpdate {
+        var phone = PhoneStateUpdate.inactive
+        phone.isActive = true
+        phone.holeNumber = hole
+        phone.curatedCourseId = "c"
+        return phone
+    }
+
+    func testNextHoleMovesTheWristYardageBeforeThePhoneCatchesUp() throws {
+        let caddie = makeCaddie()
+        caddie.update(phoneState: activePhone(hole: 1))
+        caddie.ingest(fix())
+        XCTAssertEqual(Double(try XCTUnwrap(caddie.localYards)), 121, accuracy: 2)
+
+        caddie.holeStepRequested(by: 1) // phone unreachable: nothing comes back
+        XCTAssertEqual(caddie.holeNumber, 2)
+        XCTAssertTrue(caddie.holeIsAheadOfPhone)
+        XCTAssertEqual(Double(try XCTUnwrap(caddie.localYards)), 243, accuracy: 3, "yardage is to hole 2's green")
+
+        // Phone catches up to hole 2: the pending step is consumed, not doubled.
+        caddie.update(phoneState: activePhone(hole: 2))
+        XCTAssertEqual(caddie.holeNumber, 2)
+        XCTAssertFalse(caddie.holeIsAheadOfPhone)
+    }
+
+    func testPhoneCatchingUpPartWayKeepsTheRest() {
+        let caddie = makeCaddie()
+        caddie.update(phoneState: activePhone(hole: 9))
+        for _ in 0..<3 { caddie.holeStepRequested(by: 1) } // played 10, 11, now on 12 — phone away
+        XCTAssertEqual(caddie.holeNumber, 12)
+        caddie.update(phoneState: activePhone(hole: 10)) // replay in progress
+        XCTAssertEqual(caddie.holeNumber, 12)
+        caddie.update(phoneState: activePhone(hole: 12)) // application context is latest-wins: may skip 11
+        XCTAssertEqual(caddie.holeNumber, 12)
+        XCTAssertFalse(caddie.holeIsAheadOfPhone)
+    }
+
+    func testHoleStepWrapsAndThePhoneWinsWhenChangedByHand() {
+        let caddie = makeCaddie()
+        caddie.update(phoneState: activePhone(hole: 18))
+        caddie.holeStepRequested(by: 1)
+        XCTAssertEqual(caddie.holeNumber, 1, "18 → 1, like the phone")
+        caddie.update(phoneState: activePhone(hole: 1))
+        XCTAssertEqual(caddie.holeNumber, 1)
+
+        caddie.holeStepRequested(by: 1) // watch says 2…
+        caddie.update(phoneState: activePhone(hole: 7)) // …but someone jumped the phone to 7
+        XCTAssertEqual(caddie.holeNumber, 7, "an unrelated phone move wins")
+
+        caddie.holeStepRequested(by: -1)
+        XCTAssertEqual(caddie.holeNumber, 6)
+        caddie.update(phoneState: .inactive)
+        XCTAssertFalse(caddie.holeIsAheadOfPhone, "round over: nothing pending")
+    }
+
     func testResetCancelsExpiryAndClears() {
         let caddie = makeCaddie()
         caddie.ingest(fix())

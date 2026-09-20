@@ -136,7 +136,7 @@ final class LiveSessionController: ObservableObject {
         guard running, phone.isActive else { return }
         let clubs = phone.clubs.filter { !($0.isPutter ?? ($0.short == "Pt")) }
         let pick = autoPilot.update(
-            hole: phone.holeNumber, strokeCount: phone.strokes.count,
+            hole: caddie.holeNumber, strokeCount: phone.strokes.count, // the watch's hole: it may be ahead of the phone's
             yards: localYards ?? phone.distanceToGreenYards, clubs: clubs, currentShort: effectiveClubShort)
         if clubIsAuto != autoPilot.isAuto { clubIsAuto = autoPilot.isAuto }
         if let pick { applyClub(short: pick) }
