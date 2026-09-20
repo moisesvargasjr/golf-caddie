@@ -54,6 +54,58 @@ struct CourseDataFile: Codable {
     var courses: [CuratedCourse]
 }
 
+/// A tee/green captured in-app on the phone for one hole. Local captures win
+/// over the curated anchors (same precedence as the phone's
+/// `GlassesStateMapper.greenCoordinate`). Kept SEPARATE from the public catalog
+/// on the watch so a direct catalog refresh can't wipe them.
+struct CourseAnchorOverride: Codable, Equatable {
+    var courseId: String
+    var holeNumber: Int
+    var tee: GeoPoint?
+    var green: GeoPoint?
+}
+
+/// Phone → watch `transferFile` payload: the phone's cached public catalog plus
+/// its local anchor overrides, unmerged.
+struct WatchCatalogPayload: Codable {
+    var catalog: CourseDataFile
+    var overrides: [CourseAnchorOverride]
+}
+
+/// The watch's catalog state: the public catalog (from the phone push OR the
+/// watch's own direct fetch — same published file either way) and the
+/// phone-provided overrides, stored apart. `courses` is always base + overrides,
+/// so overrides keep precedence no matter which source refreshed the base last.
+/// Every apply is soft-fail: a bad payload leaves the cache untouched.
+struct WatchCatalogCache: Codable, Equatable {
+    private(set) var base: [CuratedCourse] = []
+    private(set) var overrides: [CourseAnchorOverride] = []
+    /// False until a phone push lands — the watch asks the phone to (re)send
+    /// while this is false (fresh install / reinstall).
+    private(set) var hasPhonePush = false
+
+    var courses: [CuratedCourse] { CourseCatalog.overlay(base, overrides: overrides) }
+
+    @discardableResult
+    mutating func applyPhonePush(_ data: Data) -> Bool {
+        guard let payload = try? JSONDecoder().decode(WatchCatalogPayload.self, from: data),
+              payload.catalog.schemaVersion == CuratedSchema.supportedVersion else { return false }
+        base = payload.catalog.courses
+        overrides = payload.overrides
+        hasPhonePush = true
+        return true
+    }
+
+    /// A direct public-catalog refresh replaces ONLY the base.
+    @discardableResult
+    mutating func applyPublicCatalog(_ data: Data) -> Bool {
+        guard let file = try? JSONDecoder().decode(CourseDataFile.self, from: data),
+              file.schemaVersion == CuratedSchema.supportedVersion else { return false }
+        base = file.courses
+        return true
+    }
+}
+
 enum CourseCatalog {
     /// Raw URL of the PUBLIC golf-caddie-coursedata `data/courses.json`.
     /// Public by decision: course par/yardage is public info, so the raw URL
@@ -77,5 +129,18 @@ enum CourseCatalog {
             .filter { $0.d <= within }
             .min { $0.d < $1.d }?
             .course
+    }
+
+    /// Apply local tee/green captures over the curated anchors, point by point.
+    static func overlay(_ courses: [CuratedCourse], overrides: [CourseAnchorOverride]) -> [CuratedCourse] {
+        guard !overrides.isEmpty else { return courses }
+        var courses = courses
+        for o in overrides {
+            guard let c = courses.firstIndex(where: { $0.id == o.courseId }),
+                  let h = courses[c].holes.firstIndex(where: { $0.number == o.holeNumber }) else { continue }
+            if let tee = o.tee { courses[c].holes[h].teeAnchor = tee }
+            if let green = o.green { courses[c].holes[h].greenAnchor = green }
+        }
+        return courses
     }
 }

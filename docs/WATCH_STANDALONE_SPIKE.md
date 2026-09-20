@@ -1,7 +1,9 @@
 # Watch-standalone spike — on-wrist GPS, course cache, local yardage
 
-> **Status (2026-09-19):** steps 1–5 built on `spike/watch-standalone` — watch target
-> builds, 145 phone tests green, **not yet run on a device**. Steps 6–8 (telemetry,
+> **Status (2026-09-19):** steps 1–5 built on `spike/watch-standalone` (PR #14, review
+> round 1 addressed) — watch target builds, 155 phone tests green, **not yet run on a
+> device**. A simulator build and phone unit tests establish none of the device outcomes
+> below (permissions, wrist-down updates, disconnected yardage, saved route, GPS, battery). Steps 6–8 (telemetry,
 > analysis script, Action Button) follow.
 > **Supersedes** `WATCH_FEASIBILITY.md`, which predates the watch app and assumed a
 > Series 6 battery budget.
@@ -21,9 +23,11 @@ so the battery constraint is gone and the goal changes:
 **Ultra 4** (Apple tech specs; DC Rainmaker review)
 - Battery: 18 h outdoor workout with full GPS + HR, 50 h normal use. A 5 h round should
   cost roughly 25–30 % before our 100 Hz motion load (estimate — the spike measures it).
-- Dual-frequency L1/L5 GPS. **The watch uses the phone's GPS whenever the phone is in
-  Bluetooth range** — testing the watch's own GPS needs the phone out of range or with
-  Bluetooth off.
+- Dual-frequency L1/L5 GPS. **Assumption to verify on the actual device:** watchOS is
+  documented to source location from the paired phone while it's in Bluetooth range and
+  from the watch's own receiver otherwise. No API reports which receiver produced a fix,
+  so this is inferred, not observed — see "GPS-routing check" below before reading
+  anything into the paired-vs-disconnected comparison.
 - S11, 64 GB, 422×514 always-on display refreshing at 1 Hz (suits a wrist-down yardage
   face). Public motion limits unchanged: 800 Hz accel / 200 Hz device motion via
   `CMBatchedSensorManager`.
@@ -74,9 +78,12 @@ Out of scope: shot logging on the watch, round ownership, a watch database.
    `CourseDataFile`) and `Distance` move to `GolfCaddie/Shared/` (the watch target already
    compiles it). GRDB record types stay on the phone.
 2. **Course cache on the watch.** `WatchCourseStore` keeps the catalog as a JSON file in
-   the watch's Documents. The phone pushes it with `transferFile` (with in-app captured
-   local anchors overlaid, since those win over curated on the phone); fallback is a
-   direct ETag fetch of the public catalog URL. Course resolution: the phone's linked
+   the watch's Documents. The phone pushes it with `transferFile`, carrying the in-app
+   captured local anchors as **separate overrides** (they win over curated on the phone,
+   so they must on the watch); fallback is a direct ETag fetch of the public catalog URL,
+   which refreshes only the base — overrides keep precedence. Delivery is tracked: a push
+   counts as delivered only on a successful `didFinish`, failures retry with backoff, and
+   a watch that has never received a push (fresh install / reinstall) requests one. Course resolution: the phone's linked
    course id when a phone round is active, else nearest cached course by coordinate
    (no MapKit search — works offline).
 3. **Watch GPS.** `WatchLocationProvider` — a trimmed `LocationManager` (best accuracy, no
@@ -87,7 +94,9 @@ Out of scope: shot logging on the watch, round ownership, a watch database.
    2 minutes are discarded so test starts don't litter Fitness.
 5. **Local yardage.** `YardageScreen` computes distance-to-green from the watch fix + the
    cached green, falling back to the phone's pushed value; a small `W` / `P` marker shows
-   which source is live. Phone round active → the hole comes from the phone. No phone
+   **where the yardage was computed** (watch vs phone). It is *not* evidence of which
+   device's GPS receiver produced the fix. The wrist value is actively cleared 20 s after
+   the last good fix (timer-driven, not redraw-driven). Phone round active → the hole comes from the phone. No phone
    round → **watch-only**: course auto-picked, holes stepped with +/−.
 6. **Telemetry** *(follow-up)*. Log every watch fix (time, lat, lng, accuracy, speed) +
    battery every 5 min; transfer to the phone at round end behind a "Watch GPS spike"
@@ -100,27 +109,51 @@ Out of scope: shot logging on the watch, round ownership, a watch database.
 
 ### Known limits of the 1–5 build
 
-- **Watch-only logs no shots.** Yardage + workout/route only; swing detections are
-  counted but the DetectCard is skipped (there's no round to log into until the round
-  engine moves over).
-- **Stale local yardage.** A wrist yardage older than 20 s falls back to the phone's, but
-  only on the next redraw — nothing forces one if fixes stop entirely.
-- **Catalog push is recorded when queued**, not when delivered; a failed transfer isn't
-  retried until the catalog changes (the watch's direct fetch covers it).
+- **Watch-only is yardage + workout, not a round.** No shots are logged and nothing is
+  stored as a round; swing detections are counted but the DetectCard is skipped. The UI
+  labels the start as "WATCH ONLY · YARDAGE + WORKOUT". A full watch-owned round (shot
+  logging, storage, sync) is the *next phase*, not this build.
+- **Base-catalog recency isn't compared.** A phone push replaces the watch's base catalog
+  even if the watch fetched a newer public file itself (the file has no version stamp).
+  Both come from the same published file, so the window is small.
 - **Health permissions changed** (route write, HR/energy read) — the watch re-prompts on
   the first start.
 - Built with Xcode 27 (the machine's Xcode 26.6 lacks the watchOS platform); deployment
   targets unchanged.
 
-### Device checklist before the field test
+### Device validation (required — nothing here is established yet)
 
-1. First start: location + Health prompts appear on the watch; grant both.
-2. Phone app open once → catalog lands on the watch (watch-only screen shows a course
-   name near a cached course instead of "No course data yet").
-3. Phone round active: header shows `· W` within a few seconds of starting; yardage
-   matches the phone within a few yards.
-4. No phone round: +/− steps holes, yardage follows.
-5. End a >2 min session: a Golf workout with a route appears in Fitness.
+1. **Permissions.** First start: location + Health prompts appear on the watch. Check
+   grant, and check *deny* for each: denied location → no `W`, falls back to `P` / `–––`
+   with no crash; denied Health → start reports the error.
+2. **Catalog delivery.** Phone app open once → the watch-only screen shows a course name
+   near a cached course instead of "No course data yet". Delete + reinstall the watch app
+   → the catalog (including a locally captured green) comes back without changing anything
+   on the phone.
+3. **Phone-led yardage.** Header shows `· W` within a few seconds of starting; agrees with
+   the phone within a few yards.
+4. **Wrist-down updates.** Wrist down for a minute while walking, raise: the yardage is
+   current, not frozen; always-on shows it ticking.
+5. **Phone-disconnected cached yardage.** Phone Bluetooth off (or phone left behind), no
+   phone round: start watch-only, course resolves from the cache, +/− steps holes,
+   yardage follows.
+6. **Expiry.** Walk indoors / cover the watch until fixes stop: within ~20 s `W` drops to
+   `P` (phone-led) or `–––` (watch-only).
+7. **Saved workout.** End a >2 min session: a Golf workout with a route map appears in
+   Fitness. End a <2 min session: nothing is saved.
+
+### GPS-routing check (before trusting paired-vs-disconnected conclusions)
+
+`W`/`P` can't tell us which receiver produced a fix. With step 6 telemetry in place, compare
+the watch-logged fixes against the phone's breadcrumbs for the same seconds:
+
+- Paired, phone in pocket: near-identical coordinates/accuracy ⇒ the watch is being fed
+  the phone's fixes (expected).
+- Phone Bluetooth off: the tracks should diverge by normal GPS noise ⇒ the watch's own
+  receiver. If they *don't* diverge, or the watch stops getting fixes, the routing
+  assumption is wrong for this hardware/OS and the back-nine protocol needs rethinking.
+
+Only the disconnected segment says anything about the Ultra 4's own GPS.
 
 ### Field test protocol
 

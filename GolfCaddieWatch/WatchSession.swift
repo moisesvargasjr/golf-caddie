@@ -41,6 +41,16 @@ final class WatchSession: NSObject, ObservableObject {
         refreshOutstanding()
     }
 
+    /// No phone push has ever landed (fresh install / reinstall): ask the phone
+    /// to send the catalog regardless of what it believes it delivered. Queued,
+    /// so it survives the phone being away; once per launch is enough.
+    private var requestedCatalog = false
+    func requestCatalogIfNeeded() {
+        guard WCSession.isSupported(), !requestedCatalog, WatchCourseStore.shared.needsPhonePush else { return }
+        requestedCatalog = true
+        WCSession.default.transferUserInfo([ShotContract.catalogRequestKey: true])
+    }
+
     var debugStatus: String {
         let s = WCSession.default
         let act = ["notActivated", "inactive", "activated"][s.activationState.rawValue]
@@ -84,7 +94,10 @@ final class WatchSession: NSObject, ObservableObject {
 
 extension WatchSession: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
-                             error: Error?) {}
+                             error: Error?) {
+        guard activationState == .activated else { return }
+        Task { @MainActor in self.requestCatalogIfNeeded() }
+    }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         guard let data = applicationContext[ShotContract.payloadKey] as? Data,
@@ -97,7 +110,7 @@ extension WatchSession: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
         guard file.metadata?[ShotContract.fileKindKey] as? String == ShotContract.courseCatalogKind,
               let data = try? Data(contentsOf: file.fileURL) else { return }
-        Task { @MainActor in WatchCourseStore.shared.install(data) }
+        Task { @MainActor in WatchCourseStore.shared.installPhonePush(data) }
     }
 
     #if DEBUG

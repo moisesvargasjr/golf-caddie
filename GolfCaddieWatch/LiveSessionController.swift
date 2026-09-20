@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import WatchKit
@@ -48,6 +49,7 @@ final class LiveSessionController: ObservableObject {
     private let workout = WorkoutKeeper()
     private let recorder = MotionRecorder()
     private let location = WatchLocationProvider()
+    private var cancellables: Set<AnyCancellable> = []
     private var detector: LiveSwingDetector?
 
     // Club state: the effective club is whichever of {phone, local Crown} has
@@ -73,6 +75,14 @@ final class LiveSessionController: ObservableObject {
                 self.workout.addRoute([fix])
             }
         }
+        WatchSession.shared.$phoneState
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in self?.caddie.update(phoneState: state) }
+            .store(in: &cancellables)
+        WatchCourseStore.shared.$courses
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] courses in self?.caddie.update(courses: courses) }
+            .store(in: &cancellables)
         Task { await WatchCourseStore.shared.fetchIfStale() }
     }
 

@@ -249,8 +249,10 @@ private struct YardageScreen: View {
     var body: some View {
         let s = session.phoneState
         // The wrist's own yardage wins; the phone's pushed value is the
-        // fallback (no fix yet / course not cached). W/P marks the live source.
-        let local = caddie.freshLocalYards
+        // fallback (no fix yet / fix aged out / course not cached). W/P marks
+        // WHERE THE YARDAGE WAS COMPUTED (watch vs phone) — not which device's
+        // GPS receiver produced the fix; the system picks that and doesn't say.
+        let local = caddie.localYards
         let yards = local ?? (s.isActive ? s.distanceToGreenYards : nil)
         let source = local != nil ? " · W" : (yards != nil ? " · P" : "")
         let par = s.isActive ? s.par : caddie.hole?.par
@@ -381,7 +383,7 @@ private struct ClubSelector: View {
         let clubs = session.phoneState.clubs.filter { !($0.isPutter ?? ($0.short == "Pt")) }
         let idx = currentIndex(clubs)
         let club = clubs.indices.contains(idx) ? clubs[idx] : nil
-        let suggested = suggestedClubIndex(clubs, yards: caddie.freshLocalYards ?? session.phoneState.distanceToGreenYards ?? 0)
+        let suggested = suggestedClubIndex(clubs, yards: caddie.localYards ?? session.phoneState.distanceToGreenYards ?? 0)
 
         HStack(spacing: 9) {
             Text(club?.short ?? "—").font(WT.serif(WT.s(28))).foregroundStyle(WT.accent)

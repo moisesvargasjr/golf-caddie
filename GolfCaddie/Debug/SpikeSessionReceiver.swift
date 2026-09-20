@@ -38,8 +38,25 @@ extension SpikeSessionReceiver: WCSessionDelegate {
         session.activate()
     }
 
+    /// A retry trigger for a catalog push that failed while the watch was away.
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        if session.isReachable { WatchCatalogPusher.pushIfChanged() }
+    }
+
+    /// Catalog push outcome — only a confirmed delivery marks the hash delivered.
+    func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        let metadata = fileTransfer.file.metadata
+        guard metadata?[ShotContract.fileKindKey] as? String == ShotContract.courseCatalogKind else { return }
+        WatchCatalogPusher.transferFinished(hash: metadata?[ShotContract.catalogHashKey] as? String, error: error)
+    }
+
     /// Live swing events / commands from the watch (transferUserInfo, queued).
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        // A watch with no phone push yet (fresh install / reinstall) asks for one.
+        if userInfo[ShotContract.catalogRequestKey] != nil {
+            WatchCatalogPusher.pushIfChanged(force: true)
+            return
+        }
         guard let data = userInfo[ShotContract.payloadKey] as? Data,
               let message = try? WatchToPhoneMessage.decode(data) else { return }
         LiveShotCoordinator.shared.receive(message)

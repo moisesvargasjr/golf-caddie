@@ -22,6 +22,12 @@ enum ShotContract {
     /// any other file.
     static let fileKindKey = "kind"
     static let courseCatalogKind = "courseCatalog"
+    /// transferFile metadata key carrying the pushed catalog's content hash.
+    static let catalogHashKey = "hash"
+    /// transferUserInfo key for a watch → phone "send me the catalog" request
+    /// (watch has never received a push: fresh install / reinstall). Separate
+    /// from `payloadKey` — it isn't a round message.
+    static let catalogRequestKey = "catalogRequest"
 }
 
 /// One auto-detected (or watch-manually-added) swing. Timestamped on the watch

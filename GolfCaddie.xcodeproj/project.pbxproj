@@ -50,8 +50,10 @@
 		42BCC6C41C9D7A6F5B596A0C /* DatabaseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435A866F4F4085EB7AAE374C /* DatabaseExport.swift */; };
 		44EBA2F49E8D0BC42F3D1F21 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B123209BD00D13CDF3193DD /* Haptics.swift */; };
 		4562B70E81824125A7D522FD /* DoubleRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD0F2CBF0FA371E6D67C122 /* DoubleRule.swift */; };
+		45B3B99D05D9FF67D442EF48 /* WatchCaddie.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A926581A53F52D80BF44458 /* WatchCaddie.swift */; };
 		476ADE8E1A6A3F29D630E097 /* parity_gyro.bin in Resources */ = {isa = PBXBuildFile; fileRef = A773DA8CA78F51BAA06E458F /* parity_gyro.bin */; };
 		4AC2C96E6F49246B0E8B0887 /* parity_reference.json in Resources */ = {isa = PBXBuildFile; fileRef = F5BB7EE3CC8370B46679152F /* parity_reference.json */; };
+		4D8F483269502103F0834319 /* WatchCaddie.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A926581A53F52D80BF44458 /* WatchCaddie.swift */; };
 		53D6829720D4A507EB1F1933 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6647B81638FF6AD842CEF465 /* Database.swift */; };
 		5940F26F609500864B728F69 /* GolfCaddieWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = FEE5998979B02B62A61428D5 /* GolfCaddieWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5FCC058F5D19BE5D1BF40506 /* ActiveRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D378A1B035D31197677B6907 /* ActiveRoundView.swift */; };
@@ -73,7 +75,6 @@
 		8A7527673057375382523425 /* CourseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60F94159B63AFEA26728836 /* CourseCatalog.swift */; };
 		8ABA2DDCBFA18A40BDCB9685 /* Distance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F646E6FC56052DAFAE74D374 /* Distance.swift */; };
 		8DB18581CE5F8E81598E66AE /* TracePointRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F44C2D883B910A964ED558B /* TracePointRepositoryTests.swift */; };
-		902F0F87AA6D7EB2FCE2AE0D /* WatchCaddie.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA694378BF585952A8FA8FC /* WatchCaddie.swift */; };
 		90380A786BDF63842FA7C18B /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C293544F208E500DAE795D2E /* WatchLocationProvider.swift */; };
 		90E013D2FA35B580E792CDA1 /* ClubRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD6949066E849BBA391ED41 /* ClubRepositoryTests.swift */; };
 		95AD9FF04B01CA91C846B5FD /* DistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50E81AFF23C93859674DBC3 /* DistanceTests.swift */; };
@@ -101,6 +102,7 @@
 		CA86EFB30EB12E73215FC5DF /* WatchTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 263F96D198BDF6B0C3CAF42A /* WatchTheme.swift */; };
 		CB5A9A9C16C208A86FEB4EE3 /* ScoreBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD3C05D57722A9BAB47D008 /* ScoreBadge.swift */; };
 		CBB6B38E8C04976ED996FBEB /* ShotReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3B9A55AF8B0E6E38607DC6 /* ShotReconcilerTests.swift */; };
+		D256119F917A685957EEE8EF /* WatchCaddieTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D27B46145A0A402643244 /* WatchCaddieTests.swift */; };
 		D64EE03942171ADEAC1E7631 /* HoleReconstructionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AD27F0EAF79D4FDB5F7F21 /* HoleReconstructionCard.swift */; };
 		DC8BE80DAAB549E9454A615C /* PathBReconstructorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93BC82B8625652553A724C9 /* PathBReconstructorTests.swift */; };
 		E2DD95E6606B16CA5F9708BC /* Shot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA158C6DE12A37EE04DDB8A /* Shot.swift */; };
@@ -186,6 +188,7 @@
 		4869F686A79319D1C3C34BD3 /* Penalty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Penalty.swift; sourceTree = "<group>"; };
 		4A0D4AC81E30AEAA643D7032 /* HolePinMapSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolePinMapSheet.swift; sourceTree = "<group>"; };
 		4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPreviewDebug.swift; sourceTree = "<group>"; };
+		4C7D27B46145A0A402643244 /* WatchCaddieTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCaddieTests.swift; sourceTree = "<group>"; };
 		4EEE08CB9110FAA5A5C67753 /* RoundController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundController.swift; sourceTree = "<group>"; };
 		4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSchemeHandler.swift; sourceTree = "<group>"; };
 		51AAF43D52E594F84C303988 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
@@ -206,6 +209,7 @@
 		72F2EB7B56EA81319C703297 /* CourseSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseSyncClient.swift; sourceTree = "<group>"; };
 		77D022ED10FCFF616D8B4F7B /* ClubConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubConfiguration.swift; sourceTree = "<group>"; };
 		7A27A1DEDB2B555E7F5ECCA4 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		7A926581A53F52D80BF44458 /* WatchCaddie.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCaddie.swift; sourceTree = "<group>"; };
 		7B2DC3DBCF0CEB37E7747278 /* TracePoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracePoint.swift; sourceTree = "<group>"; };
 		81401367B028C28D4F518C8C /* GolfCaddie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GolfCaddie.entitlements; sourceTree = "<group>"; };
 		834A29B7FA85FCD58F7784FA /* ClubAveragesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubAveragesTests.swift; sourceTree = "<group>"; };
@@ -236,7 +240,6 @@
 		BC765D7FB5E6B8C9B0976AF0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BCE6B9DDFAAC23537DB021F9 /* WatchCommandIdempotencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCommandIdempotencyTests.swift; sourceTree = "<group>"; };
 		BD897253F6B7CA504A07AC13 /* LiveSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSessionController.swift; sourceTree = "<group>"; };
-		BFA694378BF585952A8FA8FC /* WatchCaddie.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCaddie.swift; sourceTree = "<group>"; };
 		C293544F208E500DAE795D2E /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };
 		C4E1A5239F7D8B0933F8ADF8 /* GolfCaddie.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GolfCaddie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C50E81AFF23C93859674DBC3 /* DistanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceTests.swift; sourceTree = "<group>"; };
@@ -290,6 +293,7 @@
 				2A3B9A55AF8B0E6E38607DC6 /* ShotReconcilerTests.swift */,
 				1F44C2D883B910A964ED558B /* TracePointRepositoryTests.swift */,
 				1605D89D0BC1BC04C4959583 /* TrackSegmenterTests.swift */,
+				4C7D27B46145A0A402643244 /* WatchCaddieTests.swift */,
 				BCE6B9DDFAAC23537DB021F9 /* WatchCommandIdempotencyTests.swift */,
 				5D016DD0517744FB7DB2D78A /* Fixtures */,
 				20818151AD767AF86991A8E9 /* TestSupport */,
@@ -319,6 +323,7 @@
 				F60F94159B63AFEA26728836 /* CourseCatalog.swift */,
 				F646E6FC56052DAFAE74D374 /* Distance.swift */,
 				CB5D2F1264686230AC6D88D6 /* SwingEventContract.swift */,
+				7A926581A53F52D80BF44458 /* WatchCaddie.swift */,
 				2894BBD3C920356A1FC4D71D /* Detection */,
 			);
 			path = Shared;
@@ -382,7 +387,6 @@
 				BD897253F6B7CA504A07AC13 /* LiveSessionController.swift */,
 				2E475F6959737E6990AB467F /* MotionRecorder.swift */,
 				3CD873D31FBEDA03AAC3EB7A /* SessionMeta.swift */,
-				BFA694378BF585952A8FA8FC /* WatchCaddie.swift */,
 				1F1060586591CAD52578F998 /* WatchCourseStore.swift */,
 				C293544F208E500DAE795D2E /* WatchLocationProvider.swift */,
 				4B0137E8260A5B654DE993F1 /* WatchPreviewDebug.swift */,
@@ -686,6 +690,7 @@
 				7C7DDE425EE1511B86C06237 /* TestDatabase.swift in Sources */,
 				8DB18581CE5F8E81598E66AE /* TracePointRepositoryTests.swift in Sources */,
 				6671E6DCD9159C766A5E9328 /* TrackSegmenterTests.swift in Sources */,
+				D256119F917A685957EEE8EF /* WatchCaddieTests.swift in Sources */,
 				6CEA09C75BBAE5EE1C8E42B2 /* WatchCommandIdempotencyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -702,7 +707,7 @@
 				FD79038B752DBA657B0BDF4A /* MotionRecorder.swift in Sources */,
 				7AE2C148B6AD19CA9C482606 /* SessionMeta.swift in Sources */,
 				1A18A9F7BCBFC37158A638F5 /* SwingEventContract.swift in Sources */,
-				902F0F87AA6D7EB2FCE2AE0D /* WatchCaddie.swift in Sources */,
+				4D8F483269502103F0834319 /* WatchCaddie.swift in Sources */,
 				15700E4DBA9FDBD7AA889A28 /* WatchCourseStore.swift in Sources */,
 				90380A786BDF63842FA7C18B /* WatchLocationProvider.swift in Sources */,
 				38254D2EAB87937F0909E027 /* WatchPreviewDebug.swift in Sources */,
@@ -783,6 +788,7 @@
 				2A7E41B09E4063659A53726F /* TrackSegmenter.swift in Sources */,
 				B6F539EDFA096CDA5BB240C5 /* Typography.swift in Sources */,
 				68703A24569E6BC394409AD6 /* URLSchemeHandler.swift in Sources */,
+				45B3B99D05D9FF67D442EF48 /* WatchCaddie.swift in Sources */,
 				9BB2735CE47EA751994F7D3C /* WatchCatalogPusher.swift in Sources */,
 				8560129CF8022BF3D73DC681 /* WatchStatePublisher.swift in Sources */,
 			);

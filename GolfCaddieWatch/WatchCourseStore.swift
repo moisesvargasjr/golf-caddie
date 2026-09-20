@@ -1,11 +1,12 @@
 import Foundation
 
-/// The watch's own copy of the curated course catalog — a single JSON file in
-/// Documents, so yardages work with the phone away. Two sources, both
+/// The watch's own copy of the course catalog, so yardages work with the phone
+/// away. Persists a `WatchCatalogCache` (public catalog + phone-provided anchor
+/// overrides, kept apart) as one JSON file in Documents. Two sources, both
 /// soft-fail (a bad payload never replaces the last good cache):
-///   - the phone pushes the catalog via `transferFile` (WatchCatalogPusher),
-///     with its locally captured anchors overlaid;
-///   - fallback: a direct ETag fetch of the public catalog URL.
+///   - the phone push (`WatchCatalogPusher`): catalog + overrides;
+///   - fallback: a direct ETag fetch of the public catalog — refreshes the base
+///     only, so the phone's overrides keep precedence.
 @MainActor
 final class WatchCourseStore: ObservableObject {
     static let shared = WatchCourseStore()
@@ -16,30 +17,33 @@ final class WatchCourseStore: ObservableObject {
     private static let lastFetchKey = "watchCourseStore.lastFetchAt"
     private static let minFetchInterval: TimeInterval = 6 * 60 * 60
 
+    private var cache = WatchCatalogCache()
     private var inFlight = false
 
     private static var fileURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("courses.json")
+            .appendingPathComponent("catalog-cache.json")
     }
 
     private init() {
-        if let data = try? Data(contentsOf: Self.fileURL), let file = Self.decode(data) {
-            courses = file.courses
+        if let data = try? Data(contentsOf: Self.fileURL),
+           let saved = try? JSONDecoder().decode(WatchCatalogCache.self, from: data) {
+            cache = saved
+            courses = saved.courses
         }
     }
+
+    /// True until a phone push has landed — the watch keeps asking for one.
+    var needsPhonePush: Bool { !cache.hasPhonePush }
 
     func course(byId id: String) -> CuratedCourse? {
         courses.first { $0.id == id }
     }
 
-    /// Validate + persist a catalog payload. Returns false (cache untouched)
-    /// on an undecodable payload or an unknown schema version.
     @discardableResult
-    func install(_ data: Data) -> Bool {
-        guard let file = Self.decode(data) else { return false }
-        try? data.write(to: Self.fileURL, options: .atomic)
-        courses = file.courses
+    func installPhonePush(_ data: Data) -> Bool {
+        guard cache.applyPhonePush(data) else { return false }
+        persist()
         return true
     }
 
@@ -65,16 +69,18 @@ final class WatchCourseStore: ObservableObject {
             defaults.set(Date().timeIntervalSince1970, forKey: Self.lastFetchKey)
             return
         }
-        guard http.statusCode == 200, install(data) else { return }
+        guard http.statusCode == 200, cache.applyPublicCatalog(data) else { return }
+        persist()
         defaults.set(Date().timeIntervalSince1970, forKey: Self.lastFetchKey)
         if let etag = http.value(forHTTPHeaderField: "Etag") {
             defaults.set(etag, forKey: Self.etagKey)
         }
     }
 
-    private static func decode(_ data: Data) -> CourseDataFile? {
-        guard let file = try? JSONDecoder().decode(CourseDataFile.self, from: data),
-              file.schemaVersion == CuratedSchema.supportedVersion else { return nil }
-        return file
+    private func persist() {
+        if let data = try? JSONEncoder().encode(cache) {
+            try? data.write(to: Self.fileURL, options: .atomic)
+        }
+        courses = cache.courses
     }
 }

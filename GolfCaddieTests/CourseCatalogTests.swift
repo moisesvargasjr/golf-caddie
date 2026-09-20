@@ -39,19 +39,89 @@ final class CourseCatalogTests: XCTestCase {
     func testOverlayLocalAnchorsWinPerPoint() {
         let curatedGreen = GeoPoint(lat: 33.001, lng: -117.0)
         let c = course("c", lat: 33.0, lng: -117.0, green: curatedGreen)
-        let localGreen = LocalCourseAnchor(
+        let green = CourseAnchorOverride(courseId: "c", holeNumber: 1, tee: nil, green: GeoPoint(lat: 33.002, lng: -117.001))
+        let merged = CourseCatalog.overlay([c], overrides: [green])
+        XCTAssertEqual(merged[0].holes[0].greenAnchor, GeoPoint(lat: 33.002, lng: -117.001))
+        XCTAssertNil(merged[0].holes[0].teeAnchor, "a missing local tee leaves the curated tee alone")
+
+        let otherHole = CourseAnchorOverride(courseId: "c", holeNumber: 9, tee: GeoPoint(lat: 1, lng: 1), green: nil)
+        let otherCourse = CourseAnchorOverride(courseId: "x", holeNumber: 1, tee: nil, green: GeoPoint(lat: 1, lng: 1))
+        XCTAssertEqual(CourseCatalog.overlay([c], overrides: [otherHole, otherCourse]), [c])
+    }
+
+    func testPusherMapsLocalAnchorsToOverrides() {
+        let captured = LocalCourseAnchor(
             id: LocalCourseAnchor.makeID(courseId: "c", holeNumber: 1), courseId: "c", holeNumber: 1,
             teeLat: nil, teeLng: nil, greenLat: 33.002, greenLng: -117.001, capturedAt: Date()
         )
-        let merged = WatchCatalogPusher.overlay(c, anchors: [localGreen])
-        XCTAssertEqual(merged.holes[0].greenAnchor, GeoPoint(lat: 33.002, lng: -117.001))
-        XCTAssertNil(merged.holes[0].teeAnchor, "a missing local tee leaves the curated tee alone")
-
-        let otherHole = LocalCourseAnchor(
-            id: LocalCourseAnchor.makeID(courseId: "c", holeNumber: 9), courseId: "c", holeNumber: 9,
-            teeLat: 1, teeLng: 1, greenLat: 1, greenLng: 1, capturedAt: Date()
+        let empty = LocalCourseAnchor(
+            id: LocalCourseAnchor.makeID(courseId: "c", holeNumber: 2), courseId: "c", holeNumber: 2,
+            teeLat: nil, teeLng: nil, greenLat: nil, greenLng: nil, capturedAt: Date()
         )
-        XCTAssertEqual(WatchCatalogPusher.overlay(c, anchors: [otherHole]), c)
+        XCTAssertEqual(
+            WatchCatalogPusher.overrides(from: [captured, empty]),
+            [CourseAnchorOverride(courseId: "c", holeNumber: 1, tee: nil, green: GeoPoint(lat: 33.002, lng: -117.001))]
+        )
+    }
+
+    // MARK: - Watch cache: phone overrides survive a direct public refresh
+
+    private func publicCatalog(_ courses: [CuratedCourse], schema: Int = CuratedSchema.supportedVersion) throws -> Data {
+        try JSONEncoder().encode(CourseDataFile(schemaVersion: schema, courses: courses))
+    }
+
+    func testPhonePushThenPublicRefreshKeepsLocalOverrides() throws {
+        let curated = course("c", lat: 33.0, lng: -117.0, green: GeoPoint(lat: 33.001, lng: -117.0))
+        let localGreen = GeoPoint(lat: 33.002, lng: -117.001)
+        let push = try JSONEncoder().encode(WatchCatalogPayload(
+            catalog: CourseDataFile(schemaVersion: CuratedSchema.supportedVersion, courses: [curated]),
+            overrides: [CourseAnchorOverride(courseId: "c", holeNumber: 1, tee: nil, green: localGreen)]
+        ))
+        var cache = WatchCatalogCache()
+        XCTAssertFalse(cache.hasPhonePush)
+        XCTAssertTrue(cache.applyPhonePush(push))
+        XCTAssertTrue(cache.hasPhonePush)
+        XCTAssertEqual(cache.courses[0].holes[0].greenAnchor, localGreen)
+
+        // HTTP 200 public refresh: curated green moved, a new course published.
+        var moved = curated
+        moved.holes[0].greenAnchor = GeoPoint(lat: 33.0015, lng: -117.0)
+        let added = course("new", lat: 34.0, lng: -118.0)
+        XCTAssertTrue(cache.applyPublicCatalog(try publicCatalog([moved, added])))
+
+        XCTAssertEqual(cache.courses.map(\.id), ["c", "new"], "base refreshed from the public file")
+        XCTAssertEqual(cache.courses[0].holes[0].greenAnchor, localGreen, "phone override still wins")
+        XCTAssertTrue(cache.hasPhonePush)
+    }
+
+    func testCacheRejectsBadPayloadsUntouched() throws {
+        var cache = WatchCatalogCache()
+        XCTAssertTrue(cache.applyPublicCatalog(try publicCatalog([course("c", lat: 33, lng: -117)])))
+        let before = cache
+        XCTAssertFalse(cache.applyPublicCatalog(Data("nope".utf8)))
+        XCTAssertFalse(cache.applyPublicCatalog(try publicCatalog([], schema: 99)))
+        XCTAssertFalse(cache.applyPhonePush(try publicCatalog([])), "a bare catalog is not a push payload")
+        XCTAssertEqual(cache, before)
+        XCTAssertFalse(cache.hasPhonePush, "a direct fetch alone never counts as a phone push")
+    }
+
+    // MARK: - Catalog push delivery tracking
+
+    func testPushDecision() {
+        typealias P = WatchCatalogPusher
+        // Never delivered (first push, or the last transfer FAILED so nothing was recorded) → send.
+        XCTAssertEqual(P.decide(hash: "a", deliveredHash: nil, outstandingHashes: [], force: false), .send)
+        // Confirmed delivered + unchanged → skip.
+        XCTAssertEqual(P.decide(hash: "a", deliveredHash: "a", outstandingHashes: [], force: false), .skip)
+        // Catalog changed → send.
+        XCTAssertEqual(P.decide(hash: "b", deliveredHash: "a", outstandingHashes: [], force: false), .send)
+        // Same bytes already queued → don't double-queue, even when forced.
+        XCTAssertEqual(P.decide(hash: "a", deliveredHash: nil, outstandingHashes: ["a"], force: false), .skip)
+        XCTAssertEqual(P.decide(hash: "a", deliveredHash: nil, outstandingHashes: ["a"], force: true), .skip)
+        // Watch reinstalled: phone thinks "a" is delivered, watch asks → resend.
+        XCTAssertEqual(P.decide(hash: "a", deliveredHash: "a", outstandingHashes: [], force: true), .send)
+        // A stale queued transfer doesn't block the new catalog.
+        XCTAssertEqual(P.decide(hash: "b", deliveredHash: "a", outstandingHashes: ["a"], force: false), .send)
     }
 
     func testPhoneStateDecodesWithoutCourseId() throws {
