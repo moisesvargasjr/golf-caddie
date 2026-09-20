@@ -11,6 +11,8 @@ enum WatchPreviewDebug {
     static var initialPage: Int { isActive ? UserDefaults.standard.integer(forKey: "WatchPreviewPage") : 0 }
     /// Force the club selector into its armed (crown-active) state for screenshots.
     static var armClub: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewArmClub") }
+    /// Force the wrist-down (always-on) glance for screenshots.
+    static var dim: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewDim") }
 
     @MainActor
     static func apply(controller: LiveSessionController) {

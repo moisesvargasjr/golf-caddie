@@ -91,6 +91,11 @@ final class LiveSessionController: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] courses in self?.caddie.update(courses: courses) }
             .store(in: &cancellables)
+        caddie.$localYards
+            .combineLatest(WatchSession.shared.$phoneState)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] yards, phone in self?.runAutoPilot(yards: yards, phone: phone) }
+            .store(in: &cancellables)
         Task { await WatchCourseStore.shared.fetchIfStale() }
     }
 
@@ -108,9 +113,38 @@ final class LiveSessionController: ObservableObject {
         return phone.currentClubShortName
     }
 
-    /// Crown picker (M6) calls this; bumps the local epoch above the phone's so
-    /// the change wins, and notifies the phone.
+    /// True while the club follows the suggestion for the current distance
+    /// (ClubAutoPilot); false while a manual pick is being held for this shot.
+    @Published private(set) var clubIsAuto = true
+    private var autoPilot = ClubAutoPilot()
+
+    /// Crown picker (M6) calls this — a manual pick, held until the shot is logged.
     func selectClub(short: String) {
+        autoPilot.userPicked()
+        clubIsAuto = false
+        applyClub(short: short)
+    }
+
+    /// Hand the club back to the auto-pilot (tap on a manually held club).
+    func resumeAutoClub() {
+        autoPilot = ClubAutoPilot()
+        clubIsAuto = true
+        runAutoPilot(yards: caddie.localYards, phone: WatchSession.shared.phoneState)
+    }
+
+    private func runAutoPilot(yards localYards: Int?, phone: PhoneStateUpdate) {
+        guard running, phone.isActive else { return }
+        let clubs = phone.clubs.filter { !($0.isPutter ?? ($0.short == "Pt")) }
+        let pick = autoPilot.update(
+            hole: phone.holeNumber, strokeCount: phone.strokes.count,
+            yards: localYards ?? phone.distanceToGreenYards, clubs: clubs, currentShort: effectiveClubShort)
+        if clubIsAuto != autoPilot.isAuto { clubIsAuto = autoPilot.isAuto }
+        if let pick { applyClub(short: pick) }
+    }
+
+    /// Bumps the local epoch above the phone's so the change wins, and notifies
+    /// the phone.
+    private func applyClub(short: String) {
         let nextEpoch = max(WatchSession.shared.phoneState.clubEpoch, localClub?.epoch ?? 0) + 1
         localClub = (short, nextEpoch)
         WatchSession.shared.send(.command(.clubChange(shortName: short, epoch: nextEpoch)))

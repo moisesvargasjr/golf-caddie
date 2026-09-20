@@ -2,7 +2,8 @@ import SwiftUI
 import WatchKit
 
 /// Top level: a Start screen until the detection session is running, then the
-/// three glance pages (Yardage / Strokes / Score) with the DetectCard overlay.
+/// three pages (Yardage / Strokes / Score) with the DetectCard overlay — or,
+/// wrist-down, the yardage-only GlanceScreen.
 /// Round data is read from the phone (WatchSession.phoneState); detection +
 /// session control live on LiveSessionController; the yardage is computed on the
 /// wrist (WatchCaddie) with the phone's pushed value as the fallback.
@@ -40,37 +41,6 @@ private struct WatchHeader<Left: View>: View {
     }
 }
 
-/// Persistent "the watch is sensing motion" meter while a session is running:
-/// a pulsing dot + a thin bar that fills toward the ball-strike threshold, so
-/// you can see motion register and how hard a real hit needs to be.
-private struct ListeningBar: View {
-    @EnvironmentObject private var controller: LiveSessionController
-    @State private var pulse = false
-
-    var body: some View {
-        let level = min(1.0, controller.liveImpact / max(0.1, controller.impactThreshold))
-        HStack(spacing: 6) {
-            Circle()
-                .fill(WT.green)
-                .frame(width: 6, height: 6)
-                .opacity(pulse ? 1 : 0.3)
-                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
-            Text("LISTENING").font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink3)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(WT.ink.opacity(0.12)).frame(height: 4)
-                    Capsule().fill(level >= 1 ? WT.accent : WT.green)
-                        .frame(width: geo.size.width * level, height: 4)
-                }
-                .frame(maxHeight: .infinity, alignment: .center)
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(height: WT.s(14))
-        .onAppear { pulse = true }
-    }
-}
-
 private struct GpsDot: View {
     let hasFix: Bool
     var body: some View {
@@ -82,29 +52,6 @@ private struct GpsDot: View {
             Text(hasFix ? "GPS" : "NO GPS")
                 .font(WT.mono(11)).foregroundStyle(WT.ink2)
         }
-    }
-}
-
-/// Watch→phone delivery backlog (B4). Shown on the play screen only while
-/// messages are still queued for an unreachable phone, so a silent backlog is
-/// never mistaken for "delivered". Drains itself as the link recovers. A pulsing
-/// amber dot keeps it glanceable without competing with the LISTENING meter.
-private struct SyncChip: View {
-    let count: Int
-    @State private var pulse = false
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(WT.accent)
-                .frame(width: 5, height: 5)
-                .opacity(pulse ? 1 : 0.35)
-                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
-            Text("SYNCING \(count)").font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink2)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 2)
-        .background(WT.accent.opacity(0.12), in: Capsule())
-        .onAppear { pulse = true }
     }
 }
 
@@ -205,6 +152,7 @@ private struct TelemetryToggle: View {
 private struct WatchPlayView: View {
     @EnvironmentObject private var controller: LiveSessionController
     @ObservedObject private var session = WatchSession.shared
+    @Environment(\.isLuminanceReduced) private var luminanceReduced
     @State private var page: Int = {
         #if DEBUG
         return WatchPreviewDebug.initialPage
@@ -212,30 +160,34 @@ private struct WatchPlayView: View {
         return 0
         #endif
     }()
+
+    private var dimmed: Bool {
+        #if DEBUG
+        if WatchPreviewDebug.dim { return true }
+        #endif
+        return luminanceReduced
+    }
+
     var body: some View {
-        // Stack the listening meter, the paged content, and the dots so none of
-        // them overlap the page content (they used to, as ZStack overlays).
         ZStack(alignment: .topTrailing) {
-            VStack(spacing: 0) {
-                ListeningBar().padding(.top, 1)
-                // Delivery backlog (B4) — only present when something is queued,
-                // so it costs no space on a healthy link. Outside the TabView so
-                // it's visible on every page.
-                if session.outstandingMessages > 0 {
-                    SyncChip(count: session.outstandingMessages).padding(.bottom, 1)
-                }
+            WT.bg.ignoresSafeArea() // keeps the ZStack (and so the status corner) full-screen in both modes
+            if dimmed {
+                // Wrist down: whatever page was open, the glance is the yardage.
+                GlanceScreen()
+            } else {
+                // Full-screen pages with the system page dots — the old
+                // VStack(meter / TabView / dots) squeezed the pages into the
+                // middle of the Ultra's screen and clipped the action row.
                 TabView(selection: $page) {
                     YardageScreen().tag(0)
                     StrokesScreen().tag(1)
                     ScoreScreen().tag(2)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(maxHeight: .infinity)
-                PageDots(page: page).frame(height: WT.s(10)).padding(.vertical, WT.s(3))
+                .tabViewStyle(.page)
             }
             #if DEBUG
             // Validation ground-truth MARK (M8 only) — top-right corner tap (B20).
-            if controller.validationMode {
+            if controller.validationMode, !dimmed {
                 Button { controller.mark() } label: {
                     Text("MARK").font(WT.mono(10)).padding(.horizontal, 8).padding(.vertical, 4)
                         .background(WT.accent.opacity(0.85), in: Capsule())
@@ -246,23 +198,66 @@ private struct WatchPlayView: View {
             }
             #endif
         }
-    }
-}
-
-private struct PageDots: View {
-    let page: Int
-    var body: some View {
-        HStack(spacing: 7) {
-            ForEach(0..<3, id: \.self) { i in
-                Capsule()
-                    .fill(i == page ? WT.accent : WT.ink.opacity(0.28))
-                    .frame(width: i == page ? 16 : 6, height: 6)
-            }
+        // Sensing + delivery status live in the clock row (top-left), not in a
+        // row of their own.
+        .overlay(alignment: .topLeading) {
+            StatusCorner(dimmed: dimmed)
+                .padding(.leading, WT.s(18))
+                .padding(.top, WT.s(24)) // level with the clock
+                .ignoresSafeArea(edges: .top)
         }
     }
 }
 
+/// Clock-row status: the "watch is sensing" dot (brightens toward a ball-strike
+/// — replaces the full-width LISTENING meter) and, only while something is
+/// queued for an unreachable phone, the delivery backlog count (B4).
+private struct StatusCorner: View {
+    let dimmed: Bool
+    @EnvironmentObject private var controller: LiveSessionController
+    @ObservedObject private var session = WatchSession.shared
+
+    var body: some View {
+        let level = min(1.0, controller.liveImpact / max(0.1, controller.impactThreshold))
+        HStack(spacing: 6) {
+            Circle()
+                .fill(level >= 1 ? WT.accent : WT.green)
+                .frame(width: 8, height: 8)
+                .opacity(dimmed ? 0.5 : 0.45 + 0.55 * level)
+            if session.outstandingMessages > 0 {
+                Text("SYNC \(session.outstandingMessages)")
+                    .font(WT.mono(10)).tracking(0.8).foregroundStyle(WT.accent)
+            }
+        }
+        .accessibilityLabel(session.outstandingMessages > 0
+            ? "Listening, \(session.outstandingMessages) waiting to sync" : "Listening")
+    }
+}
+
 // MARK: - Yardage hero
+
+/// What the yardage UI needs, resolved once: the wrist's own yardage wins; the
+/// phone's pushed value is the fallback (no fix yet / fix aged out / course not
+/// cached).
+private struct YardageReadout {
+    let yards: Int?
+    /// WHERE THE YARDAGE WAS COMPUTED (W = watch, P = phone) — not which
+    /// device's GPS receiver produced the fix; the system doesn't say.
+    let source: String?
+    let hole: Int
+    let par: Int?
+
+    @MainActor
+    init(caddie: WatchCaddie, phone: PhoneStateUpdate) {
+        let local = caddie.localYards
+        yards = local ?? (phone.isActive ? phone.distanceToGreenYards : nil)
+        source = local != nil ? "W" : (yards != nil ? "P" : nil)
+        hole = caddie.holeNumber
+        par = phone.isActive ? phone.par : caddie.hole?.par
+    }
+
+    var holeLine: String { "HOLE \(hole) · PAR \(par.map(String.init) ?? "–")" }
+}
 
 private struct YardageScreen: View {
     @EnvironmentObject private var controller: LiveSessionController
@@ -271,83 +266,116 @@ private struct YardageScreen: View {
 
     var body: some View {
         let s = session.phoneState
-        // The wrist's own yardage wins; the phone's pushed value is the
-        // fallback (no fix yet / fix aged out / course not cached). W/P marks
-        // WHERE THE YARDAGE WAS COMPUTED (watch vs phone) — not which device's
-        // GPS receiver produced the fix; the system picks that and doesn't say.
-        let local = caddie.localYards
-        let yards = local ?? (s.isActive ? s.distanceToGreenYards : nil)
-        let source = local != nil ? " · W" : (yards != nil ? " · P" : "")
-        let par = s.isActive ? s.par : caddie.hole?.par
-        VStack(spacing: 2) {
-            // Compact single info line (saves two rows on a 40mm screen).
-            Text("HOLE \(caddie.holeNumber) · PAR \(par.map(String.init) ?? "–") · TO GREEN\(source)")
-                .font(WT.mono(9)).tracking(1.4).foregroundStyle(WT.ink2)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(yards.map(String.init) ?? "–––")
-                .font(WT.serif(WT.s(34))).foregroundStyle(WT.ink)
-                .minimumScaleFactor(0.5).lineLimit(1)
-                .shadow(color: .black.opacity(0.8), radius: 8, y: 2)
-            // Front/back folded into one compact line (was a full row) so the
-            // club card + MARK button both fit the 40mm screen.
-            if let y = yards {
-                HStack(spacing: 10) {
-                    Text("FRONT \(max(0, y - 7))").font(WT.mono(11)).foregroundStyle(WT.ink2)
-                    Text("BACK \(y + 9)").font(WT.mono(11)).foregroundStyle(WT.ink2)
+        let r = YardageReadout(caddie: caddie, phone: s)
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Text(r.holeLine)
+                    .font(WT.mono(12)).tracking(1.2).foregroundStyle(WT.ink2)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                if let source = r.source {
+                    Text(source).font(WT.mono(9)).foregroundStyle(WT.ink3)
+                        .padding(.horizontal, 3)
+                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(WT.line, lineWidth: 1))
                 }
-                .lineLimit(1).minimumScaleFactor(0.7)
             }
-            // Flexible gap: top-anchors the yardage block under the LISTENING
-            // meter (so it never rides up under it) and drops the club card +
-            // action row to the bottom of the page.
-            Spacer(minLength: 2)
+            // The hero: yards to the green, the one number this screen exists
+            // for — no caption needed. (No FRONT/BACK either: the catalog has a
+            // single green point, so those were invented numbers.)
+            Text(r.yards.map(String.init) ?? "–––")
+                .font(WT.serif(WT.s(84))).foregroundStyle(WT.ink)
+                .minimumScaleFactor(0.5).lineLimit(1)
+                .frame(maxHeight: .infinity)
+                .accessibilityLabel(r.yards.map { "\($0) yards to green" } ?? "No yardage")
             if s.isActive {
-                ClubSelector()
+                ClubSelector().padding(.bottom, WT.s(4))
                 actionRow
             } else {
                 WatchOnlyHoleStepper()
             }
         }
-        // The paged region overlaps the LISTENING meter row, so the top-anchored
-        // yardage block needs clearance = the meter's scaled height plus a few
-        // points of slack (the scaled value alone left the HOLE·PAR line half
-        // under the meter on 40mm). The flexible Spacer above absorbs it,
-        // keeping the action row pinned to the bottom.
-        .padding(.top, WT.s(14) + 4)
-        .frame(maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 6)
+        .padding(.bottom, WT.s(16)) // clear the system page dots
+        .ignoresSafeArea(edges: .bottom)
     }
 
     private var actionRow: some View {
-        // Bottom action row. The detector auto-logs full swings but not
-        // putts, so putts are now the dominant manual entry — PUTT is the
-        // big primary key; MARK is the smaller fallback for a missed
-        // full-swing detection. PUTT → `.puttPlusOne` (phone logs a real
-        // putt); MARK → `.addShot(nil)` (logs with the current club). Putter
-        // is no longer a scroll club — this key replaces it (field 2026-06-27).
+        // The detector auto-logs full swings but not putts, so putts are the
+        // dominant manual entry — PUTT is the big primary key; MARK is the
+        // smaller fallback for a missed full-swing detection. PUTT →
+        // `.puttPlusOne` (phone logs a real putt); MARK → `.addShot(nil)` (logs
+        // with the current club). Putter is no longer a scroll club — this key
+        // replaces it (field 2026-06-27).
         HStack(spacing: 6) {
             Button {
                 WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
                 WKInterfaceDevice.current().play(.success)
             } label: {
-                Text("MARK").font(WT.mono(11)).tracking(1.0)
-                    .frame(minHeight: WT.s(26))
+                Text("MARK").font(WT.mono(12)).tracking(1.0)
             }
-            .buttonStyle(.bordered).tint(WT.ink2)
-            .frame(width: WT.s(58))
+            .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
+            .frame(width: WT.s(64))
 
             Button {
                 controller.sendPutt()
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: "flag.fill").font(.system(size: 12))
-                    Text("PUTT +1").font(WT.mono(14)).tracking(0.8)
+                    Image(systemName: "flag.fill").font(.system(size: 13))
+                    Text("PUTT +1").font(WT.mono(15)).tracking(0.8)
                         .lineLimit(1).minimumScaleFactor(0.75)
                 }
-                .frame(maxWidth: .infinity, minHeight: WT.s(26))
             }
-            .buttonStyle(.borderedProminent).tint(WT.accent)
+            .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
         }
+    }
+}
+
+/// A fixed-height key for the yardage page's action row. The system bordered
+/// styles grow to ~55 pt on the Ultra, which starved the hero yardage of room;
+/// 40 pt is still a comfortable gloved-thumb target.
+private struct WatchKeyStyle: ButtonStyle {
+    let fill: Color
+    let ink: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity)
+            .frame(height: WT.s(40))
+            .background(fill, in: Capsule())
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+    }
+}
+
+/// Wrist-down (always-on) glance: yardage, hole, club — nothing tappable,
+/// nothing animating. Most looks at the watch during a round are this view.
+private struct GlanceScreen: View {
+    @EnvironmentObject private var controller: LiveSessionController
+    @EnvironmentObject private var caddie: WatchCaddie
+    @ObservedObject private var session = WatchSession.shared
+
+    var body: some View {
+        let s = session.phoneState
+        let r = YardageReadout(caddie: caddie, phone: s)
+        VStack(spacing: 0) {
+            Text(r.holeLine)
+                .font(WT.mono(13)).tracking(1.2).foregroundStyle(WT.ink2)
+            Text(r.yards.map(String.init) ?? "–––")
+                .font(WT.serif(WT.s(104))).foregroundStyle(WT.ink)
+                .minimumScaleFactor(0.4).lineLimit(1)
+                .frame(maxHeight: .infinity)
+            if s.isActive, let club = controller.effectiveClubShort {
+                HStack(spacing: 8) {
+                    Text(club).font(WT.serif(WT.s(26))).foregroundStyle(WT.accent)
+                    Text("\(s.holeShotCount) SHOT\(s.holeShotCount == 1 ? "" : "S")")
+                        .font(WT.mono(12)).tracking(1).foregroundStyle(WT.ink3)
+                }
+            } else if let name = caddie.course?.name {
+                Text(name).font(WT.serif(WT.s(15))).foregroundStyle(WT.ink3).lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.bottom, WT.s(8))
     }
 }
 
@@ -406,7 +434,6 @@ private struct ClubSelector: View {
         let clubs = session.phoneState.clubs.filter { !($0.isPutter ?? ($0.short == "Pt")) }
         let idx = currentIndex(clubs)
         let club = clubs.indices.contains(idx) ? clubs[idx] : nil
-        let suggested = suggestedClubIndex(clubs, yards: caddie.localYards ?? session.phoneState.distanceToGreenYards ?? 0)
 
         HStack(spacing: 9) {
             Text(club?.short ?? "—").font(WT.serif(WT.s(28))).foregroundStyle(WT.accent)
@@ -419,13 +446,17 @@ private struct ClubSelector: View {
                             .foregroundStyle(WT.accent)
                             .lineLimit(1).minimumScaleFactor(0.8)
                     } else if let club {
-                        Text("avg \(club.avgYards)y").font(WT.mono(10)).foregroundStyle(WT.ink2)
+                        Text("\(club.avgYards)y").font(WT.mono(10)).foregroundStyle(WT.ink2)
                     }
-                    if !armed, suggested == idx {
-                        Text("SUGGESTED").font(WT.mono(8)).tracking(0.8)
-                            .foregroundStyle(WT.onAccent)
+                    if !armed {
+                        // AUTO: the club follows the distance (ClubAutoPilot).
+                        // HELD: a manual pick, kept until this shot is logged —
+                        // long-press hands it back to auto.
+                        Text(controller.clubIsAuto ? "AUTO" : "HELD").font(WT.mono(8)).tracking(0.8)
+                            .foregroundStyle(controller.clubIsAuto ? WT.onAccent : WT.ink2)
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(WT.green, in: RoundedRectangle(cornerRadius: 3))
+                            .background(controller.clubIsAuto ? WT.green : WT.surface2,
+                                        in: RoundedRectangle(cornerRadius: 3))
                     }
                 }
             }
@@ -450,6 +481,12 @@ private struct ClubSelector: View {
             .stroke(armed ? WT.accent : WT.line, lineWidth: armed ? 2 : 1))
         .contentShape(Rectangle())
         .onTapGesture { toggleArmed(idx: idx) }
+        .onLongPressGesture {
+            guard !controller.clubIsAuto else { return }
+            if armed { toggleArmed(idx: idx) }
+            controller.resumeAutoClub()
+            WKInterfaceDevice.current().play(.success)
+        }
         .focusable(armed)
         .focused($focused)
         .digitalCrownRotation($crown, from: 0, through: Double(max(0, clubs.count - 1)),
@@ -561,7 +598,7 @@ private struct StrokeRow: View {
                             .overlay(RoundedRectangle(cornerRadius: 3).stroke(WT.line, lineWidth: 1))
                     }
                 }
-                Text("\(stroke.lie) · \(stroke.fromYards.map { "\($0) yd" } ?? "—") · \(stroke.time)")
+                Text("\(stroke.lie) · \(stroke.fromYards.map { "\($0) yd" } ?? "—")")
                     .font(WT.mono(11)).foregroundStyle(WT.ink3).lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -672,7 +709,11 @@ private struct ScoreScreen: View {
     var body: some View {
         let s = session.phoneState
         let shots = s.holeShotCount
-        let rel = s.par.map { shots - $0 }
+        // To-par only means something for finished holes: the round total over
+        // confirmed holes. (The hole in progress used to show e.g. "-2 TO PAR"
+        // in green after two strokes on a par 4.)
+        let scored = s.scorecard.filter { $0.par != nil }
+        let rel: Int? = scored.isEmpty ? nil : scored.reduce(0) { $0 + $1.strokes - ($1.par ?? 0) }
         ScrollView {
           VStack(alignment: .leading, spacing: 4) {
             WatchHeader(left: {
@@ -690,7 +731,12 @@ private struct ScoreScreen: View {
                         Text(rel == 0 ? "EVEN" : rel > 0 ? "+\(rel)" : "\(rel)")
                             .font(WT.serif(WT.s(30)))
                             .foregroundStyle(rel > 0 ? WT.accent : rel < 0 ? WT.green : WT.ink2)
-                        Text("TO PAR").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+                        Text("THRU \(scored.count)").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+                    }
+                } else if let par = s.par {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("\(par)").font(WT.serif(WT.s(30))).foregroundStyle(WT.ink2)
+                        Text("PAR").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
                     }
                 }
             }
