@@ -77,6 +77,38 @@ enum WatchCommand: Codable, Equatable {
     case advanceHole
     /// Step back one hole without confirming (recovery for an accidental advance).
     case previousHole
+    /// Add a 1-stroke penalty to the current hole (the watch Actions page).
+    /// `kind` is a `WatchPenaltyKind` raw value. Like `editStrokeClub`, an OLD
+    /// phone build can't decode this case and drops the message — acceptable
+    /// because watch + phone ship in the same build.
+    case addPenalty(kind: String)
+}
+
+/// The penalty kinds the watch offers — raw values LOCKSTEP with the phone's
+/// `PenaltyType` (pinned by a test), kept here so Shared stays free of the
+/// phone's GRDB models.
+enum WatchPenaltyKind: String, CaseIterable, Identifiable {
+    case obOrLost, water, unplayable, other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .obOrLost: return "OB / Lost"
+        case .water: return "Water"
+        case .unplayable: return "Unplay."
+        case .other: return "Other"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .obOrLost: return "xmark.circle"
+        case .water: return "drop"
+        case .unplayable: return "tree"
+        case .other: return "plus.circle"
+        }
+    }
 }
 
 /// A `WatchCommand` plus a stable `id`, so the phone can apply it **at most
@@ -182,8 +214,13 @@ struct PhoneStateUpdate: Codable, Equatable {
     /// proximity. Optional = additive (same rule as `WatchClub.isPutter`):
     /// old payloads decode nil and the watch falls back to nearest-course.
     var curatedCourseId: String? = nil
+    /// Penalty strokes on the current hole, so the wrist count matches the
+    /// scorecard. Optional = additive (old phone → nil → treated as 0).
+    var holePenaltyStrokes: Int? = nil
 
     var holeShotCount: Int { strokes.count }
+    /// Shots + penalty strokes — what the hole will score.
+    var holeStrokeTotal: Int { strokes.count + (holePenaltyStrokes ?? 0) }
 
     func encoded() throws -> Data { try JSONEncoder().encode(self) }
 

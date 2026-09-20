@@ -106,7 +106,8 @@ final class WatchStatePublisher {
             clubs: clubs,
             strokes: strokes,
             scorecard: scorecard,
-            curatedCourseId: courseId
+            curatedCourseId: courseId,
+            holePenaltyStrokes: controller.currentHolePenaltyStrokes
         )
     }
 

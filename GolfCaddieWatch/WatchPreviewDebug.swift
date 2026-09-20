@@ -8,7 +8,13 @@ import Foundation
 enum WatchPreviewDebug {
     static var isActive: Bool { UserDefaults.standard.bool(forKey: "WatchPreview") }
     /// Initial play page for screenshots (0 Yardage / 1 Strokes / 2 Score).
-    static var initialPage: Int { isActive ? UserDefaults.standard.integer(forKey: "WatchPreviewPage") : 0 }
+    /// `-WatchPreviewActions 1` opens the Actions page (tag −1; a negative launch
+    /// argument value doesn't parse).
+    static var initialPage: Int {
+        guard isActive else { return 0 }
+        if UserDefaults.standard.bool(forKey: "WatchPreviewActions") { return -1 }
+        return UserDefaults.standard.integer(forKey: "WatchPreviewPage")
+    }
     /// Force the club selector into its armed (crown-active) state for screenshots.
     static var armClub: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewArmClub") }
     /// Force the wrist-down (always-on) glance for screenshots.
@@ -52,7 +58,8 @@ enum WatchPreviewDebug {
         scorecard: [
             WatchScoreRow(hole: 1, par: 4, strokes: 5),
             WatchScoreRow(hole: 2, par: 3, strokes: 3),
-        ]
+        ],
+        holePenaltyStrokes: 1
     )
 }
 #endif

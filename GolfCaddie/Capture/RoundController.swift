@@ -547,7 +547,7 @@ final class RoundController {
     /// the new penalty until something else rebuilt them. Multi-stroke
     /// penalties aren't exposed in the UI yet (1 covers OB / lateral / water
     /// / unplayable — the only options in `PenaltySheet`).
-    func addPenaltyToCurrentHole(type: PenaltyType) throws {
+    func addPenaltyToCurrentHole(type: PenaltyType, at timestamp: Date = Date()) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
         }
@@ -556,7 +556,7 @@ final class RoundController {
             holeID: hole.id,
             type: type,
             strokeCount: 1,
-            timestamp: Date(),
+            timestamp: timestamp, // a late-delivered watch penalty keeps its tap time
             notes: nil
         )
         try PenaltyRepository.insert(penalty)

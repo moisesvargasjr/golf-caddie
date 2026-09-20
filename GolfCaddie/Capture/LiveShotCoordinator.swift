@@ -212,6 +212,11 @@ final class LiveShotCoordinator {
             }
         case .previousHole:
             controller?.stepHole(by: -1)
+        case let .addPenalty(kind):
+            // Unknown kind (mismatched builds) still costs a stroke — "other".
+            let type = PenaltyType(rawValue: kind) ?? .other
+            let tapped = identified.sentAt.map(Date.init(timeIntervalSince1970:)) ?? now()
+            try? controller?.addPenaltyToCurrentHole(type: type, at: tapped)
         }
     }
 
@@ -276,7 +281,7 @@ private extension WatchCommand {
     var changesHole: Bool {
         switch self {
         case .advanceHole, .previousHole: return true
-        case .addShot, .removeStroke, .editStrokeClub, .puttPlusOne, .clubChange: return false
+        case .addShot, .removeStroke, .editStrokeClub, .puttPlusOne, .clubChange, .addPenalty: return false
         }
     }
 }

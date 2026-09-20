@@ -124,6 +124,61 @@ final class WatchReplayOrderingTests: XCTestCase {
         XCTAssertEqual(controller.currentHoleShots.first?.source, .watchManual)
     }
 
+    // MARK: - Watch penalties
+
+    func testWatchPenaltyKindsMatchThePhonePenaltyTypes() {
+        XCTAssertEqual(Set(WatchPenaltyKind.allCases.map(\.rawValue)), Set(PenaltyType.allCases.map(\.rawValue)))
+    }
+
+    func testWatchPenaltyAddsAStrokeOnceAndUndoRemovesIt() throws {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        let coordinator = LiveShotCoordinator(steps: Walked())
+        coordinator.attach(controller: controller, location: location)
+
+        let penalty = WatchToPhoneMessage.command(.addPenalty(kind: WatchPenaltyKind.water.rawValue))
+        let wire = try WatchToPhoneMessage.decode(penalty.encoded())
+        coordinator.ingest(wire)
+        coordinator.ingest(wire) // at-least-once redelivery
+        XCTAssertEqual(controller.currentHolePenalties.map(\.type), [.water])
+        XCTAssertEqual(controller.currentHolePenaltyStrokes, 1)
+
+        // An unknown kind (mismatched builds) still costs a stroke.
+        coordinator.ingest(.command(.addPenalty(kind: "meteor")))
+        XCTAssertEqual(controller.currentHolePenalties.last?.type, .other)
+
+        // The watch's UNDO is "remove the newest shot or penalty".
+        coordinator.ingest(.command(.removeStroke(id: nil)))
+        XCTAssertEqual(controller.currentHolePenalties.map(\.type), [.water])
+    }
+
+    /// A penalty queued behind a Next Hole lands on the new hole, and a late one
+    /// keeps the time it was tapped.
+    func testLatePenaltyKeepsItsHoleAndTime() async throws {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        let coordinator = LiveShotCoordinator(steps: Walked(), debounceInterval: 0.3)
+        coordinator.attach(controller: controller, location: location)
+
+        let t0 = Date().addingTimeInterval(-3600)
+        coordinator.ingest(swing(at: t0, club: "Dr"))
+        coordinator.ingest(.command(.addPenalty(kind: "obOrLost"), sentAt: t0.addingTimeInterval(60)))
+        coordinator.ingest(.command(.advanceHole, sentAt: t0.addingTimeInterval(600)))
+        coordinator.ingest(.command(.addPenalty(kind: "water"), sentAt: t0.addingTimeInterval(900)))
+        await coordinator.waitUntilIdle()
+
+        let round = try XCTUnwrap(controller.currentRound)
+        let holes = try HoleRepository.holesForRound(round.id)
+        let first = try XCTUnwrap(holes.first { $0.holeNumber == 1 })
+        let second = try XCTUnwrap(holes.first { $0.holeNumber == 2 })
+        XCTAssertEqual(try PenaltyRepository.penaltiesForHole(first.id).map(\.type), [.obOrLost])
+        let late = try XCTUnwrap(try PenaltyRepository.penaltiesForHole(second.id).first)
+        XCTAssertEqual(late.type, .water)
+        XCTAssertEqual(late.timestamp.timeIntervalSince1970, t0.addingTimeInterval(900).timeIntervalSince1970, accuracy: 1)
+    }
+
     func testSentAtIsOptionalOnTheWire() throws {
         let legacy = Data(#"{"kind":"command","command":{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","command":{"puttPlusOne":{}}}}"#.utf8)
         let decoded = try WatchToPhoneMessage.decode(legacy)

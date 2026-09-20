@@ -188,6 +188,11 @@ private struct WatchPlayView: View {
                 // VStack(meter / TabView / dots) squeezed the pages into the
                 // middle of the Ultra's screen and clipped the action row.
                 TabView(selection: $page) {
+                    // Actions sit LEFT of the yardage: one swipe right from the
+                    // main screen. Round commands only → needs a phone round.
+                    if session.phoneState.isActive {
+                        ActionsScreen(done: { withAnimation { page = 0 } }).tag(-1)
+                    }
                     YardageScreen().tag(0)
                     // Strokes and the club grid come from a phone round; watch-only
                     // the page read "STROKES · H0" and ADD STROKE opened an empty grid.
@@ -198,7 +203,7 @@ private struct WatchPlayView: View {
                 }
                 .tabViewStyle(.page)
                 .onChange(of: session.phoneState.isActive) { _, active in
-                    if !active, page == 1 { page = 0 }
+                    if !active, page == 1 || page == -1 { page = 0 }
                 }
             }
             #if DEBUG
@@ -403,7 +408,7 @@ private struct GlanceScreen: View {
             if s.isActive, let club = controller.effectiveClubShort {
                 HStack(spacing: 8) {
                     Text(club).font(WT.serif(WT.s(26))).foregroundStyle(WT.accent)
-                    Text("\(s.holeShotCount) SHOT\(s.holeShotCount == 1 ? "" : "S")")
+                    Text("\(s.holeStrokeTotal) STROKE\(s.holeStrokeTotal == 1 ? "" : "S")")
                         .font(WT.mono(12)).tracking(1).foregroundStyle(WT.ink3)
                 }
             } else if let name = caddie.course?.name {
@@ -558,6 +563,94 @@ private struct ClubSelector: View {
         let short = controller.effectiveClubShort ?? session.phoneState.currentClubShortName
         if let short, let i = clubs.firstIndex(where: { $0.short == short }) { return i }
         return suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0) ?? 0
+    }
+}
+
+// MARK: - Actions (swipe right from the yardage)
+
+/// The "something happened" page, one swipe right of the yardage: add a penalty
+/// stroke, undo the last thing, move to the next hole. Everything here is a
+/// queued command to the phone round, so the page only exists with one.
+private struct ActionsScreen: View {
+    /// Return to the yardage after an action — you came here to do one thing.
+    let done: () -> Void
+    @EnvironmentObject private var caddie: WatchCaddie
+    @ObservedObject private var session = WatchSession.shared
+    @State private var confirmingUndo = false
+    @State private var lastAdded: WatchPenaltyKind?
+
+    private let cols = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
+
+    var body: some View {
+        let s = session.phoneState
+        VStack(spacing: WT.s(6)) {
+            HStack {
+                Text("PENALTY +1").font(WT.mono(12)).tracking(1.4).foregroundStyle(WT.ink2)
+                Spacer()
+                let pens = s.holePenaltyStrokes ?? 0
+                Text(lastAdded.map { "\($0.label) SENT" } ?? "H\(caddie.holeNumber) · \(pens) PEN")
+                    .font(WT.mono(10)).tracking(0.8)
+                    .foregroundStyle(lastAdded != nil ? WT.green : WT.ink3)
+            }
+            LazyVGrid(columns: cols, spacing: 6) {
+                ForEach(WatchPenaltyKind.allCases) { kind in
+                    Button { add(kind) } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: kind.symbol).font(.system(size: 13, weight: .semibold))
+                            Text(kind.label).font(WT.mono(12)).lineLimit(1).minimumScaleFactor(0.7)
+                        }
+                        .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
+                }
+            }
+            Spacer(minLength: 0)
+            HStack(spacing: 6) {
+                Button { confirmingUndo = true } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward").font(.system(size: 12, weight: .bold))
+                        Text("UNDO").font(WT.mono(12)).tracking(0.8)
+                    }
+                }
+                .buttonStyle(WatchKeyStyle(fill: WT.surface, ink: WT.ink2))
+                .frame(width: WT.s(78))
+                Button {
+                    WatchSession.shared.send(.command(.advanceHole))
+                    caddie.holeStepRequested(by: 1)
+                    WKInterfaceDevice.current().play(.success)
+                    done()
+                } label: {
+                    Text("Next Hole").font(WT.serif(17)).lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
+            }
+        }
+        .padding(.top, WT.s(4))
+        .scenePadding(.horizontal)
+        .padding(.bottom, WT.s(16)) // clear the system page dots
+        .ignoresSafeArea(edges: .bottom)
+        // Undo removes the newest shot OR penalty on the hole — say so first.
+        .confirmationDialog("Undo the last stroke or penalty?", isPresented: $confirmingUndo,
+                            titleVisibility: .visible) {
+            Button("Undo", role: .destructive) {
+                WatchSession.shared.send(.command(.removeStroke(id: nil)))
+                WKInterfaceDevice.current().play(.click)
+                done()
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private func add(_ kind: WatchPenaltyKind) {
+        WatchSession.shared.send(.command(.addPenalty(kind: kind.rawValue)))
+        WKInterfaceDevice.current().play(.success)
+        lastAdded = kind
+        // Show "SENT" for a beat, then back to the yardage.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            lastAdded = nil
+            done()
+        }
     }
 }
 
@@ -747,7 +840,7 @@ private struct ScoreScreen: View {
 
     var body: some View {
         let s = session.phoneState
-        let shots = s.holeShotCount
+        let shots = s.holeStrokeTotal // shots + penalty strokes: what the hole will score
         // To-par only means something for finished holes: the round total over
         // confirmed holes. (The hole in progress used to show e.g. "-2 TO PAR"
         // in green after two strokes on a par 4.)
@@ -762,8 +855,9 @@ private struct ScoreScreen: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("\(shots)").font(WT.serif(WT.s(56))).foregroundStyle(WT.ink)
-                        Text("STROKES · HOLE \(caddie.holeNumber)")
+                        Text("STROKES · HOLE \(caddie.holeNumber)" + ((s.holePenaltyStrokes ?? 0) > 0 ? " · \(s.holePenaltyStrokes ?? 0) PEN" : ""))
                             .font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
+                            .lineLimit(1).minimumScaleFactor(0.7)
                     }
                     Spacer()
                     if let rel {
