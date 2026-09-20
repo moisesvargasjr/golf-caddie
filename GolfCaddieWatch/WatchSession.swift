@@ -92,6 +92,14 @@ extension WatchSession: WCSessionDelegate {
         Task { @MainActor in self.phoneState = state }
     }
 
+    /// Phone → watch course catalog push (WatchCatalogPusher). The temp file is
+    /// deleted when this callback returns — read it now.
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?[ShotContract.fileKindKey] as? String == ShotContract.courseCatalogKind,
+              let data = try? Data(contentsOf: file.fileURL) else { return }
+        Task { @MainActor in WatchCourseStore.shared.install(data) }
+    }
+
     #if DEBUG
     nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
         let filename = fileTransfer.file.fileURL.lastPathComponent

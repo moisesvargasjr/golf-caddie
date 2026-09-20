@@ -4,7 +4,8 @@ import WatchKit
 /// Top level: a Start screen until the detection session is running, then the
 /// three glance pages (Yardage / Strokes / Score) with the DetectCard overlay.
 /// Round data is read from the phone (WatchSession.phoneState); detection +
-/// session control live on LiveSessionController.
+/// session control live on LiveSessionController; the yardage is computed on the
+/// wrist (WatchCaddie) with the phone's pushed value as the fallback.
 struct WatchRootView: View {
     @EnvironmentObject private var controller: LiveSessionController
 
@@ -139,6 +140,11 @@ private struct WatchStartScreen: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(WT.accent)
+            if !s.isActive {
+                Text("WATCH ONLY · YARDAGE + WORKOUT")
+                    .font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink3)
+                    .frame(maxWidth: .infinity).padding(.top, 3)
+            }
             if let err = controller.lastError {
                 Text(err).font(WT.mono(10)).foregroundStyle(.red).padding(.top, 4)
             }
@@ -237,14 +243,20 @@ private struct PageDots: View {
 
 private struct YardageScreen: View {
     @EnvironmentObject private var controller: LiveSessionController
+    @EnvironmentObject private var caddie: WatchCaddie
     @ObservedObject private var session = WatchSession.shared
 
     var body: some View {
         let s = session.phoneState
-        let yards = s.distanceToGreenYards
+        // The wrist's own yardage wins; the phone's pushed value is the
+        // fallback (no fix yet / course not cached). W/P marks the live source.
+        let local = caddie.freshLocalYards
+        let yards = local ?? (s.isActive ? s.distanceToGreenYards : nil)
+        let source = local != nil ? " · W" : (yards != nil ? " · P" : "")
+        let par = s.isActive ? s.par : caddie.hole?.par
         VStack(spacing: 2) {
             // Compact single info line (saves two rows on a 40mm screen).
-            Text("HOLE \(s.holeNumber) · PAR \(s.par.map(String.init) ?? "–") · TO GREEN")
+            Text("HOLE \(caddie.holeNumber) · PAR \(par.map(String.init) ?? "–") · TO GREEN\(source)")
                 .font(WT.mono(9)).tracking(1.4).foregroundStyle(WT.ink2)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(yards.map(String.init) ?? "–––")
@@ -264,35 +276,11 @@ private struct YardageScreen: View {
             // meter (so it never rides up under it) and drops the club card +
             // action row to the bottom of the page.
             Spacer(minLength: 2)
-            ClubSelector()
-            // Bottom action row. The detector auto-logs full swings but not
-            // putts, so putts are now the dominant manual entry — PUTT is the
-            // big primary key; MARK is the smaller fallback for a missed
-            // full-swing detection. PUTT → `.puttPlusOne` (phone logs a real
-            // putt); MARK → `.addShot(nil)` (logs with the current club). Putter
-            // is no longer a scroll club — this key replaces it (field 2026-06-27).
-            HStack(spacing: 6) {
-                Button {
-                    WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
-                    WKInterfaceDevice.current().play(.success)
-                } label: {
-                    Text("MARK").font(WT.mono(11)).tracking(1.0)
-                        .frame(minHeight: WT.s(26))
-                }
-                .buttonStyle(.bordered).tint(WT.ink2)
-                .frame(width: WT.s(58))
-
-                Button {
-                    controller.sendPutt()
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "flag.fill").font(.system(size: 12))
-                        Text("PUTT +1").font(WT.mono(14)).tracking(0.8)
-                            .lineLimit(1).minimumScaleFactor(0.75)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: WT.s(26))
-                }
-                .buttonStyle(.borderedProminent).tint(WT.accent)
+            if s.isActive {
+                ClubSelector()
+                actionRow
+            } else {
+                WatchOnlyHoleStepper()
             }
         }
         // The paged region overlaps the LISTENING meter row, so the top-anchored
@@ -304,12 +292,79 @@ private struct YardageScreen: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 6)
     }
+
+    private var actionRow: some View {
+        // Bottom action row. The detector auto-logs full swings but not
+        // putts, so putts are now the dominant manual entry — PUTT is the
+        // big primary key; MARK is the smaller fallback for a missed
+        // full-swing detection. PUTT → `.puttPlusOne` (phone logs a real
+        // putt); MARK → `.addShot(nil)` (logs with the current club). Putter
+        // is no longer a scroll club — this key replaces it (field 2026-06-27).
+        HStack(spacing: 6) {
+            Button {
+                WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
+                WKInterfaceDevice.current().play(.success)
+            } label: {
+                Text("MARK").font(WT.mono(11)).tracking(1.0)
+                    .frame(minHeight: WT.s(26))
+            }
+            .buttonStyle(.bordered).tint(WT.ink2)
+            .frame(width: WT.s(58))
+
+            Button {
+                controller.sendPutt()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "flag.fill").font(.system(size: 12))
+                    Text("PUTT +1").font(WT.mono(14)).tracking(0.8)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity, minHeight: WT.s(26))
+            }
+            .buttonStyle(.borderedProminent).tint(WT.accent)
+        }
+    }
+}
+
+/// Watch-only round (no phone round to follow): the course the wrist resolved
+/// and a manual hole stepper. Auto hole-advance comes with the round engine.
+private struct WatchOnlyHoleStepper: View {
+    @EnvironmentObject private var caddie: WatchCaddie
+    @ObservedObject private var store = WatchCourseStore.shared
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(caddie.course?.name ?? (store.courses.isEmpty ? "No course data yet" : "Finding course…"))
+                .font(WT.serif(WT.s(15))).foregroundStyle(WT.ink2)
+                .lineLimit(1).minimumScaleFactor(0.6)
+            HStack(spacing: 6) {
+                stepButton("minus") { caddie.stepHole(by: -1) }
+                Text("HOLE \(caddie.holeNumber)")
+                    .font(WT.mono(14)).tracking(0.8)
+                    .frame(maxWidth: .infinity)
+                stepButton("plus") { caddie.stepHole(by: 1) }
+            }
+        }
+    }
+
+    private func stepButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            WKInterfaceDevice.current().play(.click)
+        } label: {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
+                .frame(minHeight: WT.s(26))
+        }
+        .buttonStyle(.bordered).tint(WT.ink2)
+        .frame(width: WT.s(52))
+    }
 }
 
 /// Crown-driven club selector (list style). The selected club is bound to the
 /// Digital Crown; changing it tells the controller (→ phone).
 private struct ClubSelector: View {
     @EnvironmentObject private var controller: LiveSessionController
+    @EnvironmentObject private var caddie: WatchCaddie
     @ObservedObject private var session = WatchSession.shared
     @State private var crown = 0.0
     @FocusState private var focused: Bool
@@ -326,7 +381,7 @@ private struct ClubSelector: View {
         let clubs = session.phoneState.clubs.filter { !($0.isPutter ?? ($0.short == "Pt")) }
         let idx = currentIndex(clubs)
         let club = clubs.indices.contains(idx) ? clubs[idx] : nil
-        let suggested = suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0)
+        let suggested = suggestedClubIndex(clubs, yards: caddie.freshLocalYards ?? session.phoneState.distanceToGreenYards ?? 0)
 
         HStack(spacing: 9) {
             Text(club?.short ?? "—").font(WT.serif(WT.s(28))).foregroundStyle(WT.accent)

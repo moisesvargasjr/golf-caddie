@@ -42,8 +42,12 @@ final class LiveSessionController: ObservableObject {
     @Published private(set) var repCounts: [RepLabel: Int] = [:]
     #endif
 
+    /// On-wrist yardage (watch GPS + cached catalog).
+    let caddie = WatchCaddie()
+
     private let workout = WorkoutKeeper()
     private let recorder = MotionRecorder()
+    private let location = WatchLocationProvider()
     private var detector: LiveSwingDetector?
 
     // Club state: the effective club is whichever of {phone, local Crown} has
@@ -62,7 +66,19 @@ final class LiveSessionController: ObservableObject {
         WatchSession.shared.activate()
         recorder.onRateSample = { [weak self] hz in self?.deliveredHz = hz }
         workout.onFailure = { [weak self] message in self?.lastError = "Workout: \(message)" }
+        location.onFix = { [weak self] fix in
+            guard let self, self.running else { return }
+            self.caddie.ingest(fix)
+            if fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= WatchCaddie.maxAccuracyMeters {
+                self.workout.addRoute([fix])
+            }
+        }
+        Task { await WatchCourseStore.shared.fetchIfStale() }
     }
+
+    /// A phone round owns hole, club and shots; without one the watch runs on
+    /// its own (yardage + workout only — shot logging stays phone-side for now).
+    var phoneLed: Bool { WatchSession.shared.phoneState.isActive }
 
     var batteryPercent: Int { Int((WKInterfaceDevice.current().batteryLevel * 100).rounded()) }
 
@@ -136,6 +152,7 @@ final class LiveSessionController: ObservableObject {
 
             try workout.start()
             try recorder.start(recordRawTo: dir)
+            location.start()
 
             detectionCount = 0
             startedAt = Date()
@@ -149,6 +166,7 @@ final class LiveSessionController: ObservableObject {
             lastError = error.localizedDescription
             workout.stop()
             recorder.stop()
+            location.stop()
             detector = nil
         }
     }
@@ -157,6 +175,8 @@ final class LiveSessionController: ObservableObject {
         detectionCount += 1
         lastDetectionAt = Date()
         WKInterfaceDevice.current().play(.notification)
+        // Watch-only: there's no round to log into yet — count it, skip the card.
+        guard phoneLed else { return }
         // Raise the confirm card (one at a time). Confirm/timeout emits the
         // event; "Not a shot" drops it. The phone-side step-gate is the backstop
         // for any practice swing that auto-logs before the user dismisses.
@@ -221,6 +241,8 @@ final class LiveSessionController: ObservableObject {
         recorder.stop()
         #endif
         workout.stop()
+        location.stop()
+        caddie.reset()
         detector = nil
 
         #if DEBUG

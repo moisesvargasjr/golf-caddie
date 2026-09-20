@@ -90,8 +90,9 @@ targets:
         WKBackgroundModes:
           - workout-processing
         NSMotionUsageDescription: "Records wrist motion at 100 Hz to develop automatic shot detection."
-        NSHealthShareUsageDescription: "Runs a golf workout session so motion sensors stay active during recording."
-        NSHealthUpdateUsageDescription: "Runs a golf workout session so motion sensors stay active during recording."
+        NSLocationWhenInUseUsageDescription: "Shows your distance to the green on the watch and maps your round."
+        NSHealthShareUsageDescription: "Runs a golf workout during your round so GPS and motion sensors stay active, and saves the round to Fitness."
+        NSHealthUpdateUsageDescription: "Runs a golf workout during your round so GPS and motion sensors stay active, and saves the round to Fitness."
     entitlements:
       path: GolfCaddieWatch/GolfCaddieWatch.entitlements
       properties:
