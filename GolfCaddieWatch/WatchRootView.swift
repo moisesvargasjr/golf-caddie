@@ -72,12 +72,22 @@ private struct WatchStartScreen: View {
                 .font(WT.serif(WT.s(26))).foregroundStyle(WT.ink)
                 .lineLimit(2).minimumScaleFactor(0.6)
                 .padding(.top, 4)
-            HStack(spacing: 18) {
-                stat("HOLE", s.isActive ? "\(s.holeNumber)" : "–")
-                stat("PAR", s.par.map(String.init) ?? "–")
-                stat("SHOTS", "\(s.holeShotCount)")
+            if s.isActive {
+                HStack(spacing: 18) {
+                    stat("HOLE", "\(s.holeNumber)")
+                    stat("PAR", s.par.map(String.init) ?? "–")
+                    stat("SHOTS", "\(s.holeShotCount)")
+                }
+                .padding(.top, 14)
+            } else {
+                // No phone round: a row of "– – 0" says nothing. Say what
+                // starting from here does instead.
+                Text("Watch only: yardage + workout.\nStart a round on the phone to log shots.")
+                    .font(WT.mono(10)).foregroundStyle(WT.ink2)
+                    .lineLimit(3).minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
             }
-            .padding(.top, 14)
             Spacer()
             Button {
                 Task { await controller.start() }
@@ -87,11 +97,6 @@ private struct WatchStartScreen: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(WT.accent)
-            if !s.isActive {
-                Text("WATCH ONLY · YARDAGE + WORKOUT")
-                    .font(WT.mono(9)).tracking(1).foregroundStyle(WT.ink3)
-                    .frame(maxWidth: .infinity).padding(.top, 3)
-            }
             if let err = controller.lastError {
                 Text(err).font(WT.mono(10)).foregroundStyle(.red).padding(.top, 4)
             }
@@ -114,7 +119,11 @@ private struct WatchStartScreen: View {
             .padding(.top, 6)
             #endif
         }
-        .padding(.horizontal, 4)
+        // The Ultra's corners are rounder than the simulator draws them: on the
+        // device, left-aligned footer text was cut off ("'PS LOG ON"). Scene
+        // padding is the system's corner-safe inset; the footer is centred.
+        .scenePadding(.horizontal)
+        .padding(.bottom, WT.s(6))
     }
 
     private func stat(_ label: String, _ value: String) -> some View {
@@ -132,18 +141,18 @@ private struct TelemetryToggle: View {
     @ObservedObject private var session = WatchSession.shared
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Button { telemetry.enabled.toggle() } label: {
-                Text("GPS LOG \(telemetry.enabled ? "ON" : "OFF")").font(WT.mono(9)).tracking(0.8)
+                Text("GPS LOG \(telemetry.enabled ? "ON" : "OFF")").font(WT.mono(10)).tracking(0.8)
             }
             .buttonStyle(.plain)
             .foregroundStyle(telemetry.enabled ? WT.accent : WT.ink3)
-            Spacer()
             if session.telemetryPending > 0 {
-                Text("\(session.telemetryPending) TO SEND").font(WT.mono(9)).foregroundStyle(WT.ink2)
+                Text("\(session.telemetryPending) TO SEND").font(WT.mono(10)).foregroundStyle(WT.ink2)
             }
         }
-        .padding(.top, 4)
+        .frame(maxWidth: .infinity) // centred: the bottom corners clip the edges
+        .padding(.top, 6)
     }
 }
 
@@ -282,10 +291,7 @@ private struct YardageScreen: View {
             // The hero: yards to the green, the one number this screen exists
             // for — no caption needed. (No FRONT/BACK either: the catalog has a
             // single green point, so those were invented numbers.)
-            Text(r.yards.map(String.init) ?? "–––")
-                .font(WT.serif(WT.s(84))).foregroundStyle(WT.ink)
-                .minimumScaleFactor(0.5).lineLimit(1)
-                .frame(maxHeight: .infinity)
+            YardageHero(yards: r.yards, size: WT.s(84))
                 .accessibilityLabel(r.yards.map { "\($0) yards to green" } ?? "No yardage")
             if s.isActive {
                 ClubSelector().padding(.bottom, WT.s(4))
@@ -294,7 +300,7 @@ private struct YardageScreen: View {
                 WatchOnlyHoleStepper()
             }
         }
-        .padding(.horizontal, 6)
+        .scenePadding(.horizontal) // corner-safe: the device's corners are rounder than the simulator's
         .padding(.bottom, WT.s(16)) // clear the system page dots
         .ignoresSafeArea(edges: .bottom)
     }
@@ -330,6 +336,29 @@ private struct YardageScreen: View {
     }
 }
 
+/// The hero number — or, with no yardage yet, a quiet placeholder (three 84 pt
+/// serif dashes rendered as one heavy bar).
+private struct YardageHero: View {
+    let yards: Int?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let yards {
+                Text("\(yards)").font(WT.serif(size)).foregroundStyle(WT.ink)
+                    .minimumScaleFactor(0.4).lineLimit(1)
+            } else {
+                VStack(spacing: 4) {
+                    Image(systemName: "location.slash").font(.system(size: size * 0.3))
+                    Text("NO YARDAGE YET").font(WT.mono(11)).tracking(1.2)
+                }
+                .foregroundStyle(WT.ink3)
+            }
+        }
+        .frame(maxHeight: .infinity)
+    }
+}
+
 /// A fixed-height key for the yardage page's action row. The system bordered
 /// styles grow to ~55 pt on the Ultra, which starved the hero yardage of room;
 /// 40 pt is still a comfortable gloved-thumb target.
@@ -361,10 +390,7 @@ private struct GlanceScreen: View {
         VStack(spacing: 0) {
             Text(r.holeLine)
                 .font(WT.mono(13)).tracking(1.2).foregroundStyle(WT.ink2)
-            Text(r.yards.map(String.init) ?? "–––")
-                .font(WT.serif(WT.s(104))).foregroundStyle(WT.ink)
-                .minimumScaleFactor(0.4).lineLimit(1)
-                .frame(maxHeight: .infinity)
+            YardageHero(yards: r.yards, size: WT.s(104))
             if s.isActive, let club = controller.effectiveClubShort {
                 HStack(spacing: 8) {
                     Text(club).font(WT.serif(WT.s(26))).foregroundStyle(WT.accent)
@@ -407,9 +433,8 @@ private struct WatchOnlyHoleStepper: View {
             WKInterfaceDevice.current().play(.click)
         } label: {
             Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
-                .frame(minHeight: WT.s(26))
         }
-        .buttonStyle(.bordered).tint(WT.ink2)
+        .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
         .frame(width: WT.s(52))
     }
 }
@@ -708,6 +733,8 @@ private struct ScoreScreen: View {
     @EnvironmentObject private var caddie: WatchCaddie
     @ObservedObject private var session = WatchSession.shared
 
+    @State private var confirmingEnd = false
+
     var body: some View {
         let s = session.phoneState
         let shots = s.holeShotCount
@@ -719,32 +746,52 @@ private struct ScoreScreen: View {
         ScrollView {
           VStack(alignment: .leading, spacing: 4) {
             WatchHeader(left: {
-                Text("SCORE").font(WT.mono(12)).tracking(1.6).foregroundStyle(WT.ink2)
+                Text(s.isActive ? "SCORE" : "WATCH ONLY").font(WT.mono(12)).tracking(1.6).foregroundStyle(WT.ink2)
             })
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("\(shots)").font(WT.serif(WT.s(56))).foregroundStyle(WT.ink)
-                    Text("STROKES · HOLE \(s.holeNumber)")
-                        .font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
-                }
-                Spacer()
-                if let rel {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(rel == 0 ? "EVEN" : rel > 0 ? "+\(rel)" : "\(rel)")
-                            .font(WT.serif(WT.s(30)))
-                            .foregroundStyle(rel > 0 ? WT.accent : rel < 0 ? WT.green : WT.ink2)
-                        Text("THRU \(scored.count)").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+            if s.isActive {
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(shots)").font(WT.serif(WT.s(56))).foregroundStyle(WT.ink)
+                        Text("STROKES · HOLE \(caddie.holeNumber)")
+                            .font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
                     }
-                } else if let par = s.par {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("\(par)").font(WT.serif(WT.s(30))).foregroundStyle(WT.ink2)
-                        Text("PAR").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+                    Spacer()
+                    if let rel {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text(rel == 0 ? "EVEN" : rel > 0 ? "+\(rel)" : "\(rel)")
+                                .font(WT.serif(WT.s(30)))
+                                .foregroundStyle(rel > 0 ? WT.accent : rel < 0 ? WT.green : WT.ink2)
+                            Text("THRU \(scored.count)").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+                        }
+                    } else if let par = s.par {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("\(par)").font(WT.serif(WT.s(30))).foregroundStyle(WT.ink2)
+                            Text("PAR").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+                        }
                     }
                 }
+            } else {
+                // No phone round → no strokes to count (it read "0 · HOLE 0").
+                // This page is just the hole you're on.
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(caddie.holeNumber)").font(WT.serif(WT.s(40))).foregroundStyle(WT.ink)
+                        Text("HOLE").font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
+                    }
+                    Spacer()
+                    if let par = caddie.hole?.par {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("\(par)").font(WT.serif(WT.s(30))).foregroundStyle(WT.ink2)
+                            Text("PAR").font(WT.mono(10)).tracking(1).foregroundStyle(WT.ink3)
+                        }
+                    }
+                }
+                Text(caddie.course?.name ?? (WatchCourseStore.shared.courses.isEmpty ? "No course data yet" : "Finding course…"))
+                    .font(WT.mono(10)).foregroundStyle(WT.ink3).lineLimit(1).minimumScaleFactor(0.7)
             }
 
-            Divider().overlay(WT.line)
-            ForEach(s.scorecard) { row in
+            if s.isActive { Divider().overlay(WT.line) }
+            ForEach(s.isActive ? s.scorecard : []) { row in
                 HStack {
                     Text("Hole \(row.hole)").font(WT.mono(13)).foregroundStyle(WT.ink2).frame(width: 56, alignment: .leading)
                     Text("par \(row.par.map(String.init) ?? "–")").font(WT.mono(11)).foregroundStyle(WT.ink3)
@@ -758,37 +805,54 @@ private struct ScoreScreen: View {
                 Divider().overlay(WT.line)
             }
 
-            // Hole navigation: back (recover an accidental advance) + Next Hole
-            // (confirms this hole and advances). Goes to the phone over WC.
+            // Hole navigation. With a phone round: back (recover an accidental
+            // advance) + Next Hole (confirms this hole and advances) go to the
+            // phone over WC, and the watch steps its own hole at once. Watch
+            // only: they just step the watch's hole.
             HStack(spacing: 6) {
                 Button {
-                    WatchSession.shared.send(.command(.previousHole))
-                    caddie.holeStepRequested(by: -1)
+                    stepHole(by: -1, phoneCommand: .previousHole)
                     WKInterfaceDevice.current().play(.click)
                 } label: {
-                    Text("‹").font(WT.serif(20)).frame(width: WT.s(40), height: WT.s(40))
+                    Image(systemName: "chevron.left").font(.system(size: 15, weight: .bold))
                 }
-                .buttonStyle(.bordered).tint(WT.ink2)
+                .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
+                .frame(width: WT.s(52))
                 Button {
-                    WatchSession.shared.send(.command(.advanceHole))
-                    caddie.holeStepRequested(by: 1)
+                    stepHole(by: 1, phoneCommand: .advanceHole)
                     WKInterfaceDevice.current().play(.success)
                 } label: {
-                    Text("Next Hole ›").font(WT.serif(16)).frame(maxWidth: .infinity, minHeight: WT.s(40))
+                    // One line: on the device "Next Hole ›" wrapped to two.
+                    Text("Next Hole").font(WT.serif(17)).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                .buttonStyle(.borderedProminent).tint(WT.accent)
+                .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
             }
-            .padding(.top, 2)
+            .padding(.top, 4)
 
-            Button {
-                controller.stop()
-            } label: {
-                Text("END TRACKING").font(WT.mono(11)).tracking(1.2).frame(maxWidth: .infinity)
+            Button { confirmingEnd = true } label: {
+                Text("END TRACKING").font(WT.mono(11)).tracking(1.2)
             }
-            .buttonStyle(.bordered).tint(WT.ink2)
-            .padding(.bottom, 4)
+            .buttonStyle(WatchKeyStyle(fill: WT.surface, ink: WT.ink2))
+            .padding(.top, 6)
           }
-          .padding(.horizontal, 8)
+          .scenePadding(.horizontal)
+          // Room to scroll the last key clear of the rounded bottom edge — on the
+          // device END TRACKING sat half under the curve.
+          .padding(.bottom, WT.s(28))
+        }
+        // It sits right under Next Hole: a slip shouldn't end the workout.
+        .confirmationDialog("End tracking?", isPresented: $confirmingEnd, titleVisibility: .visible) {
+            Button("End", role: .destructive) { controller.stop() }
+            Button("Keep Going", role: .cancel) {}
+        }
+    }
+
+    private func stepHole(by delta: Int, phoneCommand: WatchCommand) {
+        if session.phoneState.isActive {
+            WatchSession.shared.send(.command(phoneCommand))
+            caddie.holeStepRequested(by: delta)
+        } else {
+            caddie.stepHole(by: delta)
         }
     }
 }

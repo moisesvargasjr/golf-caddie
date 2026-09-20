@@ -17,7 +17,10 @@ enum WatchPreviewDebug {
     @MainActor
     static func apply(controller: LiveSessionController) {
         guard isActive else { return }
-        WatchSession.shared.debugSetPhoneState(mockState)
+        // `-WatchPreviewWatchOnly 1`: no phone round (the watch-only layouts).
+        if !UserDefaults.standard.bool(forKey: "WatchPreviewWatchOnly") {
+            WatchSession.shared.debugSetPhoneState(mockState)
+        }
         controller.debugEnterPreview()
     }
 
