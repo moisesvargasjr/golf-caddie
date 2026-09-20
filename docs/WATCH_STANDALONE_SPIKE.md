@@ -1,7 +1,8 @@
 # Watch-standalone spike — on-wrist GPS, course cache, local yardage
 
-> **Status:** spike in progress on `spike/watch-standalone` (2026-09-19). Steps 1–5
-> are the app build; steps 6–8 (telemetry, analysis script, Action Button) follow.
+> **Status (2026-09-19):** steps 1–5 built on `spike/watch-standalone` — watch target
+> builds, 145 phone tests green, **not yet run on a device**. Steps 6–8 (telemetry,
+> analysis script, Action Button) follow.
 > **Supersedes** `WATCH_FEASIBILITY.md`, which predates the watch app and assumed a
 > Series 6 battery budget.
 
@@ -96,6 +97,30 @@ Out of scope: shot logging on the watch, round ownership, a watch database.
    placement error on the watch track vs the 12 m phone baseline.
 8. **Action Button check** *(follow-up)*. `StartWorkoutIntent`; check on device whether a
    second press can mark a shot.
+
+### Known limits of the 1–5 build
+
+- **Watch-only logs no shots.** Yardage + workout/route only; swing detections are
+  counted but the DetectCard is skipped (there's no round to log into until the round
+  engine moves over).
+- **Stale local yardage.** A wrist yardage older than 20 s falls back to the phone's, but
+  only on the next redraw — nothing forces one if fixes stop entirely.
+- **Catalog push is recorded when queued**, not when delivered; a failed transfer isn't
+  retried until the catalog changes (the watch's direct fetch covers it).
+- **Health permissions changed** (route write, HR/energy read) — the watch re-prompts on
+  the first start.
+- Built with Xcode 27 (the machine's Xcode 26.6 lacks the watchOS platform); deployment
+  targets unchanged.
+
+### Device checklist before the field test
+
+1. First start: location + Health prompts appear on the watch; grant both.
+2. Phone app open once → catalog lands on the watch (watch-only screen shows a course
+   name near a cached course instead of "No course data yet").
+3. Phone round active: header shows `· W` within a few seconds of starting; yardage
+   matches the phone within a few yards.
+4. No phone round: +/− steps holes, yardage follows.
+5. End a >2 min session: a Golf workout with a route appears in Fitness.
 
 ### Field test protocol
 
