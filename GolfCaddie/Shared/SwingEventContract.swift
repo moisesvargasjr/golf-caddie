@@ -17,6 +17,11 @@ enum ShotContract {
     static let version = 1
     /// transferUserInfo dictionary key carrying the JSON-encoded message.
     static let payloadKey = "payload"
+    /// transferFile metadata key + value marking a phone → watch course
+    /// catalog push (a `CourseDataFile` JSON), so the watch can tell it from
+    /// any other file.
+    static let fileKindKey = "kind"
+    static let courseCatalogKind = "courseCatalog"
 }
 
 /// One auto-detected (or watch-manually-added) swing. Timestamped on the watch
@@ -157,6 +162,11 @@ struct PhoneStateUpdate: Codable, Equatable {
     var strokes: [WatchStroke]
     /// Confirmed holes so far (for the Score-page scorecard).
     var scorecard: [WatchScoreRow]
+    /// The round's linked curated course, so the watch computes its own
+    /// yardage against the same course the phone uses instead of guessing by
+    /// proximity. Optional = additive (same rule as `WatchClub.isPutter`):
+    /// old payloads decode nil and the watch falls back to nearest-course.
+    var curatedCourseId: String? = nil
 
     var holeShotCount: Int { strokes.count }
 

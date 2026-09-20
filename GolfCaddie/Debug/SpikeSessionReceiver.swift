@@ -27,7 +27,10 @@ final class SpikeSessionReceiver: NSObject {
 
 extension SpikeSessionReceiver: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
-                 error: Error?) {}
+                 error: Error?) {
+        // The launch-time catalog sync can finish before activation does.
+        WatchCatalogPusher.pushIfChanged()
+    }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}
 
