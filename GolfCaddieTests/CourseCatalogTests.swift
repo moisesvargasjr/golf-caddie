@@ -108,20 +108,37 @@ final class CourseCatalogTests: XCTestCase {
     // MARK: - Catalog push delivery tracking
 
     func testPushDecision() {
-        typealias P = WatchCatalogPusher
+        typealias State = WatchCatalogPusher.DeliveryState
         // Never delivered (first push, or the last transfer FAILED so nothing was recorded) → send.
-        XCTAssertEqual(P.decide(hash: "a", deliveredHash: nil, outstandingHashes: [], force: false), .send)
+        XCTAssertEqual(State(deliveredHash: nil).decide(hash: "a", outstandingHashes: []), .send)
         // Confirmed delivered + unchanged → skip.
-        XCTAssertEqual(P.decide(hash: "a", deliveredHash: "a", outstandingHashes: [], force: false), .skip)
+        XCTAssertEqual(State(deliveredHash: "a").decide(hash: "a", outstandingHashes: []), .skip)
         // Catalog changed → send.
-        XCTAssertEqual(P.decide(hash: "b", deliveredHash: "a", outstandingHashes: [], force: false), .send)
-        // Same bytes already queued → don't double-queue, even when forced.
-        XCTAssertEqual(P.decide(hash: "a", deliveredHash: nil, outstandingHashes: ["a"], force: false), .skip)
-        XCTAssertEqual(P.decide(hash: "a", deliveredHash: nil, outstandingHashes: ["a"], force: true), .skip)
-        // Watch reinstalled: phone thinks "a" is delivered, watch asks → resend.
-        XCTAssertEqual(P.decide(hash: "a", deliveredHash: "a", outstandingHashes: [], force: true), .send)
+        XCTAssertEqual(State(deliveredHash: "a").decide(hash: "b", outstandingHashes: []), .send)
+        // Same bytes already queued → don't double-queue.
+        XCTAssertEqual(State(deliveredHash: nil).decide(hash: "a", outstandingHashes: ["a"]), .skip)
         // A stale queued transfer doesn't block the new catalog.
-        XCTAssertEqual(P.decide(hash: "b", deliveredHash: "a", outstandingHashes: ["a"], force: false), .send)
+        XCTAssertEqual(State(deliveredHash: "a").decide(hash: "b", outstandingHashes: ["a"]), .send)
+    }
+
+    /// PR #14 review (P2): delivered A → watch reinstalled, requests A → that
+    /// transfer FAILS → every later retry (backoff, sync, reachability — none of
+    /// them "forced") must still send the unchanged A until a delivery succeeds.
+    func testResendIntentSurvivesAFailedTransfer() {
+        var state = WatchCatalogPusher.DeliveryState()
+        state.transferFinished(hash: "a", succeeded: true)
+        XCTAssertEqual(state.decide(hash: "a", outstandingHashes: []), .skip, "precondition: A delivered")
+
+        state.watchRequestedResend()
+        XCTAssertEqual(state.decide(hash: "a", outstandingHashes: []), .send, "reinstall request resends A")
+        XCTAssertEqual(state.decide(hash: "a", outstandingHashes: ["a"]), .skip, "…but not twice while queued")
+
+        state.transferFinished(hash: "a", succeeded: false)
+        XCTAssertEqual(state.decide(hash: "a", outstandingHashes: []), .send, "retry after failure still sends unchanged A")
+        XCTAssertEqual(state.decide(hash: "a", outstandingHashes: []), .send, "…and keeps doing so on later retries")
+
+        state.transferFinished(hash: "a", succeeded: true)
+        XCTAssertEqual(state.decide(hash: "a", outstandingHashes: []), .skip, "only a confirmed delivery settles it")
     }
 
     func testPhoneStateDecodesWithoutCourseId() throws {

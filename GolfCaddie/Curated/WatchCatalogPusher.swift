@@ -13,7 +13,9 @@ import WatchConnectivity
 /// `didFinish fileTransfer` reports success. A queued transfer is recognised
 /// via `outstandingFileTransfers` (which survives relaunch), a failed one is
 /// retried with backoff, and a watch that has never received a push (fresh
-/// install / reinstall) asks for one, which bypasses the delivered check.
+/// install / reinstall) asks for one — which INVALIDATES the delivered hash, so
+/// the resend intent survives a failed transfer, every retry path and a phone
+/// relaunch until a delivery is actually confirmed.
 enum WatchCatalogPusher {
     private static let deliveredHashKey = "watchCatalogPusher.deliveredHash"
     private static let maxRetries = 5
@@ -21,31 +23,60 @@ enum WatchCatalogPusher {
 
     enum Decision: Equatable { case send, skip }
 
-    /// Pure send/skip rule (unit-tested). `force` = the watch asked for it.
-    static func decide(hash: String, deliveredHash: String?, outstandingHashes: [String], force: Bool) -> Decision {
-        if outstandingHashes.contains(hash) { return .skip } // already queued
-        if !force, hash == deliveredHash { return .skip } // watch has it
-        return .send
+    /// What the phone believes the watch holds. Pure (unit-tested); persisted
+    /// in UserDefaults by the accessors below.
+    struct DeliveryState: Equatable {
+        var deliveredHash: String?
+
+        /// The watch says it has no phone push (fresh install / reinstall):
+        /// whatever we delivered before is gone. Forgetting it — rather than
+        /// forcing one send — keeps the resend pending across failures/retries.
+        mutating func watchRequestedResend() { deliveredHash = nil }
+
+        /// Only a confirmed delivery records the hash; a failure changes nothing.
+        mutating func transferFinished(hash: String?, succeeded: Bool) {
+            if succeeded, let hash { deliveredHash = hash }
+        }
+
+        func decide(hash: String, outstandingHashes: [String]) -> Decision {
+            if outstandingHashes.contains(hash) { return .skip } // already queued
+            if hash == deliveredHash { return .skip } // watch has it
+            return .send
+        }
+    }
+
+    private static var state: DeliveryState {
+        get { DeliveryState(deliveredHash: UserDefaults.standard.string(forKey: deliveredHashKey)) }
+        set { UserDefaults.standard.set(newValue.deliveredHash, forKey: deliveredHashKey) }
     }
 
     /// Safe from any context: hops through a plain GCD main-queue block so the
     /// synchronous GRDB reads are legal (see `allCoursesFromAsyncContext`).
-    static func pushIfChanged(force: Bool = false) {
-        DispatchQueue.main.async { push(force: force) }
+    static func pushIfChanged() {
+        DispatchQueue.main.async { push() }
+    }
+
+    /// The watch asked for the catalog (it has never received a push).
+    static func watchRequestedResend() {
+        DispatchQueue.main.async {
+            state.watchRequestedResend()
+            retryAttempt = 0
+            push()
+        }
     }
 
     /// `didFinish fileTransfer` for a catalog transfer.
     static func transferFinished(hash: String?, error: Error?) {
         DispatchQueue.main.async {
+            state.transferFinished(hash: hash, succeeded: error == nil)
             if error == nil {
-                if let hash { UserDefaults.standard.set(hash, forKey: deliveredHashKey) }
                 retryAttempt = 0
                 return
             }
             guard retryAttempt < maxRetries else { return } // next sync / activation / reachability retries
             retryAttempt += 1
             let delay = min(30 * pow(2, Double(retryAttempt - 1)), 600)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { push(force: false) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { push() }
         }
     }
 
@@ -56,7 +87,7 @@ enum WatchCatalogPusher {
         }
     }
 
-    private static func push(force: Bool) {
+    private static func push() {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated, session.isWatchAppInstalled else { return }
@@ -77,9 +108,7 @@ enum WatchCatalogPusher {
             $0.file.metadata?[ShotContract.fileKindKey] as? String == ShotContract.courseCatalogKind
         }
         let outstandingHashes = catalogTransfers.compactMap { $0.file.metadata?[ShotContract.catalogHashKey] as? String }
-        let delivered = UserDefaults.standard.string(forKey: deliveredHashKey)
-        guard decide(hash: hash, deliveredHash: delivered, outstandingHashes: outstandingHashes, force: force) == .send
-        else { return }
+        guard state.decide(hash: hash, outstandingHashes: outstandingHashes) == .send else { return }
 
         // Anything still queued is now superseded.
         catalogTransfers.forEach { $0.cancel() }

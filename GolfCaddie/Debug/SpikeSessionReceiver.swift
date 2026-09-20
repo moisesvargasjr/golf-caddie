@@ -61,7 +61,7 @@ extension SpikeSessionReceiver: WCSessionDelegate {
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         // A watch with no phone push yet (fresh install / reinstall) asks for one.
         if userInfo[ShotContract.catalogRequestKey] != nil {
-            WatchCatalogPusher.pushIfChanged(force: true)
+            WatchCatalogPusher.watchRequestedResend()
             return
         }
         guard let data = userInfo[ShotContract.payloadKey] as? Data,
