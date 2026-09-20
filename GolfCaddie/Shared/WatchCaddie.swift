@@ -35,7 +35,10 @@ final class WatchCaddie: ObservableObject {
     private let scheduleExpiry: ExpiryScheduler
 
     private var courses: [CuratedCourse] = []
-    private var phoneState = PhoneStateUpdate.inactive
+    /// Published: `holeNumber`/`hole` derive from it, so a phone hole change
+    /// must redraw the yardage screen even when the yardage itself is unchanged
+    /// (found on the simulator: the header kept showing the previous hole).
+    @Published private var phoneState = PhoneStateUpdate.inactive
     private var lastFix: CLLocation?
     private var lastFixAt: Date?
     private var cancelExpiry: (() -> Void)?

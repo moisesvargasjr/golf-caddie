@@ -126,6 +126,23 @@ final class WatchCaddieTests: XCTestCase {
         XCTAssertEqual(Double(try XCTUnwrap(caddie.localYards)), 243, accuracy: 3)
     }
 
+    /// Regression: with no fix (so no yardage change to publish), a phone hole
+    /// change must still notify observers — the header reads `holeNumber`.
+    func testPhoneHoleChangeNotifiesObserversWithoutAFix() {
+        let caddie = makeCaddie()
+        var notified = 0
+        let sub = caddie.objectWillChange.sink { notified += 1 }
+        defer { sub.cancel() }
+
+        var phone = PhoneStateUpdate.inactive
+        phone.isActive = true
+        phone.holeNumber = 3
+        caddie.update(phoneState: phone)
+
+        XCTAssertEqual(caddie.holeNumber, 3)
+        XCTAssertGreaterThan(notified, 0)
+    }
+
     func testResetCancelsExpiryAndClears() {
         let caddie = makeCaddie()
         caddie.ingest(fix())
