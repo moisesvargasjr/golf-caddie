@@ -113,6 +113,34 @@ final class LiveSessionController: ObservableObject {
         return phone.currentClubShortName
     }
 
+    // MARK: - Finish Hole pre-fill
+
+    /// Full shots the WATCH has sent on this hole (confirmed detections + MARKs).
+    /// The phone's count is better (it collapses practice swings) — but with the
+    /// phone out of range its state is frozen, so this is the fallback.
+    @Published private(set) var localFullShots = 0
+    private var tallyHole: Int?
+
+    /// What the Finish Hole sheet pre-fills as the full-shot count.
+    var fullShotsForFinish: Int {
+        let phone = WatchSession.shared.phoneState
+        let phoneCount = phone.holeFullShots ?? phone.strokes.count
+        // Anything still queued means the phone hasn't seen this hole's strokes.
+        return WatchSession.shared.outstandingMessages == 0 ? phoneCount : max(phoneCount, localFullShots)
+    }
+
+    private func noteFullShotSent() {
+        if tallyHole != caddie.holeNumber { tallyHole = caddie.holeNumber; localFullShots = 0 }
+        localFullShots += 1
+    }
+
+    /// MARK key — a manual full shot with the current club.
+    func sendMark() {
+        WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
+        noteFullShotSent()
+        WKInterfaceDevice.current().play(.success)
+    }
+
     /// True while the club follows the suggestion for the current distance
     /// (ClubAutoPilot); false while a manual pick is being held for this shot.
     @Published private(set) var clubIsAuto = true
@@ -260,6 +288,7 @@ final class LiveSessionController: ObservableObject {
             arcGyro: p.arcGyro
         )
         WatchSession.shared.send(.swing(event))
+        noteFullShotSent()
         pending = nil
     }
 

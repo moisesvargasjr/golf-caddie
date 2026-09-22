@@ -82,6 +82,10 @@ enum WatchCommand: Codable, Equatable {
     /// phone build can't decode this case and drops the message — acceptable
     /// because watch + phone ship in the same build.
     case addPenalty(kind: String)
+    /// The one end-of-hole check (watch "Finish Hole"): the putt count the
+    /// golfer gave and the score they confirmed. The phone reconciles the
+    /// tracked strokes to that score, confirms the hole and advances.
+    case finishHole(putts: Int, score: Int)
 }
 
 /// The penalty kinds the watch offers — raw values LOCKSTEP with the phone's
@@ -217,6 +221,9 @@ struct PhoneStateUpdate: Codable, Equatable {
     /// Penalty strokes on the current hole, so the wrist count matches the
     /// scorecard. Optional = additive (old phone → nil → treated as 0).
     var holePenaltyStrokes: Int? = nil
+    /// Full (non-putt) strokes tracked on the current hole — pre-fills the
+    /// watch's Finish Hole score. Optional = additive.
+    var holeFullShots: Int? = nil
 
     var holeShotCount: Int { strokes.count }
     /// Shots + penalty strokes — what the hole will score.

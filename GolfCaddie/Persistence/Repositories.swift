@@ -245,7 +245,7 @@ enum ShotRepository {
 
     static func shotsForHole(_ holeID: UUID) throws -> [Shot] {
         try Database.shared.read { db in
-            try Shot.filter(Column("holeID") == holeID)
+            try Shot.filter(Column("holeID") == holeID && Column("excludedAt") == nil)
                 .order(Column("sequenceNumber"))
                 .fetchAll(db)
         }
@@ -253,7 +253,25 @@ enum ShotRepository {
 
     static func count(forHole holeID: UUID) throws -> Int {
         try Database.shared.read { db in
-            try Shot.filter(Column("holeID") == holeID).fetchCount(db)
+            try Shot.filter(Column("holeID") == holeID && Column("excludedAt") == nil).fetchCount(db)
+        }
+    }
+
+    /// Strokes reconciliation set aside on this hole (restorable from review).
+    static func excludedShotsForHole(_ holeID: UUID) throws -> [Shot] {
+        try Database.shared.read { db in
+            try Shot.filter(Column("holeID") == holeID && Column("excludedAt") != nil)
+                .order(Column("sequenceNumber"))
+                .fetchAll(db)
+        }
+    }
+
+    /// Exclude (`at` set) or restore (`at` nil) strokes. Sequence numbers are
+    /// left alone so a restore drops the stroke back where it was.
+    static func setExcluded(_ ids: [UUID], at: Date?) throws {
+        guard !ids.isEmpty else { return }
+        try Database.shared.write { db in
+            try Shot.filter(ids.contains(Column("id"))).updateAll(db, Column("excludedAt").set(to: at))
         }
     }
 
@@ -301,7 +319,7 @@ enum ShotRepository {
                 sql: """
                 SELECT s.* FROM shot s
                 JOIN hole h ON s.holeID = h.id
-                WHERE h.roundID = ?
+                WHERE h.roundID = ? AND s.excludedAt IS NULL
                 ORDER BY h.holeNumber, s.sequenceNumber
                 """,
                 arguments: [roundID]

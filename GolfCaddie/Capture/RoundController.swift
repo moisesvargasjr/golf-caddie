@@ -505,6 +505,46 @@ final class RoundController {
                            club: resolvedPutter(), timestamp: at.timestamp, source: .watchManual, isPutt: true)
     }
 
+    /// Watch "Finish Hole": the golfer gave the putt count and confirmed the
+    /// score. Reconcile the tracked strokes to it (see `HoleFinishReconciler`),
+    /// then confirm the hole and advance. Excluded strokes stay restorable.
+    /// Returns the plan that was applied (nil without an active hole).
+    @discardableResult
+    func finishHole(putts: Int, score: Int, at timestamp: Date = Date()) throws -> HoleFinishReconciler.Plan? {
+        guard case let .active(_, hole) = state else { return nil }
+        let plan = HoleFinishReconciler.plan(
+            shots: currentHoleShots, penaltyStrokes: currentHolePenaltyStrokes, putts: putts, score: score)
+
+        if !plan.excludeIDs.isEmpty {
+            try ShotRepository.setExcluded(plan.excludeIDs, at: timestamp)
+            currentHoleShots.removeAll { plan.excludeIDs.contains($0.id) }
+        }
+        // Missed full shots go in BEFORE the putts so the sequence reads right.
+        // Unlocated + `.reconstructed` → review ambers them for a pin/club.
+        for _ in 0..<plan.fullShotsToAdd {
+            try append(Shot(
+                id: UUID(), holeID: hole.id, sequenceNumber: 0, timestamp: timestamp,
+                latitude: nil, longitude: nil, gpsAccuracy: nil, hadGPS: false,
+                club: nil, source: .reconstructed, notes: nil, isPutt: false))
+        }
+        let putter = resolvedPutter()
+        for _ in 0..<plan.puttsToAdd {
+            try append(Shot(
+                id: UUID(), holeID: hole.id, sequenceNumber: 0, timestamp: timestamp,
+                latitude: nil, longitude: nil, gpsAccuracy: nil, hadGPS: false,
+                club: putter?.id, source: .watchManual, notes: nil, isPutt: true))
+        }
+        try confirmHoleAndAdvance(par: hole.par)
+        return plan
+    }
+
+    private func append(_ shot: Shot) throws {
+        var shot = shot
+        shot.sequenceNumber = (try? ShotRepository.nextSequenceNumber(forHole: shot.holeID)) ?? 1
+        try ShotRepository.insert(shot)
+        currentHoleShots.append(shot)
+    }
+
     /// First putter-kind club in the bag, else first active putter-kind club.
     /// The editor guarantees ≥1 active putter; explicit isPutt:true keeps putts
     /// correct even in the nil fallback.

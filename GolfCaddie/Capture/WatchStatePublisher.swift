@@ -107,7 +107,8 @@ final class WatchStatePublisher {
             strokes: strokes,
             scorecard: scorecard,
             curatedCourseId: courseId,
-            holePenaltyStrokes: controller.currentHolePenaltyStrokes
+            holePenaltyStrokes: controller.currentHolePenaltyStrokes,
+            holeFullShots: controller.currentHoleShots.lazy.filter { !$0.isPutt }.count
         )
     }
 

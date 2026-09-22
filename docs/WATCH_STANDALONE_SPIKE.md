@@ -201,3 +201,26 @@ Only the disconnected segment says anything about the Ultra 4's own GPS.
 
 If it passes: next phase moves the round engine + GRDB to the watch, then workout
 mirroring.
+
+## Next phase — one check per hole (started 2026-09-21)
+
+Research on Arccos / Shot Scope / Garmin / Golfshot (2026-09-21): every product that
+tracks shots automatically still needs one manual step per hole to score correctly
+(gimmes, penalties, short putts); the best make it a single press on the green and keep
+everything else silent. Shot Scope's PinCollect (one press = putt count + pin position)
+is the most praised; Garmin's blind "+2 putts" default is the clearest failure.
+
+**Finish Hole (built, watch → phone):** on the Actions page and the score page,
+"Next Hole" becomes **Finish Hole**: tap a putt count (0–5+), confirm the pre-filled
+score (full shots + putts + penalties, −/+ to adjust). The phone reconciles the tracked
+strokes to that score (`HoleFinishReconciler`): putts are made to equal the count;
+missing full shots are added unlocated (amber in review); surplus full shots are
+**excluded, not deleted** (`shot.excludedAt`, migration v6) — most-likely phantom
+first (unplaced, then the earlier of a same-spot pair = practice swing), never a
+hand-logged stroke — and stay restorable. Then the hole confirms and advances.
+`advanceHole` still exists (watch-only, and as the plain step).
+
+**Still to do:** pin position from the finish press; restore-excluded UI in hole review;
+the unified hole map (walked trail + tap-a-pin-for-club + drag); tee-area logic (snap
+shot 1, practice-swing signal, suggested hole advance); auto-log without the confirm
+card (B1) + Double Tap undo; log dismissed detections for training the phantom ranking.

@@ -326,8 +326,7 @@ private struct YardageScreen: View {
         // replaces it (field 2026-06-27).
         HStack(spacing: 6) {
             Button {
-                WatchSession.shared.send(.command(.addShot(clubShortName: nil)))
-                WKInterfaceDevice.current().play(.success)
+                controller.sendMark()
             } label: {
                 Text("MARK").font(WT.mono(12)).tracking(1.0)
             }
@@ -577,6 +576,7 @@ private struct ActionsScreen: View {
     @EnvironmentObject private var caddie: WatchCaddie
     @ObservedObject private var session = WatchSession.shared
     @State private var confirmingUndo = false
+    @State private var finishing = false
     @State private var lastAdded: WatchPenaltyKind?
 
     private let cols = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
@@ -614,17 +614,16 @@ private struct ActionsScreen: View {
                 }
                 .buttonStyle(WatchKeyStyle(fill: WT.surface, ink: WT.ink2))
                 .frame(width: WT.s(78))
-                Button {
-                    WatchSession.shared.send(.command(.advanceHole))
-                    caddie.holeStepRequested(by: 1)
-                    WKInterfaceDevice.current().play(.success)
-                    done()
-                } label: {
-                    Text("Next Hole").font(WT.serif(17)).lineLimit(1).minimumScaleFactor(0.7)
+                Button { finishing = true } label: {
+                    Text("Finish Hole").font(WT.serif(17)).lineLimit(1).minimumScaleFactor(0.7)
                 }
                 .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
             }
         }
+        .sheet(isPresented: $finishing) { FinishHoleSheet(done: done) }
+        #if DEBUG
+        .onAppear { if WatchPreviewDebug.finishStep > 0 { finishing = true } }
+        #endif
         .padding(.top, WT.s(4))
         .scenePadding(.horizontal)
         .padding(.bottom, WT.s(16)) // clear the system page dots
@@ -651,6 +650,103 @@ private struct ActionsScreen: View {
             lastAdded = nil
             done()
         }
+    }
+}
+
+// MARK: - Finish Hole (the one check per hole)
+
+/// Putts → confirm the score → done. The score is pre-filled from what was
+/// tracked (full shots + the putts just given + penalties) and is what the
+/// phone reconciles the hole to, so a wrong pre-fill costs one or two taps on
+/// − / +, never a blank to fill in.
+private struct FinishHoleSheet: View {
+    /// Called after the hole is sent (return to the yardage).
+    let done: () -> Void
+    @EnvironmentObject private var controller: LiveSessionController
+    @EnvironmentObject private var caddie: WatchCaddie
+    @ObservedObject private var session = WatchSession.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var putts: Int?
+    @State private var score = 0
+
+    private let cols = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6),
+                        GridItem(.flexible(), spacing: 6)]
+
+    var body: some View {
+        let full = controller.fullShotsForFinish
+        let pens = session.phoneState.holePenaltyStrokes ?? 0
+        VStack(spacing: WT.s(6)) {
+            if let putts {
+                Text("HOLE \(caddie.holeNumber) · CONFIRM SCORE")
+                    .font(WT.mono(11)).tracking(1.2).foregroundStyle(WT.ink2)
+                HStack(spacing: 10) {
+                    stepKey("minus") { score = max(putts, score - 1) }
+                    Text("\(score)").font(WT.serif(WT.s(58))).foregroundStyle(WT.ink)
+                        .frame(minWidth: WT.s(60)).minimumScaleFactor(0.6).lineLimit(1)
+                    stepKey("plus") { score += 1 }
+                }
+                .frame(maxHeight: .infinity)
+                Text("\(full) shot\(full == 1 ? "" : "s") + \(putts) putt\(putts == 1 ? "" : "s")" + (pens > 0 ? " + \(pens) pen" : ""))
+                    .font(WT.mono(10)).foregroundStyle(WT.ink3).lineLimit(1).minimumScaleFactor(0.7)
+                HStack(spacing: 6) {
+                    Button { self.putts = nil } label: {
+                        Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold))
+                    }
+                    .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
+                    .frame(width: WT.s(48))
+                    Button { confirm(putts: putts) } label: {
+                        Text("Confirm").font(WT.serif(17))
+                    }
+                    .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
+                }
+            } else {
+                Text("HOLE \(caddie.holeNumber) · PUTTS?")
+                    .font(WT.mono(11)).tracking(1.2).foregroundStyle(WT.ink2)
+                LazyVGrid(columns: cols, spacing: 6) {
+                    ForEach(0..<6, id: \.self) { n in
+                        Button {
+                            putts = n
+                            score = full + n + pens
+                            WKInterfaceDevice.current().play(.click)
+                        } label: {
+                            Text(n == 5 ? "5+" : "\(n)").font(WT.serif(22))
+                        }
+                        .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            }
+        }
+        .scenePadding(.horizontal)
+        .padding(.bottom, WT.s(6))
+        .background(WT.bg)
+        #if DEBUG
+        .onAppear {
+            if WatchPreviewDebug.finishStep == 2 {
+                putts = 2
+                score = controller.fullShotsForFinish + 2 + (session.phoneState.holePenaltyStrokes ?? 0)
+            }
+        }
+        #endif
+    }
+
+    private func stepKey(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            WKInterfaceDevice.current().play(.click)
+        } label: {
+            Image(systemName: symbol).font(.system(size: 16, weight: .bold))
+        }
+        .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
+        .frame(width: WT.s(46))
+    }
+
+    private func confirm(putts: Int) {
+        WatchSession.shared.send(.command(.finishHole(putts: putts, score: score)))
+        caddie.holeStepRequested(by: 1)
+        WKInterfaceDevice.current().play(.success)
+        dismiss()
+        done()
     }
 }
 
@@ -837,6 +933,7 @@ private struct ScoreScreen: View {
     @ObservedObject private var session = WatchSession.shared
 
     @State private var confirmingEnd = false
+    @State private var finishing = false
 
     var body: some View {
         let s = session.phoneState
@@ -923,11 +1020,15 @@ private struct ScoreScreen: View {
                 .buttonStyle(WatchKeyStyle(fill: WT.surface2, ink: WT.ink))
                 .frame(width: WT.s(52))
                 Button {
-                    stepHole(by: 1, phoneCommand: .advanceHole)
-                    WKInterfaceDevice.current().play(.success)
+                    if s.isActive {
+                        finishing = true
+                    } else {
+                        stepHole(by: 1, phoneCommand: .advanceHole)
+                        WKInterfaceDevice.current().play(.success)
+                    }
                 } label: {
                     // One line: on the device "Next Hole ›" wrapped to two.
-                    Text("Next Hole").font(WT.serif(17)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(s.isActive ? "Finish Hole" : "Next Hole").font(WT.serif(17)).lineLimit(1).minimumScaleFactor(0.7)
                 }
                 .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
             }
@@ -944,6 +1045,7 @@ private struct ScoreScreen: View {
           // device END TRACKING sat half under the curve.
           .padding(.bottom, WT.s(28))
         }
+        .sheet(isPresented: $finishing) { FinishHoleSheet(done: {}) }
         // It sits right under Next Hole: a slip shouldn't end the workout.
         .confirmationDialog("End tracking?", isPresented: $confirmingEnd, titleVisibility: .visible) {
             Button("End", role: .destructive) { controller.stop() }
