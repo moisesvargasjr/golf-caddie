@@ -444,6 +444,15 @@ final class RoundController {
             return existingID // an auto shot duplicating a manual one — already represented
         }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
+        // The hole's first full shot came off the tee: pin it there when the fix
+        // agrees (TeeSnap). Putts and later shots keep their fix.
+        var coordinate = coordinate
+        if !resolvedIsPutt {
+            coordinate = TeeSnap.snapped(
+                coordinate,
+                isFirstFullShot: !currentHoleShots.contains { !$0.isPutt },
+                tee: GlassesStateMapper.teeCoordinate(courseId: curatedCourseId, holeNumber: hole.holeNumber))
+        }
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,

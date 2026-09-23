@@ -63,6 +63,7 @@
 		53D6829720D4A507EB1F1933 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6647B81638FF6AD842CEF465 /* Database.swift */; };
 		5940F26F609500864B728F69 /* GolfCaddieWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = FEE5998979B02B62A61428D5 /* GolfCaddieWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5FCC058F5D19BE5D1BF40506 /* ActiveRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D378A1B035D31197677B6907 /* ActiveRoundView.swift */; };
+		607DA573E6C1A22EBF495EBB /* TeeSnapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CBB0245E8C197064FD1D424 /* TeeSnapTests.swift */; };
 		63FC2C6E4606E4ECB82C5E2E /* ClubConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D022ED10FCFF616D8B4F7B /* ClubConfiguration.swift */; };
 		6671E6DCD9159C766A5E9328 /* TrackSegmenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1605D89D0BC1BC04C4959583 /* TrackSegmenterTests.swift */; };
 		6692E9C57FAA295FFF00D809 /* CourseDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6C5585634E087EC01A5E2B /* CourseDetector.swift */; };
@@ -116,12 +117,14 @@
 		DC8BE80DAAB549E9454A615C /* PathBReconstructorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93BC82B8625652553A724C9 /* PathBReconstructorTests.swift */; };
 		E2DD95E6606B16CA5F9708BC /* Shot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA158C6DE12A37EE04DDB8A /* Shot.swift */; };
 		E40803A8881963B7E9F998A2 /* ClubValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928974233C727A81AEE4C39F /* ClubValidation.swift */; };
+		E4C44C662EA6EBDB54BCCBEF /* TeeSnap.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1A49B849BE399B8C51EE00 /* TeeSnap.swift */; };
 		E92720B1E160C818CD26CE54 /* RoundReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B17A3F3D410A32FD5F0025 /* RoundReviewView.swift */; };
 		EC4CC5CEB96985DE19576B95 /* ReconstructorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D1CB046E09AF9D51F5458D /* ReconstructorTests.swift */; };
 		F500EC7B8F71C46594272715 /* TracePointRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C994A588B1A1EC1A70BC968 /* TracePointRepository.swift */; };
 		F5600B480A2E8A325771D9AD /* ClubCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FC27DDE8AF0E9290B9D77F /* ClubCatalog.swift */; };
 		F800F27EC23275A8AB28A172 /* LiveShotCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A6FE612B4F81639031484C /* LiveShotCoordinator.swift */; };
 		F9437FBF4074F34BFCF88C0E /* GolfCaddieWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6540B9B83E5D036D2B334BB /* GolfCaddieWatchApp.swift */; };
+		F9D348415FFCADBA100FA55E /* TeeSnap.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1A49B849BE399B8C51EE00 /* TeeSnap.swift */; };
 		FB9EBD2ADBA0FBEA9DAA17D0 /* LiveMarkPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EFCC0D060DCC7796FA384D2 /* LiveMarkPathTests.swift */; };
 		FBFF1198A8DD6A349C06E900 /* WatchTelemetryFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF49DA724C4C89ECD11435D5 /* WatchTelemetryFormat.swift */; };
 		FD6ADFAA4F78E1C44D942621 /* MissingShotPinSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E81FAE555CB03AF3150640 /* MissingShotPinSheet.swift */; };
@@ -242,6 +245,7 @@
 		99D1CB046E09AF9D51F5458D /* ReconstructorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconstructorTests.swift; sourceTree = "<group>"; };
 		9BA158C6DE12A37EE04DDB8A /* Shot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shot.swift; sourceTree = "<group>"; };
 		9C4C8B7425BAF1C70663535C /* TestDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabase.swift; sourceTree = "<group>"; };
+		9CBB0245E8C197064FD1D424 /* TeeSnapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeeSnapTests.swift; sourceTree = "<group>"; };
 		9ED96BDB38383FABAC3BC492 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A5F9D1D1F38C2FB8EA42882E /* GolfCaddieApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfCaddieApp.swift; sourceTree = "<group>"; };
 		A5FC27DDE8AF0E9290B9D77F /* ClubCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubCatalog.swift; sourceTree = "<group>"; };
@@ -262,6 +266,7 @@
 		C58DC006704EB3894FA98CDC /* PaperCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperCard.swift; sourceTree = "<group>"; };
 		C6540B9B83E5D036D2B334BB /* GolfCaddieWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfCaddieWatchApp.swift; sourceTree = "<group>"; };
 		C87D45D677F510D8534863B6 /* HoleDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleDetailView.swift; sourceTree = "<group>"; };
+		CA1A49B849BE399B8C51EE00 /* TeeSnap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeeSnap.swift; sourceTree = "<group>"; };
 		CB5D2F1264686230AC6D88D6 /* SwingEventContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwingEventContract.swift; sourceTree = "<group>"; };
 		D098D5E6FE4AFAD850ABD80F /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
 		D1215933A096A3A8231AEBEF /* Club.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Club.swift; sourceTree = "<group>"; };
@@ -311,6 +316,7 @@
 				99D1CB046E09AF9D51F5458D /* ReconstructorTests.swift */,
 				4791A4B1CE59C4B0A85F203B /* ShotProvenanceTests.swift */,
 				2A3B9A55AF8B0E6E38607DC6 /* ShotReconcilerTests.swift */,
+				9CBB0245E8C197064FD1D424 /* TeeSnapTests.swift */,
 				1F44C2D883B910A964ED558B /* TracePointRepositoryTests.swift */,
 				1605D89D0BC1BC04C4959583 /* TrackSegmenterTests.swift */,
 				4C7D27B46145A0A402643244 /* WatchCaddieTests.swift */,
@@ -346,6 +352,7 @@
 				F60F94159B63AFEA26728836 /* CourseCatalog.swift */,
 				F646E6FC56052DAFAE74D374 /* Distance.swift */,
 				CB5D2F1264686230AC6D88D6 /* SwingEventContract.swift */,
+				CA1A49B849BE399B8C51EE00 /* TeeSnap.swift */,
 				7A926581A53F52D80BF44458 /* WatchCaddie.swift */,
 				AF49DA724C4C89ECD11435D5 /* WatchTelemetryFormat.swift */,
 				2894BBD3C920356A1FC4D71D /* Detection */,
@@ -715,6 +722,7 @@
 				EC4CC5CEB96985DE19576B95 /* ReconstructorTests.swift in Sources */,
 				429650F51F88ED31AAACBA73 /* ShotProvenanceTests.swift in Sources */,
 				CBB6B38E8C04976ED996FBEB /* ShotReconcilerTests.swift in Sources */,
+				607DA573E6C1A22EBF495EBB /* TeeSnapTests.swift in Sources */,
 				7C7DDE425EE1511B86C06237 /* TestDatabase.swift in Sources */,
 				8DB18581CE5F8E81598E66AE /* TracePointRepositoryTests.swift in Sources */,
 				6671E6DCD9159C766A5E9328 /* TrackSegmenterTests.swift in Sources */,
@@ -738,6 +746,7 @@
 				FD79038B752DBA657B0BDF4A /* MotionRecorder.swift in Sources */,
 				7AE2C148B6AD19CA9C482606 /* SessionMeta.swift in Sources */,
 				1A18A9F7BCBFC37158A638F5 /* SwingEventContract.swift in Sources */,
+				E4C44C662EA6EBDB54BCCBEF /* TeeSnap.swift in Sources */,
 				4D8F483269502103F0834319 /* WatchCaddie.swift in Sources */,
 				15700E4DBA9FDBD7AA889A28 /* WatchCourseStore.swift in Sources */,
 				90380A786BDF63842FA7C18B /* WatchLocationProvider.swift in Sources */,
@@ -817,6 +826,7 @@
 				72D67C615D4FCA53848A2F03 /* SpikeSessionsView.swift in Sources */,
 				7DA91DFBFD17CA0C079142E3 /* Stamp.swift in Sources */,
 				2C45DDDACF76CF3DD641A328 /* SwingEventContract.swift in Sources */,
+				F9D348415FFCADBA100FA55E /* TeeSnap.swift in Sources */,
 				68BB65559653CCF8BC837595 /* Theme.swift in Sources */,
 				2E79FB1C2E13592F4ECF4E1E /* TracePoint.swift in Sources */,
 				F500EC7B8F71C46594272715 /* TracePointRepository.swift in Sources */,

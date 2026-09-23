@@ -224,3 +224,20 @@ hand-logged stroke — and stay restorable. Then the hole confirms and advances.
 the unified hole map (walked trail + tap-a-pin-for-club + drag); tee-area logic (snap
 shot 1, practice-swing signal, suggested hole advance); auto-log without the confirm
 card (B1) + Double Tap undo; log dismissed detections for training the phantom ranking.
+
+## Field test 1 — The Oaks at the Welk, 2026-09-21 (build 42, Bluetooth ON throughout)
+
+`scripts/compare-watch-track.py` on the watch session + round DB:
+
+- Fixes: 7,370 over 123 min, 1/s, no gap > 2.5 s, none invalid (kept going wrist-down).
+- hAcc median 2.7 m (phone breadcrumbs avg 5.2 m). Watch-vs-phone track gap median 2.2 m,
+  p95 4.2 m. Yardage at shot time |watch − phone| median 1.2 yd, max 5.2.
+- Battery 95 → 85 % over 2.0 h with GPS + 100 Hz motion + always-on.
+- First full shot within 15 m of the tee point on 15/17 holes (outliers 31 m, 64 m) → TeeSnap
+  radius 15 m. Putts median 1–11 m from the green point on 16 holes; hole 14 at 50 m = taps
+  entered on the way to the next tee (the Finish Hole case).
+- **All three pass criteria met. Decision: go on "the watch owns the round".** Not yet
+  established: which receiver produced the fixes (Bluetooth stayed on) — the Bluetooth-off
+  back nine remains the test for that, but the design works either way.
+- Auto-club: ignored in play — it offered clubs not carried that day (the list is the phone's
+  whole bag). Follow-up: a "clubs in play" pick at round start.
