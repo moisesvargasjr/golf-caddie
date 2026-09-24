@@ -21,7 +21,7 @@ targets:
       path: GolfCaddie/Info.plist
       properties:
         CFBundleDisplayName: The Fairway Logbook
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleShortVersionString: "1.0"
         CFBundleVersion: "22"
         # No non-exempt encryption (standard URLSession/SQLite/system crypto only).
         # Declared here so TestFlight upload doesn't prompt for export compliance
@@ -83,7 +83,7 @@ targets:
       path: GolfCaddieWatch/Info.plist
       properties:
         CFBundleDisplayName: Fairway
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleShortVersionString: "1.0"
         CFBundleVersion: "22"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.moisesvargasjr.golfcaddie

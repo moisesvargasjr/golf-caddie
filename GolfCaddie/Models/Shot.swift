@@ -37,6 +37,11 @@ struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
     /// `SwingEvent.confidence`); keeping the two separate avoids conflating
     /// "hit hard" with "we're sure where this shot is".
     var confidence: Double? = nil
+    /// Set when end-of-hole reconciliation decided this stroke wasn't real (the
+    /// golfer confirmed a lower score than was tracked). Excluded — not deleted —
+    /// so the location + club survive and hole review can restore it. Every
+    /// normal read skips excluded rows (ShotRepository).
+    var excludedAt: Date? = nil
 }
 
 extension Shot {
