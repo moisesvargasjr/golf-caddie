@@ -196,6 +196,15 @@ enum Database {
             }
         }
 
+        // End-of-hole score reconciliation (watch "Finish Hole"): a tracked
+        // stroke the confirmed score says wasn't real is EXCLUDED, not deleted,
+        // so it stays restorable. Nullable column → existing rows are active.
+        migrator.registerMigration("v6_shot_excluded") { db in
+            try db.alter(table: "shot") { t in
+                t.add(column: "excludedAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }

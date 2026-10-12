@@ -2,7 +2,7 @@ import SwiftUI
 import WatchKit
 
 /// The Watch design language — OLED black with warm Logbook ink + amber accent,
-/// Georgia-serif italics for hero numerals/names and a mono for labels/stats.
+/// serif italics for hero numerals/names and a mono for labels/stats.
 /// Mirrors the Claude Design "Golf Caddie Watch" tokens.
 enum WT {
     /// B32 — the layout was hand-tuned on the 46mm Series 11 simulator
@@ -29,9 +29,11 @@ enum WT {
     static let accent = Color(hex: 0xE7A33C)
     static let onAccent = Color(hex: 0x1B150A)
 
-    /// Serif (Georgia) — hero numerals, club names, headlines. Italic by default.
+    /// Serif — hero numerals, club names, headlines. Italic by default. The
+    /// system serif (New York): Georgia doesn't exist on watchOS, so the old
+    /// `Font.custom("Georgia")` silently rendered everything in SF.
     static func serif(_ size: CGFloat, italic: Bool = true) -> Font {
-        let f = Font.custom("Georgia", size: size).weight(.bold)
+        let f = Font.system(size: size, weight: .bold, design: .serif)
         return italic ? f.italic() : f
     }
 
@@ -51,16 +53,4 @@ extension Color {
             opacity: 1
         )
     }
-}
-
-/// Suggest the club whose avg carry is closest to `yards`.
-func suggestedClubIndex(_ clubs: [WatchClub], yards: Int) -> Int? {
-    guard !clubs.isEmpty else { return nil }
-    var best = 0
-    var diff = Int.max
-    for (i, c) in clubs.enumerated() {
-        let d = abs(c.avgYards - yards)
-        if d < diff { diff = d; best = i }
-    }
-    return best
 }

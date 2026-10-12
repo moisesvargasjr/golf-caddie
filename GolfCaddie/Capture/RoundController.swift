@@ -444,6 +444,15 @@ final class RoundController {
             return existingID // an auto shot duplicating a manual one — already represented
         }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
+        // The hole's first full shot came off the tee: pin it there when the fix
+        // agrees (TeeSnap). Putts and later shots keep their fix.
+        var coordinate = coordinate
+        if !resolvedIsPutt {
+            coordinate = TeeSnap.snapped(
+                coordinate,
+                isFirstFullShot: !currentHoleShots.contains { !$0.isPutt },
+                tee: GlassesStateMapper.teeCoordinate(courseId: curatedCourseId, holeNumber: hole.holeNumber))
+        }
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,
@@ -505,6 +514,46 @@ final class RoundController {
                            club: resolvedPutter(), timestamp: at.timestamp, source: .watchManual, isPutt: true)
     }
 
+    /// Watch "Finish Hole": the golfer gave the putt count and confirmed the
+    /// score. Reconcile the tracked strokes to it (see `HoleFinishReconciler`),
+    /// then confirm the hole and advance. Excluded strokes stay restorable.
+    /// Returns the plan that was applied (nil without an active hole).
+    @discardableResult
+    func finishHole(putts: Int, score: Int, at timestamp: Date = Date()) throws -> HoleFinishReconciler.Plan? {
+        guard case let .active(_, hole) = state else { return nil }
+        let plan = HoleFinishReconciler.plan(
+            shots: currentHoleShots, penaltyStrokes: currentHolePenaltyStrokes, putts: putts, score: score)
+
+        if !plan.excludeIDs.isEmpty {
+            try ShotRepository.setExcluded(plan.excludeIDs, at: timestamp)
+            currentHoleShots.removeAll { plan.excludeIDs.contains($0.id) }
+        }
+        // Missed full shots go in BEFORE the putts so the sequence reads right.
+        // Unlocated + `.reconstructed` → review ambers them for a pin/club.
+        for _ in 0..<plan.fullShotsToAdd {
+            try append(Shot(
+                id: UUID(), holeID: hole.id, sequenceNumber: 0, timestamp: timestamp,
+                latitude: nil, longitude: nil, gpsAccuracy: nil, hadGPS: false,
+                club: nil, source: .reconstructed, notes: nil, isPutt: false))
+        }
+        let putter = resolvedPutter()
+        for _ in 0..<plan.puttsToAdd {
+            try append(Shot(
+                id: UUID(), holeID: hole.id, sequenceNumber: 0, timestamp: timestamp,
+                latitude: nil, longitude: nil, gpsAccuracy: nil, hadGPS: false,
+                club: putter?.id, source: .watchManual, notes: nil, isPutt: true))
+        }
+        try confirmHoleAndAdvance(par: hole.par)
+        return plan
+    }
+
+    private func append(_ shot: Shot) throws {
+        var shot = shot
+        shot.sequenceNumber = (try? ShotRepository.nextSequenceNumber(forHole: shot.holeID)) ?? 1
+        try ShotRepository.insert(shot)
+        currentHoleShots.append(shot)
+    }
+
     /// First putter-kind club in the bag, else first active putter-kind club.
     /// The editor guarantees ≥1 active putter; explicit isPutt:true keeps putts
     /// correct even in the nil fallback.
@@ -547,7 +596,7 @@ final class RoundController {
     /// the new penalty until something else rebuilt them. Multi-stroke
     /// penalties aren't exposed in the UI yet (1 covers OB / lateral / water
     /// / unplayable — the only options in `PenaltySheet`).
-    func addPenaltyToCurrentHole(type: PenaltyType) throws {
+    func addPenaltyToCurrentHole(type: PenaltyType, at timestamp: Date = Date()) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
         }
@@ -556,7 +605,7 @@ final class RoundController {
             holeID: hole.id,
             type: type,
             strokeCount: 1,
-            timestamp: Date(),
+            timestamp: timestamp, // a late-delivered watch penalty keeps its tap time
             notes: nil
         )
         try PenaltyRepository.insert(penalty)

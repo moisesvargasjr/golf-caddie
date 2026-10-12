@@ -8,14 +8,28 @@ import Foundation
 enum WatchPreviewDebug {
     static var isActive: Bool { UserDefaults.standard.bool(forKey: "WatchPreview") }
     /// Initial play page for screenshots (0 Yardage / 1 Strokes / 2 Score).
-    static var initialPage: Int { isActive ? UserDefaults.standard.integer(forKey: "WatchPreviewPage") : 0 }
+    /// `-WatchPreviewActions 1` opens the Actions page (tag −1; a negative launch
+    /// argument value doesn't parse).
+    static var initialPage: Int {
+        guard isActive else { return 0 }
+        if UserDefaults.standard.bool(forKey: "WatchPreviewActions") { return -1 }
+        return UserDefaults.standard.integer(forKey: "WatchPreviewPage")
+    }
     /// Force the club selector into its armed (crown-active) state for screenshots.
     static var armClub: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewArmClub") }
+    /// `-WatchPreviewFinish 1` opens the Finish Hole sheet at PUTTS?; `2` at the
+    /// score confirm (2 putts chosen). Use with `-WatchPreviewActions 1`.
+    static var finishStep: Int { isActive ? UserDefaults.standard.integer(forKey: "WatchPreviewFinish") : 0 }
+    /// Force the wrist-down (always-on) glance for screenshots.
+    static var dim: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewDim") }
 
     @MainActor
     static func apply(controller: LiveSessionController) {
         guard isActive else { return }
-        WatchSession.shared.debugSetPhoneState(mockState)
+        // `-WatchPreviewWatchOnly 1`: no phone round (the watch-only layouts).
+        if !UserDefaults.standard.bool(forKey: "WatchPreviewWatchOnly") {
+            WatchSession.shared.debugSetPhoneState(mockState)
+        }
         controller.debugEnterPreview()
     }
 
@@ -47,7 +61,9 @@ enum WatchPreviewDebug {
         scorecard: [
             WatchScoreRow(hole: 1, par: 4, strokes: 5),
             WatchScoreRow(hole: 2, par: 3, strokes: 3),
-        ]
+        ],
+        holePenaltyStrokes: 1,
+        holeFullShots: 2
     )
 }
 #endif
