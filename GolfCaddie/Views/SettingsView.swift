@@ -114,11 +114,31 @@ struct SettingsView: View {
                         exportRoundsButton
                     }
 
+                    // Watch GPS/battery telemetry from the standalone spike — in
+                    // Release too, so a TestFlight field test can export it.
+                    section(label: "Watch GPS Log") {
+                        NavigationLink {
+                            SpikeSessionsView(root: SpikeSessionReceiver.telemetryDirectory, title: "Watch GPS Logs")
+                        } label: {
+                            HStack {
+                                Text("Recorded GPS Logs")
+                                    .font(AppFont.bodyLarge)
+                                    .italic()
+                                    .foregroundStyle(palette.ink)
+                                Spacer()
+                                Image(systemName: "location.north.line")
+                                    .font(.system(size: 18, weight: .regular))
+                                    .foregroundStyle(palette.ink3)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     #if DEBUG
                     // Validation/spike session browser — dev builds only (B20).
                     section(label: "Watch Spike") {
                         NavigationLink {
-                            SpikeSessionsView()
+                            SpikeSessionsView(root: SpikeSessionReceiver.sessionsDirectory, title: "Spike Sessions")
                         } label: {
                             HStack {
                                 Text("Recorded Sessions")

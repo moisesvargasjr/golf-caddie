@@ -467,11 +467,28 @@ final class RoundController {
     /// fix with the current club, like the glasses fast path. Tagged
     /// `.watchManual` (a deliberate tap), NOT `.watchAuto` — so per-club stats
     /// and detector precision/recall measured from real rounds stay honest (B3).
-    func addShotFromWatch() throws {
+    func addShotFromWatch(late: LateWatchTap? = nil) throws {
+        let at = late ?? liveWatchTap()
+        try ingestAutoShot(at: at.coordinate, accuracy: at.accuracy,
+                           club: currentClub, timestamp: at.timestamp, source: .watchManual)
+    }
+
+    /// When + where a watch MARK/putt tap happened, for a tap delivered late
+    /// (queued while the phone was unreachable): the watch's tap time and the
+    /// breadcrumb fused to it — NOT the delivery time and the phone's position
+    /// holes later. `coordinate` nil = no breadcrumb near that time (honest
+    /// no-GPS beats a wrong location).
+    struct LateWatchTap {
+        let timestamp: Date
+        let coordinate: CLLocationCoordinate2D?
+        let accuracy: Double?
+    }
+
+    private func liveWatchTap() -> LateWatchTap {
         let loc = location.latestLocation
         let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
-        try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
-                           club: currentClub, timestamp: Date(), source: .watchManual)
+        return LateWatchTap(timestamp: Date(), coordinate: hasFix ? loc?.coordinate : nil,
+                            accuracy: hasFix ? loc?.horizontalAccuracy : nil)
     }
 
     /// Watch putt counter (+1) — a putter shot at the live fix. Putts are not
@@ -482,11 +499,10 @@ final class RoundController {
     /// No tap-bounce dedup: putts are often batch-logged a few rapid taps at a
     /// time after the fact (sink it, then catch up), all at the hole — so rapid
     /// same-spot putts are real, not accidental double-taps (field note 2026-06-30).
-    func addPuttFromWatch() throws {
-        let loc = location.latestLocation
-        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
-        try ingestAutoShot(at: hasFix ? loc?.coordinate : nil, accuracy: hasFix ? loc?.horizontalAccuracy : nil,
-                           club: resolvedPutter(), timestamp: Date(), source: .watchManual, isPutt: true)
+    func addPuttFromWatch(late: LateWatchTap? = nil) throws {
+        let at = late ?? liveWatchTap()
+        try ingestAutoShot(at: at.coordinate, accuracy: at.accuracy,
+                           club: resolvedPutter(), timestamp: at.timestamp, source: .watchManual, isPutt: true)
     }
 
     /// First putter-kind club in the bag, else first active putter-kind club.

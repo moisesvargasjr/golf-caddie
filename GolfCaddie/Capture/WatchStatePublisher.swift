@@ -105,7 +105,8 @@ final class WatchStatePublisher {
             clubEpoch: clubEpoch,
             clubs: clubs,
             strokes: strokes,
-            scorecard: scorecard
+            scorecard: scorecard,
+            curatedCourseId: courseId
         )
     }
 

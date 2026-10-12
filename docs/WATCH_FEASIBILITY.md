@@ -1,5 +1,9 @@
 # Apple Watch companion — feasibility & recommendation
 
+> **SUPERSEDED (2026-09-19)** by `WATCH_STANDALONE_SPIKE.md`. This predates the watch app
+> (it now exists) and the Ultra 4 battery budget. Kept for the glasses-tethering finding,
+> which still holds.
+
 > **Status:** analysis only, no code. Decision doc for a future build/no-build
 > call. Based on a full read of the iOS app, the glasses repo, and the
 > `golf-caddie-glasses/docs/IOS_INTEGRATION_CONTRACT.md` / `ARCHITECTURE.md`.

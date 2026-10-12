@@ -1,41 +1,9 @@
 import Foundation
 import GRDB
 
-// Wire types — LOCKSTEP with golf-caddie-coursedata `src/schema.ts`. Any
-// rename/type change there must mirror here and bump SCHEMA_VERSION. A
-// payload whose schemaVersion we don't understand is rejected and the last
-// good cache is kept (graceful degradation).
-
-enum CuratedSchema {
-    static let supportedVersion = 1
-}
-
-struct GeoPoint: Codable, Equatable {
-    var lat: Double
-    var lng: Double
-}
-
-struct CuratedHole: Codable, Equatable {
-    var number: Int
-    var par: Int
-    var yards: Double?
-    var strokeIndex: Int?
-    var teeAnchor: GeoPoint?
-    var greenAnchor: GeoPoint?
-}
-
-struct CuratedCourse: Codable, Equatable, Identifiable {
-    var id: String
-    var name: String
-    var aliases: [String]
-    var location: GeoPoint
-    var holes: [CuratedHole]
-}
-
-struct CourseDataFile: Codable {
-    var schemaVersion: Int
-    var courses: [CuratedCourse]
-}
+// Wire types (`GeoPoint`, `CuratedHole`, `CuratedCourse`, `CourseDataFile`,
+// `CuratedSchema`) live in `Shared/CourseCatalog.swift` — the watch compiles them
+// too. This file holds the phone-only GRDB records.
 
 /// On-device cache row. The full `CuratedCourse` is stored as JSON
 /// (`payloadJSON`); `name`/`lat`/`lng` are denormalized so proximity + name

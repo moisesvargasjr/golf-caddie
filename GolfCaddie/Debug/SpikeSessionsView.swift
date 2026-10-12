@@ -1,12 +1,16 @@
-#if DEBUG
 import SwiftUI
 import WatchConnectivity
 
-/// Debug list of watch spike-recording sessions received into
-/// Documents/SpikeSessions/. Share zips a session folder for AirDrop/Files;
-/// the folder is also reachable directly via Finder (UIFileSharingEnabled).
-/// Validation/spike-only: feature-flagged out of Release builds (B20).
+/// List of watch-recorded session folders received into a Documents
+/// subdirectory. Share zips a session folder for AirDrop/Files; the folder is
+/// also reachable directly via Finder (UIFileSharingEnabled). Two users:
+///   - the DEBUG-only validation/spike recordings (Documents/SpikeSessions, B20);
+///   - the standalone-spike GPS/battery telemetry (Documents/WatchTelemetry),
+///     which ships in Release so a TestFlight field test can export it.
 struct SpikeSessionsView: View {
+    let root: URL
+    let title: String
+
     struct SessionFolder: Identifiable {
         let id: String
         let url: URL
@@ -49,7 +53,7 @@ struct SpikeSessionsView: View {
             }
             .onDelete(perform: delete)
         }
-        .navigationTitle("Spike Sessions")
+        .navigationTitle(title)
         .onAppear(perform: reload)
         .sheet(item: Binding(
             get: { pendingShare.map { ShareItem(url: $0) } },
@@ -73,7 +77,6 @@ struct SpikeSessionsView: View {
 
     private func reload() {
         let fm = FileManager.default
-        let root = SpikeSessionReceiver.sessionsDirectory
         let dirs = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
         sessions = dirs
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
@@ -110,4 +113,3 @@ struct SpikeSessionsView: View {
         return result
     }
 }
-#endif
