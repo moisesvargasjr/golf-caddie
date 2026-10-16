@@ -13,4 +13,7 @@ struct Round: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatab
     /// or nil. Persisted (v3) so the link survives relaunch/resume and drives
     /// auto-par + distance-to-green without re-matching.
     var curatedCourseId: String?
+    /// Bag club ids left home for this round (v7); nil/empty = the whole bag
+    /// is in play. See `ClubsInPlay`.
+    var clubsLeftOut: [String]?
 }

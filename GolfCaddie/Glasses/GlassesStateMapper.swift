@@ -95,7 +95,7 @@ enum GlassesStateMapper {
                 )
             ),
             currentClub: inputs.currentClub?.shortName,
-            clubs: selectableClubShortNames(),
+            clubs: selectableClubShortNames(leftOut: round.clubsLeftOut ?? []),
             lastShot: lastShotDTO(from: liveShots),
             scoring: scoringDTO(confirmedFrom: allHoles),
             gps: gpsDTO(
@@ -130,16 +130,17 @@ enum GlassesStateMapper {
     }
 
     /// Ordered selectable clubs as club shortName strings, in the golfer's
-    /// bag order. Single source of truth: the SAME ClubConfigurationRepository
+    /// bag order, minus what the round left home (`ClubsInPlay`). Single
+    /// source of truth: the SAME ClubConfigurationRepository
     /// bag RootView loads and feeds into the phone club picker
     /// (RootView → ActiveRoundView club row) and the SAME club shortName
     /// vocabulary GET's currentClub uses. Omitted (nil) when the bag is empty
     /// so the wire shape matches the contract's "older iOS / no clubs" case
     /// rather than emitting [].
-    private static func selectableClubShortNames() -> [String]? {
+    private static func selectableClubShortNames(leftOut: [String]) -> [String]? {
         let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
         guard !bag.isEmpty else { return nil }
-        return bag.map(\.shortName)
+        return ClubsInPlay.resolve(bag: bag, leftOut: leftOut).map(\.shortName)
     }
 
     private static func score(forHole hole: Hole) -> Int {

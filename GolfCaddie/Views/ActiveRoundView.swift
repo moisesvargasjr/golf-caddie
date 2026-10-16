@@ -111,7 +111,7 @@ struct ActiveRoundView: View {
     private var idleBody: some View {
         HomeView(
             bag: $bag,
-            onStartRound: { startRound(startingHole: $0) },
+            onStartRound: { startRound(startingHole: $0, clubsLeftOut: $1) },
             actionError: actionError
         )
     }
@@ -273,7 +273,7 @@ struct ActiveRoundView: View {
             // would only fire if the sheet were forced open without a tap,
             // which the UI doesn't expose; user pans from there anyway.
             MissingShotPinSheet(
-                bag: bag,
+                bag: clubsInPlay,
                 initialCenter: pendingMissingShotCenter ?? CLLocationCoordinate2D(latitude: 0, longitude: 0),
                 onAdd: { coord, club in
                     insertMissingShot(at: coord, club: club)
@@ -815,10 +815,15 @@ struct ActiveRoundView: View {
         .buttonStyle(.plain)
     }
 
+    /// The bag minus what this round left home — the in-round club pickers.
+    private var clubsInPlay: [Club] {
+        ClubsInPlay.resolve(bag: bag, leftOut: controller.currentRound?.clubsLeftOut ?? [])
+    }
+
     private var clubRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(bag) { club in
+                ForEach(clubsInPlay) { club in
                     clubCell(club)
                 }
             }
@@ -1065,10 +1070,10 @@ struct ActiveRoundView: View {
         )
     }
 
-    private func startRound(startingHole: Int) {
+    private func startRound(startingHole: Int, clubsLeftOut: [String]) {
         actionError = nil
         do {
-            try controller.startRound(startingHole: startingHole)
+            try controller.startRound(startingHole: startingHole, clubsLeftOut: clubsLeftOut)
             mapFollowMode = true
         } catch {
             actionError = "Couldn't start round: \(error.localizedDescription)"

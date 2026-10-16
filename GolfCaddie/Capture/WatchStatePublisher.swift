@@ -58,8 +58,7 @@ final class WatchStatePublisher {
         }
         let clubEpoch = max(phoneEpoch, LiveShotCoordinator.shared.lastWatchClubEpoch)
 
-        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
-        let clubs = bag.map { c in
+        let clubs = controller.clubsInPlay.map { c in
             WatchClub(short: c.shortName, name: c.name,
                       avgYards: ClubAverages.shared.average(for: c.id) ?? c.defaultYards,
                       isPutter: c.kind == .putter)
