@@ -133,6 +133,13 @@ final class RoundController {
         return false
     }
 
+    /// The bag minus what this round left home — the club list for the watch,
+    /// the glasses and the phone picker. The whole bag when idle.
+    var clubsInPlay: [Club] {
+        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
+        return ClubsInPlay.resolve(bag: bag, leftOut: currentRound?.clubsLeftOut ?? [])
+    }
+
     var currentHole: Hole? {
         if case let .active(_, hole) = state { return hole }
         return nil
@@ -175,14 +182,15 @@ final class RoundController {
 
     static func activeHoleKey(_ roundID: UUID) -> String { "activeHole.\(roundID.uuidString)" }
 
-    func startRound(startingHole: Int = 1) throws {
+    func startRound(startingHole: Int = 1, clubsLeftOut: [String] = []) throws {
         guard case .idle = state else { return }
         let round = Round(
             id: UUID(),
             startedAt: Date(),
             endedAt: nil,
             courseName: nil,
-            notes: nil
+            notes: nil,
+            clubsLeftOut: clubsLeftOut.isEmpty ? nil : clubsLeftOut
         )
         let hole = Hole(
             id: UUID(),
@@ -252,6 +260,26 @@ final class RoundController {
         updated.courseName = name
         try? RoundRepository.update(updated)
         state = .active(round: updated, hole: hole)
+    }
+
+    /// Change the clubs in play mid-round (a club "left home" turned out to be
+    /// in the bag, or vice versa). Persists on the round so the watch, glasses
+    /// and pickers follow on their next read, and drops the selected club if
+    /// it's no longer in play so nothing gets tagged with a club not carried.
+    func setClubsLeftOut(_ leftOut: [String]) {
+        guard case let .active(round, hole) = state else { return }
+        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
+        guard !bag.isEmpty else { return }
+        let normalized = ClubsInPlay.normalized(bag: bag, leftOut: leftOut)
+        let stored = normalized.isEmpty ? nil : normalized
+        guard round.clubsLeftOut != stored else { return }
+        var updated = round
+        updated.clubsLeftOut = stored
+        try? RoundRepository.update(updated)
+        state = .active(round: updated, hole: hole)
+        if let club = currentClub, normalized.contains(club.id) {
+            currentClub = nil
+        }
     }
 
     /// Manual course override from the phone UI — also the path for "detection
@@ -554,12 +582,11 @@ final class RoundController {
         currentHoleShots.append(shot)
     }
 
-    /// First putter-kind club in the bag, else first active putter-kind club.
+    /// First putter-kind club in play, else first active putter-kind club.
     /// The editor guarantees ≥1 active putter; explicit isPutt:true keeps putts
     /// correct even in the nil fallback.
     private func resolvedPutter() -> Club? {
-        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
-        if let putter = bag.first(where: { $0.kind == .putter }) { return putter }
+        if let putter = clubsInPlay.first(where: { $0.kind == .putter }) { return putter }
         return ((try? ClubRepository.all()) ?? []).first { $0.kind == .putter }
     }
 

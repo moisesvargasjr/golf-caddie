@@ -18,8 +18,7 @@ final class WatchStatePublisher {
     private var lastClubShort: String?
 
     func start(controller: RoundController, location: LocationManager) {
-        self.controller = controller
-        self.location = location
+        bind(controller: controller, location: location)
         timer?.invalidate()
         // 4 s, not 1 s: the per-second push (≈7,200 BLE wakes / round) was a
         // major battery drain on the watch (field test 2026-06-18). Still only
@@ -29,6 +28,13 @@ final class WatchStatePublisher {
             Task { @MainActor in self?.tick() }
         }
         tick()
+    }
+
+    /// The sources `build()` reads. Split from `start` so tests can build a
+    /// snapshot without the timer or WatchConnectivity.
+    func bind(controller: RoundController, location: LocationManager) {
+        self.controller = controller
+        self.location = location
     }
 
     private func tick() {
@@ -41,7 +47,7 @@ final class WatchStatePublisher {
         }
     }
 
-    private func build() -> PhoneStateUpdate {
+    func build() -> PhoneStateUpdate {
         guard let controller, controller.isActive,
               let round = controller.currentRound,
               let hole = controller.currentHole
@@ -58,8 +64,7 @@ final class WatchStatePublisher {
         }
         let clubEpoch = max(phoneEpoch, LiveShotCoordinator.shared.lastWatchClubEpoch)
 
-        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
-        let clubs = bag.map { c in
+        let clubs = controller.clubsInPlay.map { c in
             WatchClub(short: c.shortName, name: c.name,
                       avgYards: ClubAverages.shared.average(for: c.id) ?? c.defaultYards,
                       isPutter: c.kind == .putter)

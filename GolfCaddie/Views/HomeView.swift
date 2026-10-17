@@ -7,8 +7,12 @@ import SwiftUI
 /// Logbook (rounds list) and Settings.
 struct HomeView: View {
     @Binding var bag: [Club]
-    let onStartRound: (Int) -> Void
+    /// Starting hole, and the bag ids left home for the round (`ClubsInPlay`).
+    let onStartRound: (Int, [String]) -> Void
     @State private var startingHole = 1
+    @State private var clubsLeftOut: [String] =
+        UserDefaults.standard.stringArray(forKey: ClubsInPlay.leftOutDefaultsKey) ?? []
+    @State private var showClubsInPlay = false
     let actionError: String?
 
     @Environment(\.palette) private var palette
@@ -68,7 +72,24 @@ struct HomeView: View {
                 showBagEditor = false
             }
         }
-        .onAppear { refresh() }
+        .sheet(isPresented: $showClubsInPlay) {
+            ClubsInPlaySheet(
+                bag: bag,
+                leftOut: $clubsLeftOut,
+                onDone: { showClubsInPlay = false }
+            )
+        }
+        .onChange(of: clubsLeftOut) { _, new in
+            UserDefaults.standard.set(new, forKey: ClubsInPlay.leftOutDefaultsKey)
+        }
+        // Keep the remembered pick honest against the bag: deleted clubs and
+        // picks the putter / full-shot rules override drop off, so the sheet's
+        // checkmarks match the "N of M" count.
+        .onChange(of: bag) { _, _ in normalizeClubsLeftOut() }
+        .onAppear {
+            refresh()
+            normalizeClubsLeftOut()
+        }
     }
 
     // MARK: - Top bar
@@ -266,6 +287,7 @@ struct HomeView: View {
             }
 
             startHoleStepper
+            clubsInPlayRow
             beginCTA
         }
     }
@@ -291,6 +313,39 @@ struct HomeView: View {
         .padding(.bottom, 2)
     }
 
+    /// Today's clubs (default: the last round's pick). Opens the pick sheet.
+    private var clubsInPlayRow: some View {
+        Button {
+            showClubsInPlay = true
+        } label: {
+            HStack {
+                Text("CLUBS IN PLAY")
+                    .font(AppFont.stamp).tracking(1.4)
+                    .foregroundStyle(palette.ink3)
+                Spacer()
+                Text("\(clubsInPlay.count) of \(bag.count) ›")
+                    .font(AppFont.metadata)
+                    .tracking(1.2)
+                    .foregroundStyle(palette.ink)
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var clubsInPlay: [Club] {
+        ClubsInPlay.resolve(bag: bag, leftOut: clubsLeftOut)
+    }
+
+    private func normalizeClubsLeftOut() {
+        // An empty bag means it hasn't loaded yet — don't wipe the pick.
+        guard !bag.isEmpty else { return }
+        let normalized = ClubsInPlay.normalized(bag: bag, leftOut: clubsLeftOut)
+        if normalized != clubsLeftOut { clubsLeftOut = normalized }
+    }
+
     private func stepButton(_ glyph: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(glyph)
@@ -302,7 +357,9 @@ struct HomeView: View {
     }
 
     private var beginCTA: some View {
-        Button(action: { onStartRound(startingHole) }) {
+        Button(action: {
+            onStartRound(startingHole, ClubsInPlay.normalized(bag: bag, leftOut: clubsLeftOut))
+        }) {
             HStack(spacing: 6) {
                 Text("Begin")
                     .font(AppFont.cta)
@@ -420,7 +477,7 @@ private struct LastRoundSummary: Equatable {
             bag: .constant(ClubConfiguration.recommendedDefault.bag.compactMap { id in
                 Club.seedCatalog.first { $0.id == id }
             }),
-            onStartRound: { _ in },
+            onStartRound: { _, _ in },
             actionError: nil
         )
     }

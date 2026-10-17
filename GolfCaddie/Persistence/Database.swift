@@ -205,6 +205,15 @@ enum Database {
             }
         }
 
+        // Clubs in play: the bag ids left home for a round, as a JSON array
+        // (GRDB's Codable encoding of `Round.clubsLeftOut`). Nullable →
+        // existing rounds keep the whole bag.
+        migrator.registerMigration("v7_round_clubs_left_out") { db in
+            try db.alter(table: "round") { t in
+                t.add(column: "clubsLeftOut", .text)
+            }
+        }
+
         return migrator
     }
 }
