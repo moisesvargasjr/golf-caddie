@@ -837,29 +837,35 @@ struct ActiveRoundView: View {
     }
 
     private var clubRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(clubsInPlay) { club in
-                    clubCell(club)
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(clubsInPlay) { club in
+                        clubCell(club)
+                    }
                 }
-                editClubsCell
             }
-        }
-        .mask(
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.06),
-                    .init(color: .black, location: 0.94),
-                    .init(color: .clear, location: 1.0),
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.06),
+                        .init(color: .black, location: 0.94),
+                        .init(color: .clear, location: 1.0),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             )
-        )
+            Rectangle().fill(palette.rule).frame(width: 1)
+            editClubsCell
+        }
+        // Size to the cells; otherwise the hairline grows to fill the sheet.
+        .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// Trailing cell: fix today's clubs mid-round (a club "left home" that's
+    /// Trailing cell, pinned outside the scroll so a full bag can't push it
+    /// off-screen: fix today's clubs mid-round (a club "left home" that's
     /// actually in the bag). Shows how many are out so the cut is visible.
     private var editClubsCell: some View {
         let out = bag.count - clubsInPlay.count
