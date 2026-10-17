@@ -26,6 +26,14 @@ enum ClubsInPlay {
         return kept
     }
 
+    /// `leftOut` reduced to what `resolve` actually leaves out of `bag`: ids no
+    /// longer in the bag drop off, and so do picks the putter / full-shot rules
+    /// override. What a round stores, and what the pick sheet shows.
+    static func normalized(bag: [Club], leftOut: [String]) -> [String] {
+        let inPlay = Set(resolve(bag: bag, leftOut: leftOut).map(\.id))
+        return bag.map(\.id).filter { !inPlay.contains($0) }
+    }
+
     /// Whether `club` may be left out of `bag` given what's already out: not
     /// the last putter in play, and not the last full-shot club.
     static func canLeaveOut(_ club: Club, bag: [Club], leftOut: [String]) -> Bool {

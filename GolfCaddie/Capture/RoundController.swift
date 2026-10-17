@@ -262,6 +262,26 @@ final class RoundController {
         state = .active(round: updated, hole: hole)
     }
 
+    /// Change the clubs in play mid-round (a club "left home" turned out to be
+    /// in the bag, or vice versa). Persists on the round so the watch, glasses
+    /// and pickers follow on their next read, and drops the selected club if
+    /// it's no longer in play so nothing gets tagged with a club not carried.
+    func setClubsLeftOut(_ leftOut: [String]) {
+        guard case let .active(round, hole) = state else { return }
+        let bag = (try? ClubConfigurationRepository.loadBagClubs()) ?? []
+        guard !bag.isEmpty else { return }
+        let normalized = ClubsInPlay.normalized(bag: bag, leftOut: leftOut)
+        let stored = normalized.isEmpty ? nil : normalized
+        guard round.clubsLeftOut != stored else { return }
+        var updated = round
+        updated.clubsLeftOut = stored
+        try? RoundRepository.update(updated)
+        state = .active(round: updated, hole: hole)
+        if let club = currentClub, normalized.contains(club.id) {
+            currentClub = nil
+        }
+    }
+
     /// Manual course override from the phone UI — also the path for "detection
     /// found nothing" or "detection was wrong". Trims whitespace; an empty
     /// string clears the name back to nil.

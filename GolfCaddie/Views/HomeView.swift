@@ -82,7 +82,14 @@ struct HomeView: View {
         .onChange(of: clubsLeftOut) { _, new in
             UserDefaults.standard.set(new, forKey: ClubsInPlay.leftOutDefaultsKey)
         }
-        .onAppear { refresh() }
+        // Keep the remembered pick honest against the bag: deleted clubs and
+        // picks the putter / full-shot rules override drop off, so the sheet's
+        // checkmarks match the "N of M" count.
+        .onChange(of: bag) { _, _ in normalizeClubsLeftOut() }
+        .onAppear {
+            refresh()
+            normalizeClubsLeftOut()
+        }
     }
 
     // MARK: - Top bar
@@ -332,6 +339,13 @@ struct HomeView: View {
         ClubsInPlay.resolve(bag: bag, leftOut: clubsLeftOut)
     }
 
+    private func normalizeClubsLeftOut() {
+        // An empty bag means it hasn't loaded yet — don't wipe the pick.
+        guard !bag.isEmpty else { return }
+        let normalized = ClubsInPlay.normalized(bag: bag, leftOut: clubsLeftOut)
+        if normalized != clubsLeftOut { clubsLeftOut = normalized }
+    }
+
     private func stepButton(_ glyph: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(glyph)
@@ -344,10 +358,7 @@ struct HomeView: View {
 
     private var beginCTA: some View {
         Button(action: {
-            // Only what's actually out of today's bag: ids of clubs since
-            // removed from the bag, or overridden by the putter rule, drop off.
-            let inPlay = Set(clubsInPlay.map(\.id))
-            onStartRound(startingHole, bag.map(\.id).filter { !inPlay.contains($0) })
+            onStartRound(startingHole, ClubsInPlay.normalized(bag: bag, leftOut: clubsLeftOut))
         }) {
             HStack(spacing: 6) {
                 Text("Begin")

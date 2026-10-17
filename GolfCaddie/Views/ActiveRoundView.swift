@@ -29,6 +29,7 @@ struct ActiveRoundView: View {
     @State private var mapFollowMode: Bool = true
     @State private var lyingPulse: Bool = false
     @State private var showScorecard: Bool = false
+    @State private var showClubsInPlay = false
 
     var body: some View {
         Group {
@@ -203,7 +204,7 @@ struct ActiveRoundView: View {
         .sheet(item: $reviewingHole) { hole in
             HoleReviewSheet(
                 hole: hole,
-                bag: bag,
+                bag: clubsInPlay,
                 greenCoordinate: GlassesStateMapper.greenCoordinate(
                     courseId: controller.curatedCourseId, holeNumber: hole.holeNumber),
                 onConfirm: { par in
@@ -239,6 +240,21 @@ struct ActiveRoundView: View {
                 onCancel: {
                     showPenaltySheet = false
                 }
+            )
+        }
+        .sheet(isPresented: $showClubsInPlay) {
+            ClubsInPlaySheet(
+                bag: bag,
+                leftOut: Binding(
+                    get: { controller.currentRound?.clubsLeftOut ?? [] },
+                    set: { new in
+                        controller.setClubsLeftOut(new)
+                        // A mid-round fix is the best guess for next round too.
+                        UserDefaults.standard.set(controller.currentRound?.clubsLeftOut ?? [],
+                                                  forKey: ClubsInPlay.leftOutDefaultsKey)
+                    }
+                ),
+                onDone: { showClubsInPlay = false }
             )
         }
         .sheet(isPresented: $showScorecard) {
@@ -289,7 +305,7 @@ struct ActiveRoundView: View {
         .sheet(item: glassesRetroHoleBinding) { hole in
             HoleReviewSheet(
                 hole: hole,
-                bag: bag,
+                bag: clubsInPlay,
                 isRetro: true,
                 greenCoordinate: GlassesStateMapper.greenCoordinate(
                     courseId: controller.curatedCourseId, holeNumber: hole.holeNumber),
@@ -826,6 +842,7 @@ struct ActiveRoundView: View {
                 ForEach(clubsInPlay) { club in
                     clubCell(club)
                 }
+                editClubsCell
             }
         }
         .mask(
@@ -840,6 +857,29 @@ struct ActiveRoundView: View {
                 endPoint: .trailing
             )
         )
+    }
+
+    /// Trailing cell: fix today's clubs mid-round (a club "left home" that's
+    /// actually in the bag). Shows how many are out so the cut is visible.
+    private var editClubsCell: some View {
+        let out = bag.count - clubsInPlay.count
+        return Button {
+            showClubsInPlay = true
+        } label: {
+            VStack(spacing: 1) {
+                Text("Bag")
+                    .font(.custom(AppFont.serifName, size: 16).italic())
+                    .foregroundStyle(palette.ink3)
+                Text(out > 0 ? "\(out) OUT" : " ")
+                    .font(.custom(AppFont.monoName, size: 9).weight(.bold))
+                    .foregroundStyle(palette.ink3)
+            }
+            .frame(minWidth: 50)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(out > 0 ? "Clubs in play, \(out) left home" : "Clubs in play")
     }
 
     private func clubCell(_ club: Club) -> some View {
