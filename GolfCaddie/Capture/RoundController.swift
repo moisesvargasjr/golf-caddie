@@ -600,6 +600,14 @@ final class RoundController {
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
     }
 
+    /// Re-pull `currentHoleShots` after an out-of-band edit (a stroke moved
+    /// between holes from HoleDetailView). No-op unless the active hole is one
+    /// of `holeIDs`.
+    func refreshCurrentHoleShots(ifActiveHoleIn holeIDs: Set<UUID>) {
+        guard case let .active(_, hole) = state, holeIDs.contains(hole.id) else { return }
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
     /// Change a logged shot's club on the active hole by id (the watch
     /// Strokes-page edit sheet, B25), re-deriving `isPutt` from the new club
     /// (B31). Mutates `currentHoleShots` in place so the WatchStatePublisher's
