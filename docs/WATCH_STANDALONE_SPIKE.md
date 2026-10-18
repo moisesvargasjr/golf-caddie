@@ -241,3 +241,14 @@ card (B1) + Double Tap undo; log dismissed detections for training the phantom r
   back nine remains the test for that, but the design works either way.
 - Auto-club: ignored in play — it offered clubs not carried that day (the list is the phone's
   whole bag). Follow-up: a "clubs in play" pick at round start.
+
+## Shots at the watch's position (2026-10-17, Native Oaks)
+
+Phone left in the cart → every watch-logged shot sat at the cart, because shot location
+came only from the phone's breadcrumbs. Interim fix ahead of "the watch owns the round":
+the watch stamps its own fix (`WatchFix`: lat, lng, hAcc, fix time) on `SwingEvent`
+(taken at detection, not at card confirm) and on MARK / putt commands (`IdentifiedCommand.fix`,
+filled in `WatchSession.send`). The phone (`LiveShotCoordinator.usableWatchFix`) uses it
+when it is within 5 s of the swing/tap and hAcc ≤ 15 m, else falls back to the breadcrumb
+as before. A late tap with neither still gets no GPS. Fields are optional — old payloads
+decode, contract stays v1.

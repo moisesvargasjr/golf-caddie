@@ -23,6 +23,9 @@ final class WatchSession: NSObject, ObservableObject {
     /// rather than falsely reassuring; it drains to 0 once the link recovers.
     @Published private(set) var outstandingMessages = 0
     @Published private(set) var lastTransferError: String?
+    /// The watch's most recent valid GPS fix (fed by LiveSessionController),
+    /// stamped onto swings and located commands. The phone judges freshness.
+    var latestFix: WatchFix?
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -36,6 +39,12 @@ final class WatchSession: NSObject, ObservableObject {
     /// the just-queued transfer immediately (it clears via `didFinish
     /// userInfoTransfer` once the phone acknowledges).
     func send(_ message: WatchToPhoneMessage) {
+        var message = message
+        // MARK / putt taps carry where the WATCH is — the phone may be in the cart.
+        if var identified = message.command, identified.fix == nil, identified.command.isLocated {
+            identified.fix = latestFix
+            message.command = identified
+        }
         guard WCSession.isSupported(), let data = try? message.encoded() else { return }
         WCSession.default.transferUserInfo([ShotContract.payloadKey: data])
         refreshOutstanding()
@@ -209,6 +218,16 @@ extension WatchSession: WCSessionDelegate {
         Task { @MainActor in
             if let failure { self.lastTransferError = failure }
             self.refreshOutstanding()
+        }
+    }
+}
+
+private extension WatchCommand {
+    /// Commands that log a stroke at the golfer's position.
+    var isLocated: Bool {
+        switch self {
+        case .addShot, .puttPlusOne: return true
+        default: return false
         }
     }
 }

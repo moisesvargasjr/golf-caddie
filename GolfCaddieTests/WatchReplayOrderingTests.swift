@@ -26,10 +26,10 @@ final class WatchReplayOrderingTests: XCTestCase {
         func steps(from: Date, to: Date) async -> Int { .max }
     }
 
-    private func swing(at time: Date, club: String? = "7i") -> WatchToPhoneMessage {
+    private func swing(at time: Date, club: String? = "7i", fix: WatchFix? = nil) -> WatchToPhoneMessage {
         .swing(SwingEvent(
             id: UUID(), watchWallClock: time.timeIntervalSince1970, watchUptime: 0, club: club,
-            confidence: 1, source: .auto, impactPeakG: 12, arcGyro: 6))
+            confidence: 1, source: .auto, impactPeakG: 12, arcGyro: 6, fix: fix))
     }
 
     private func shots(onHole number: Int, of controller: RoundController) throws -> [Shot] {
@@ -183,6 +183,120 @@ final class WatchReplayOrderingTests: XCTestCase {
         let legacy = Data(#"{"kind":"command","command":{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","command":{"puttPlusOne":{}}}}"#.utf8)
         let decoded = try WatchToPhoneMessage.decode(legacy)
         XCTAssertNil(decoded.command?.sentAt)
+        XCTAssertNil(decoded.command?.fix)
         XCTAssertEqual(decoded.command?.command, .puttPlusOne)
+    }
+
+    // MARK: - Watch GPS (phone left in the cart)
+
+    // The phone's breadcrumb (the cart) and the watch's fix (the golfer) ~100 m
+    // apart: 0.0009° of latitude ≈ 100 m.
+    private let cart = CLLocationCoordinate2D(latitude: 33.0000, longitude: -117.0000)
+    private let golfer = CLLocationCoordinate2D(latitude: 33.0009, longitude: -117.0000)
+
+    private func dropBreadcrumb(at time: Date, _ coordinate: CLLocationCoordinate2D,
+                                in controller: RoundController) throws {
+        let round = try XCTUnwrap(controller.currentRound)
+        try TracePointRepository.insert(TracePoint(
+            id: UUID(), roundID: round.id, timestamp: time,
+            latitude: coordinate.latitude, longitude: coordinate.longitude, accuracy: 5))
+    }
+
+    private func watchFix(at time: Date, accuracy: Double = 3) -> WatchFix {
+        WatchFix(latitude: golfer.latitude, longitude: golfer.longitude,
+                 horizontalAccuracy: accuracy, timestamp: time.timeIntervalSince1970)
+    }
+
+    private func loggedSwing(_ message: WatchToPhoneMessage, breadcrumbAt time: Date) async throws -> Shot {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        try dropBreadcrumb(at: time, cart, in: controller)
+        let coordinator = LiveShotCoordinator(steps: Walked(), debounceInterval: 0.05)
+        coordinator.attach(controller: controller, location: location)
+        coordinator.ingest(message)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        await coordinator.waitUntilIdle()
+        return try XCTUnwrap(controller.currentHoleShots.last)
+    }
+
+    func testWatchFixBeatsAPhoneBreadcrumb100mAway() async throws {
+        let t = Date().addingTimeInterval(-600)
+        let shot = try await loggedSwing(swing(at: t, fix: watchFix(at: t.addingTimeInterval(-1))), breadcrumbAt: t)
+        XCTAssertEqual(try XCTUnwrap(shot.latitude), golfer.latitude, accuracy: 1e-7)
+        XCTAssertEqual(try XCTUnwrap(shot.gpsAccuracy), 3, accuracy: 0.01)
+    }
+
+    func testStaleWatchFixFallsBackToThePhoneBreadcrumb() async throws {
+        let t = Date().addingTimeInterval(-600)
+        let shot = try await loggedSwing(swing(at: t, fix: watchFix(at: t.addingTimeInterval(-60))), breadcrumbAt: t)
+        XCTAssertEqual(try XCTUnwrap(shot.latitude), cart.latitude, accuracy: 1e-7)
+    }
+
+    func testInaccurateWatchFixFallsBackToThePhoneBreadcrumb() async throws {
+        let t = Date().addingTimeInterval(-600)
+        let shot = try await loggedSwing(swing(at: t, fix: watchFix(at: t, accuracy: 40)), breadcrumbAt: t)
+        XCTAssertEqual(try XCTUnwrap(shot.latitude), cart.latitude, accuracy: 1e-7)
+    }
+
+    func testOldSwingPayloadWithoutAFixStillFusesToTheBreadcrumb() async throws {
+        let t = Date().addingTimeInterval(-600)
+        let legacy = Data("""
+        {"kind":"swing","swing":{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF",        "watchWallClock":\(t.timeIntervalSince1970),"watchUptime":0,"club":"7i","confidence":1,        "source":"auto","impactPeakG":12,"arcGyro":6}}
+        """.utf8)
+        let decoded = try WatchToPhoneMessage.decode(legacy)
+        XCTAssertNil(decoded.swing?.fix)
+        let shot = try await loggedSwing(decoded, breadcrumbAt: t)
+        XCTAssertEqual(try XCTUnwrap(shot.latitude), cart.latitude, accuracy: 1e-7)
+    }
+
+    /// A live MARK lands where the watch is, not at the phone's (cart) fix —
+    /// and the fix survives the wire.
+    func testLiveMarkUsesTheWatchFix() throws {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        let coordinator = LiveShotCoordinator(steps: Walked())
+        coordinator.attach(controller: controller, location: location)
+
+        let now = Date()
+        let mark = WatchToPhoneMessage.command(.addShot(clubShortName: nil), sentAt: now, fix: watchFix(at: now))
+        coordinator.ingest(try WatchToPhoneMessage.decode(mark.encoded()))
+        let shot = try XCTUnwrap(controller.currentHoleShots.last)
+        XCTAssertEqual(try XCTUnwrap(shot.latitude), golfer.latitude, accuracy: 1e-7)
+        XCTAssertTrue(shot.hadGPS)
+    }
+
+    /// A late putt carrying a fix from its own time uses it; one whose fix is
+    /// stale and has no breadcrumb near the tap still gets no GPS — never the
+    /// phone's current position.
+    func testLatePuttUsesItsWatchFixButNeverAStaleOne() async throws {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        let coordinator = LiveShotCoordinator(steps: Walked(), debounceInterval: 0.05)
+        coordinator.attach(controller: controller, location: location)
+
+        let tapped = Date().addingTimeInterval(-1800)
+        coordinator.ingest(.command(.puttPlusOne, sentAt: tapped, fix: watchFix(at: tapped)))
+        coordinator.ingest(.command(.puttPlusOne, sentAt: tapped.addingTimeInterval(20),
+                                    fix: watchFix(at: tapped.addingTimeInterval(-300))))
+        await coordinator.waitUntilIdle()
+
+        let putts = controller.currentHoleShots
+        XCTAssertEqual(putts.count, 2)
+        XCTAssertEqual(try XCTUnwrap(putts[0].latitude), golfer.latitude, accuracy: 1e-7)
+        XCTAssertEqual(putts[0].timestamp.timeIntervalSince1970, tapped.timeIntervalSince1970, accuracy: 1)
+        XCTAssertNil(putts[1].latitude)
+    }
+
+    func testUsableWatchFixGate() {
+        let t = Date()
+        XCTAssertNotNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t.addingTimeInterval(4)), at: t))
+        XCTAssertNotNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t, accuracy: 15), at: t))
+        XCTAssertNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t.addingTimeInterval(6)), at: t))
+        XCTAssertNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t, accuracy: 16), at: t))
+        XCTAssertNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t, accuracy: -1), at: t))
+        XCTAssertNil(LiveShotCoordinator.usableWatchFix(nil, at: t))
     }
 }
