@@ -312,6 +312,64 @@ enum ShotRepository {
         }
     }
 
+    /// Refiles a misfiled stroke onto another hole of the same round (e.g. the
+    /// phone slipped back a hole and logged swings on the wrong one), in one
+    /// write: creates the target hole row if it hasn't been visited, closes the
+    /// gap on the source hole like `deleteAndRenumber`, and slots the stroke
+    /// into the target hole in timestamp order (before the first stroke logged
+    /// after it), shifting later strokes up. Location, club, source and
+    /// timestamps are untouched. Excluded strokes keep their slots on both
+    /// holes so restore still lands them where they were. Returns the target
+    /// hole; a move to the stroke's own hole is a no-op.
+    @discardableResult
+    static func moveToHole(_ shot: Shot, holeNumber: Int) throws -> Hole {
+        try Database.shared.write { db in
+            guard var moved = try Shot.fetchOne(db, key: shot.id),
+                  let source = try Hole.fetchOne(db, key: moved.holeID)
+            else { throw ShotRepositoryError.shotNotFound }
+            if source.holeNumber == holeNumber { return source }
+
+            let target: Hole
+            if let existing = try Hole
+                .filter(Column("roundID") == source.roundID && Column("holeNumber") == holeNumber)
+                .fetchOne(db) {
+                target = existing
+            } else {
+                target = Hole(id: UUID(), roundID: source.roundID, holeNumber: holeNumber,
+                              par: nil, confirmedAt: nil)
+                try target.insert(db)
+            }
+
+            try db.execute(
+                sql: """
+                UPDATE shot
+                SET sequenceNumber = sequenceNumber - 1
+                WHERE holeID = ? AND sequenceNumber > ?
+                """,
+                arguments: [source.id, moved.sequenceNumber]
+            )
+
+            let targetShots = try Shot.filter(Column("holeID") == target.id)
+                .order(Column("sequenceNumber"))
+                .fetchAll(db)
+            let position = targetShots.first { $0.timestamp > moved.timestamp }?.sequenceNumber
+                ?? ((targetShots.last?.sequenceNumber ?? 0) + 1)
+            try db.execute(
+                sql: """
+                UPDATE shot
+                SET sequenceNumber = sequenceNumber + 1
+                WHERE holeID = ? AND sequenceNumber >= ?
+                """,
+                arguments: [target.id, position]
+            )
+
+            moved.holeID = target.id
+            moved.sequenceNumber = position
+            try moved.update(db)
+            return target
+        }
+    }
+
     static func shotsForRound(_ roundID: UUID) throws -> [Shot] {
         try Database.shared.read { db in
             try Shot.fetchAll(
@@ -344,6 +402,11 @@ enum ShotRepository {
             try newShot.insert(db)
         }
     }
+}
+
+enum ShotRepositoryError: Error, Equatable {
+    /// The stroke (or its hole) was deleted before the edit landed.
+    case shotNotFound
 }
 
 enum CourseDataRepository {

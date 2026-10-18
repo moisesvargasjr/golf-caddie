@@ -76,6 +76,7 @@
 		6E88B2E79A01F92B29410CE3 /* ClubAutoPilot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EDF01B09F0E9420FF3542A /* ClubAutoPilot.swift */; };
 		72D67C615D4FCA53848A2F03 /* SpikeSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0227A16CB2DE1B1E51C5713B /* SpikeSessionsView.swift */; };
 		7699F5EC014A132209E6E9F9 /* IsPuttDerivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C07BB10722BB642D1510227 /* IsPuttDerivationTests.swift */; };
+		76E1201DC5559816A41716D5 /* MoveShotToHoleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F7368EBA252FD2E9F2E597 /* MoveShotToHoleTests.swift */; };
 		7AE2C148B6AD19CA9C482606 /* SessionMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD873D31FBEDA03AAC3EB7A /* SessionMeta.swift */; };
 		7C7DDE425EE1511B86C06237 /* TestDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C4C8B7425BAF1C70663535C /* TestDatabase.swift */; };
 		7DA91DFBFD17CA0C079142E3 /* Stamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34060B43428C97611E8532F4 /* Stamp.swift */; };
@@ -209,6 +210,7 @@
 		4FD787675A817C8149A4A884 /* URLSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSchemeHandler.swift; sourceTree = "<group>"; };
 		51AAF43D52E594F84C303988 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
 		5284AA954CF7D6A22EDBF0DA /* CoursePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoursePickerSheet.swift; sourceTree = "<group>"; };
+		58F7368EBA252FD2E9F2E597 /* MoveShotToHoleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveShotToHoleTests.swift; sourceTree = "<group>"; };
 		5BD3C05D57722A9BAB47D008 /* ScoreBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreBadge.swift; sourceTree = "<group>"; };
 		5E397CFAB209E4AB0BA05F9E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		5E62A706C5BFF12E6F84135A /* CuratedCourse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CuratedCourse.swift; sourceTree = "<group>"; };
@@ -312,6 +314,7 @@
 				6EFCC0D060DCC7796FA384D2 /* LiveMarkPathTests.swift */,
 				D971A6F753D38667A1738891 /* LiveSwingDetectorTests.swift */,
 				8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */,
+				58F7368EBA252FD2E9F2E597 /* MoveShotToHoleTests.swift */,
 				B93BC82B8625652553A724C9 /* PathBReconstructorTests.swift */,
 				99D1CB046E09AF9D51F5458D /* ReconstructorTests.swift */,
 				4791A4B1CE59C4B0A85F203B /* ShotProvenanceTests.swift */,
@@ -718,6 +721,7 @@
 				FB9EBD2ADBA0FBEA9DAA17D0 /* LiveMarkPathTests.swift in Sources */,
 				225506DA8A1DF9251C9D4942 /* LiveSwingDetectorTests.swift in Sources */,
 				1DC14E4784DFB57E6E4177EE /* MigrationTests.swift in Sources */,
+				76E1201DC5559816A41716D5 /* MoveShotToHoleTests.swift in Sources */,
 				DC8BE80DAAB549E9454A615C /* PathBReconstructorTests.swift in Sources */,
 				EC4CC5CEB96985DE19576B95 /* ReconstructorTests.swift in Sources */,
 				429650F51F88ED31AAACBA73 /* ShotProvenanceTests.swift in Sources */,

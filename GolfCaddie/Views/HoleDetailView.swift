@@ -18,6 +18,10 @@ struct HoleDetailView: View {
     /// hidden (graceful degradation).
     let curatedCourseId: String?
     let onChanged: () -> Void
+    /// Mid-round only: called with the source + target hole ids after a stroke
+    /// moves between holes, so the live controller can re-pull its shot list
+    /// if either is the active hole. Nil post-round.
+    let onStrokeMoved: ((Set<UUID>) -> Void)?
 
     @Environment(\.palette) private var palette
     @Environment(\.dismiss) private var dismiss
@@ -47,11 +51,13 @@ struct HoleDetailView: View {
         bag: [Club],
         curatedCourseId: String? = nil,
         startIndex: Int = 0,
-        onChanged: @escaping () -> Void
+        onChanged: @escaping () -> Void,
+        onStrokeMoved: ((Set<UUID>) -> Void)? = nil
     ) {
         self.bag = bag
         self.curatedCourseId = curatedCourseId
         self.onChanged = onChanged
+        self.onStrokeMoved = onStrokeMoved
         _holes = State(initialValue: holes)
         _index = State(initialValue: min(max(0, startIndex), max(0, holes.count - 1)))
     }
@@ -593,6 +599,13 @@ struct HoleDetailView: View {
         .padding(.vertical, 10)
         .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
         .contextMenu {
+            Menu("Move to hole…") {
+                ForEach(1...RoundController.holesPerRound, id: \.self) { n in
+                    if n != hole?.holeNumber {
+                        Button("Hole \(n)") { moveShot(shot, toHole: n) }
+                    }
+                }
+            }
             Button("Delete shot", role: .destructive) { deleteShot(shot) }
         }
     }
@@ -923,6 +936,27 @@ struct HoleDetailView: View {
             onChanged()
         } catch {
             loadError = "Delete failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Refile a misfiled stroke onto another hole of this round. A newly
+    /// created target hole joins `holes` so prev/next can reach it.
+    private func moveShot(_ shot: Shot, toHole number: Int) {
+        do {
+            let target = try ShotRepository.moveToHole(shot, holeNumber: number)
+            if !holes.contains(where: { $0.id == target.id }) {
+                let currentID = hole?.id
+                holes.append(target)
+                holes.sort { $0.holeNumber < $1.holeNumber }
+                if let currentID, let i = holes.firstIndex(where: { $0.id == currentID }) {
+                    index = i
+                }
+            }
+            loadHole()
+            onStrokeMoved?([shot.holeID, target.id])
+            onChanged()
+        } catch {
+            loadError = "Move failed: \(error.localizedDescription)"
         }
     }
 
