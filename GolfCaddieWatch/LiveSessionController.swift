@@ -9,6 +9,8 @@ struct DetectedSwing: Identifiable, Equatable {
     let detectionUptime: Double
     let impactPeakG: Double
     let arcGyro: Double
+    /// Watch GPS when the swing was detected (the card may be confirmed later).
+    let fix: WatchFix?
 }
 
 /// The watch's round-session brain. Runs a workout session (keeps Core Motion
@@ -72,6 +74,11 @@ final class LiveSessionController: ObservableObject {
         workout.onFailure = { [weak self] message in self?.lastError = "Workout: \(message)" }
         location.onFix = { [weak self] fix in
             guard let self, self.running else { return }
+            if fix.horizontalAccuracy > 0 {
+                WatchSession.shared.latestFix = WatchFix(
+                    latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude,
+                    horizontalAccuracy: fix.horizontalAccuracy, timestamp: fix.timestamp.timeIntervalSince1970)
+            }
             self.caddie.ingest(fix)
             // Logged AFTER ingest so the row carries the yardage this fix produced,
             // and unfiltered — rejected fixes are part of the measurement.
@@ -267,7 +274,8 @@ final class LiveSessionController: ObservableObject {
         pending = DetectedSwing(
             detectionUptime: detection.t,
             impactPeakG: detection.impactPeakG,
-            arcGyro: detection.arcGyro
+            arcGyro: detection.arcGyro,
+            fix: WatchSession.shared.latestFix
         )
     }
 
@@ -285,7 +293,8 @@ final class LiveSessionController: ObservableObject {
             confidence: min(1.0, p.impactPeakG / 20.0),
             source: .auto,
             impactPeakG: p.impactPeakG,
-            arcGyro: p.arcGyro
+            arcGyro: p.arcGyro,
+            fix: p.fix
         )
         WatchSession.shared.send(.swing(event))
         noteFullShotSent()
