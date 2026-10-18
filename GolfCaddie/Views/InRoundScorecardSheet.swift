@@ -11,6 +11,9 @@ struct InRoundScorecardSheet: View {
     /// Curated course this round matched (nil ⇒ HoleDetailView hides anchor /
     /// yardage UI — graceful degradation, same as post-round).
     let curatedCourseId: String?
+    /// Forwarded to HoleDetailView: a stroke moved between holes, so the live
+    /// controller re-pulls `currentHoleShots` if either is the active hole.
+    var onStrokeMoved: ((Set<UUID>) -> Void)? = nil
     let onDismiss: () -> Void
 
     @Environment(\.palette) private var palette
@@ -204,7 +207,8 @@ struct InRoundScorecardSheet: View {
                                     bag: bag,
                                     curatedCourseId: curatedCourseId,
                                     startIndex: confirmedHoles.firstIndex(where: { $0.id == hole.id }) ?? 0,
-                                    onChanged: { reload() }
+                                    onChanged: { reload() },
+                                    onStrokeMoved: onStrokeMoved
                                 )
                             } label: {
                                 ScoreBadge(score: score, par: par)
