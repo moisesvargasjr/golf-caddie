@@ -58,20 +58,63 @@
   - _Finish Hole (b68b1c4):_ one check per hole; `HoleFinishReconciler` reconciles the
     tracked strokes against the entered score. Tee snapping + the watch-track comparison
     script landed alongside (cedb2bd, field test 1).
-- **🟡 Done, pending merge (stacked — merge in this order):**
-  - **Clubs in play** (PR #16) — per-round club pick (`Round.clubsLeftOut`, v7
-    migration) for watch, glasses and phone, editable mid-round from the **Bag** cell.
-    200 tests green; Bag-sheet tap-through verified in the simulator (XCUITest).
-  - **Move stroke to hole** (PR #19, on #16) — "Move to hole…" refiles a misfiled
-    stroke in one write. 205 tests green.
-  - **Watch Finish Hole layout fix** (PR #20, on #19) — Finish Hole sits under the
-    stroke count so a long scorecard can't push it off-screen; `HOLE 10 · 1 PEN` label.
-- **🔨 In progress:**
-  - **B35 — watch GPS first.** Prefer the watch's own fix over the phone's for shot
-    locations and yardage; record `locationSource` on each shot and the watch↔phone
-    disagreement, so field rounds show which fix won and by how much. (PRs #17, #18.)
-  - **B36 — iPhone Duo adaptive layouts.** Make the phone screens adapt to the iPhone
-    Duo's size classes / canvas instead of assuming a single-pane iPhone.
+  - _Pre-Native Oaks night (2026-10-22, 350 tests green, built by Xcode Cloud on
+    Xcode 27.1):_
+    - **Clubs in play** (PR #16): per-round club pick (`Round.clubsLeftOut`, v7) for
+      watch, glasses and phone, editable mid-round from the **Bag** cell.
+    - **Move stroke to hole** (PR #19) and the **watch Finish Hole layout fix** (PR #20).
+    - **B35 — watch GPS first** (PRs #17, #18):
+      - A usable watch fix (≤15 m) wins over the phone for shots and yardage on the
+        watch, phone and glasses.
+      - The watch streams its fix every 2 s (10 s read gate on the phone).
+      - `shot.locationSource` and `locationDisagreementMeters` are stored (v8).
+    - **B38 — the watch trail is the trail** (PR #23):
+      - The watch queues thinned fixes over `transferUserInfo` every 60 s, plus on
+        hole change and stop.
+      - The phone stores them in `tracePoint.source` (v9) and builds a preferred
+        trail: watch first, phone points only for long or plausible gaps.
+      - Path B, stops and `breadcrumb(near:)` all read the preferred trail.
+      - Hand pins snap to the trail within 8 m and are always `.manual`.
+      - Late trail data re-lays only holes whose strokes are all system-placed and
+        not open in review. Ingest runs off main and the re-lay is debounced.
+    - **B36 — iPhone Duo adaptive layouts** (PRs #22, #24):
+      - Layouts: cover/compact, portrait command center, book two-page, H4 wide
+        panorama (tee-left/green-right map plus a command rail), and tabletop.
+      - One shared map instance, so folding doesn't reset state.
+      - Physical scorecard. Finish Hole review split at the hinge.
+      - Consistency pass: no big Log shot button, "Finish hole ›" is the primary,
+        the trail shows on every map, and taps are 44 pt.
+- **🔬 Device-unverified from that night** (first real test: Native Oaks, 2026-10-23,
+  see `docs/FIELD_TEST_DUO_NATIVE_OAKS.md`):
+  - The watch fix stream, trail upload and queued delivery after reconnect, watch
+    battery cost, and re-lay timing.
+  - Portrait and tabletop were never seen on a live pose; the simulator could only be
+    unfolded by hand.
+  - The PENALTY sheet and ··· menu were not tapped through in the simulator.
+  - The Bluetooth-off back nine is still pending.
+- **⏭ Deferred from that night (next up):**
+  - **B37 — place a missed shot by tapping the trail.**
+    - Today a pin within 8 m snaps to the trail.
+    - Wanted: tap any trail point to drop a stroke there, with the watch-trail stops
+      shown as suggested pins.
+    - Also: re-lay a hole that was skipped because it was open in review, once it
+      closes.
+  - **Cover-screen trailing control rail.** The HIG moves cover-screen bars to the
+    trailing edge. The cover currently uses the bottom-bar fallback because no reliable
+    vertical-bar gate exists (`toolbarVerticalBehavior` / `ToolbarItemAxisBehavior` do
+    exist).
+  - **Finish Hole review:** a putts picker plus score stepper on the phone, and a
+    **restore excluded strokes** affordance (`shot.excludedAt`).
+  - **Expanded Home** (two-page). Home and Settings are only capped to the left page
+    today.
+  - **Duo test isolation.** `WatchTrailTests` stops live tracking after `startRound()`;
+    audit other tests that start a round, so a simulator with location permission can't
+    leak breadcrumbs into them.
+  - **Scorecard data:** per-hole handicap / stroke index, tee names and tee yardages
+    in the course catalog, and a player name. The card leaves these blank.
+  - **Map:** the marker/SHOTS-pill overlap on the cover (camera framing). F/M/B are
+    still pin ±14 yd rather than green geometry.
+  - **Next phase — the watch owns the round:** see `docs/WATCH_OWNS_ROUND.md`.
 - **✅ Resolved decision — D1:** `lastShot` is **CLUB-ONLY, no distance** (see §2 D1 and
   B16). Do not relitigate.
 - **🟢 Draft / hardware-gated:** **B23** (glasses club-scroll fix — root-caused, guarded
