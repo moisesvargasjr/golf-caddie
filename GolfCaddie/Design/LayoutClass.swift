@@ -109,7 +109,38 @@ private struct AdaptiveLayoutRoot: ViewModifier {
     }
 }
 
+/// Keeps a full-width page (Home, Settings) readable and off the hinge on the
+/// expanded screen: landscape → the left page (up to the hinge gutter);
+/// portrait → a centred ~560 pt column. Compact: unchanged.
+private struct ReadableOnExpanded: ViewModifier {
+    @Environment(\.displayContext) private var display
+    static let readableWidth: CGFloat = 560
+    static let hingeGutter: CGFloat = 16
+
+    func body(content: Content) -> some View {
+        if display.layoutClass == .expanded, display.windowSize.width > 0 {
+            if display.isLandscape {
+                content
+                    .frame(maxWidth: min(Self.readableWidth,
+                                         display.windowSize.width / 2 - Self.hingeGutter))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                content
+                    .frame(maxWidth: Self.readableWidth)
+                    .frame(maxWidth: .infinity)
+            }
+        } else {
+            content
+        }
+    }
+}
+
 extension View {
+    /// See `ReadableOnExpanded`.
+    func readableOnExpanded() -> some View {
+        modifier(ReadableOnExpanded())
+    }
+
     /// Inject `layoutClass` / `displayContext` for the whole tree.
     func adaptiveLayoutRoot() -> some View {
         modifier(AdaptiveLayoutRoot())

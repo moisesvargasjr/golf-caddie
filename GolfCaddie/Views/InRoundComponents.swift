@@ -18,7 +18,9 @@ struct ExpandedHitShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         let dy = max(0, (minHeight - rect.height) / 2)
-        return Path(rect.insetBy(dx: -horizontal, dy: -dy))
+        // At least 44 pt wide too (the ‹ › chevrons are ~31 pt).
+        let dx = max(horizontal, (minHeight - rect.width) / 2)
+        return Path(rect.insetBy(dx: -dx, dy: -dy))
     }
 }
 

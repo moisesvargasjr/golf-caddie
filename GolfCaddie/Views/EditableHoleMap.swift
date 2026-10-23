@@ -22,8 +22,15 @@ struct EditableHoleMap: View {
     /// Called on anchor drop. nil = anchor capture disabled.
     var onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)? = nil
 
+    /// Extra points the camera must fit (e.g. the green) without a pin.
+    var fitAlso: [CLLocationCoordinate2D] = []
+    /// > 1 pulls the camera back for more margin around the pins.
+    var framingScale: Double = 1
+
     /// The hole's walked trail (dotted), from `HoleTrailSource`.
     @State private var trail: [CLLocationCoordinate2D] = []
+    /// Laid-out size: a resize (e.g. the review going two-column) re-fits.
+    @State private var layoutSize: CGSize = .zero
 
     var body: some View {
         EditableHoleMapKit(
@@ -33,8 +40,12 @@ struct EditableHoleMap: View {
             tee: tee,
             green: green,
             onAnchorMoved: onAnchorMoved,
-            trail: trail
+            trail: trail,
+            fitAlso: fitAlso,
+            framingScale: framingScale,
+            layoutSize: layoutSize
         )
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { layoutSize = $0 }
         // Read off main via a GCD hop (never `.task`: GRDB's sync reads trap
         // in Swift concurrency), keyed by hole.
         .onChange(of: holeID, initial: true) { _, id in
@@ -53,6 +64,9 @@ private struct EditableHoleMapKit: UIViewRepresentable {
     let green: GeoPoint?
     let onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)?
     let trail: [CLLocationCoordinate2D]
+    let fitAlso: [CLLocationCoordinate2D]
+    let framingScale: Double
+    let layoutSize: CGSize
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onShotMoved: onShotMoved, onAnchorMoved: onAnchorMoved)
@@ -78,14 +92,18 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         // Reframe when the hole changes OR anchors first appear/disappear
         // (entering anchor mode should pull tee/green into view). Never
         // mid-drag — that would fight the gesture.
-        let key = "\(holeID.uuidString)|\(tee != nil)|\(green != nil)"
-        if context.coordinator.lastFramedKey != key,
+        // The size is part of the key: a camera set while the map had a
+        // different (or zero) frame centres the hole in the wrong place.
+        let size = "\(Int(layoutSize.width))x\(Int(layoutSize.height))"
+        let key = "\(holeID.uuidString)|\(tee != nil)|\(green != nil)|\(size)"
+        if layoutSize != .zero,
+           context.coordinator.lastFramedKey != key,
            context.coordinator.draggingID == nil {
             let shotCoords = shots.compactMap { shot -> CLLocationCoordinate2D? in
                 guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
                 return CLLocationCoordinate2D(latitude: lat, longitude: lng)
             }
-            var allCoords = shotCoords
+            var allCoords = shotCoords + fitAlso
             if let tee { allCoords.append(CLLocationCoordinate2D(latitude: tee.lat, longitude: tee.lng)) }
             if let green {
                 allCoords.append(CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng))
@@ -95,10 +113,17 @@ private struct EditableHoleMapKit: UIViewRepresentable {
             let bearing = Self.holeBearing(
                 shotCoords: shotCoords,
                 tee: tee.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lng) },
+                // Without a draggable green anchor, orient to the fit-only
+                // green (the review passes it) so the hole runs up the map.
                 green: green.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lng) }
+                    ?? fitAlso.last
             )
             if let camera = Self.cameraFitting(allCoords, heading: bearing ?? 0) {
-                map.setCamera(camera, animated: true)
+                camera.centerCoordinateDistance *= framingScale
+                // After this layout pass, so the map already has its new bounds.
+                DispatchQueue.main.async { [weak map] in
+                    map?.setCamera(camera, animated: false)
+                }
             }
             context.coordinator.lastFramedKey = key
         }

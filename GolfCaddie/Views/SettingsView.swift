@@ -169,6 +169,7 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
+                .readableOnExpanded()
             }
             .background(PaperBackground())
             .navigationBarTitleDisplayMode(.inline)

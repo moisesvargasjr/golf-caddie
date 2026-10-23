@@ -54,6 +54,8 @@ struct CommandCenterChrome: View {
 struct WideRoundLayout: View {
     let snapshot: InRoundSnapshot
     let actions: InRoundActions
+    /// Hinge x in the map's coordinates; overlays stay left of its gutter.
+    var hingeX: CGFloat? = nil
 
     var body: some View {
         PaperBackground()
@@ -63,8 +65,9 @@ struct WideRoundLayout: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 YardageCard(snapshot: snapshot, actions: actions, heroSize: 52)
-                StrokeListSection(snapshot: snapshot, maxRows: 4)
-                ClubGridSection(snapshot: snapshot, actions: actions, columns: 4, compactCells: true)
+                StrokeListSection(snapshot: snapshot, maxRows: 3)
+                // 5 columns: a full 14-club bag is 3 rows, all visible.
+                ClubGridSection(snapshot: snapshot, actions: actions, columns: 5, compactCells: true)
                 WatchDetectingLine(isDetecting: snapshot.watchDetecting)
                 InRoundErrorText(text: snapshot.errorText)
             }
@@ -76,7 +79,7 @@ struct WideRoundLayout: View {
         InRoundActionBar(state: snapshot.actionState, actions: actions, showsWatchStatus: false)
             .roundStageRole(.actions)
 
-        WideMapOverlays(snapshot: snapshot, actions: actions)
+        WideMapOverlays(snapshot: snapshot, actions: actions, hingeX: hingeX)
             .roundStageRole(.map)
     }
 }
@@ -86,6 +89,7 @@ struct WideRoundLayout: View {
 private struct WideMapOverlays: View {
     let snapshot: InRoundSnapshot
     let actions: InRoundActions
+    var hingeX: CGFloat?
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -103,6 +107,9 @@ private struct WideMapOverlays: View {
                 Spacer()
                 MapStatusChrome(snapshot: snapshot, actions: actions)
             }
+            // Left page only: top-trailing corner sits before the hinge gutter.
+            .frame(maxWidth: hingeX.map { max(0, $0 - RoundStageGeometry.hingeGutter - 12) } ?? .infinity,
+                   alignment: .leading)
             Spacer()
             HStack(spacing: 8) {
                 if let score = snapshot.scoreText {
