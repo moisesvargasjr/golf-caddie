@@ -201,6 +201,7 @@ Only the disconnected segment says anything about the Ultra 4's own GPS.
 
 If it passes: next phase moves the round engine + GRDB to the watch, then workout
 mirroring.
+Design for that phase: `docs/WATCH_OWNS_ROUND.md` ("the watch owns the round").
 
 ## Next phase — one check per hole (started 2026-09-21)
 
