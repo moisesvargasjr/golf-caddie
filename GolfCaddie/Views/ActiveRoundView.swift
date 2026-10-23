@@ -264,6 +264,7 @@ struct ActiveRoundView: View {
                     currentHoleNumber: currentHoleNumber,
                     bag: bag,
                     curatedCourseId: controller.curatedCourseId,
+                    onStrokeMoved: { controller.refreshCurrentHoleShots(ifActiveHoleIn: $0) },
                     onDismiss: { showScorecard = false }
                 )
             }
