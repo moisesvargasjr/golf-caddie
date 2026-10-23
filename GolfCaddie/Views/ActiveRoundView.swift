@@ -227,7 +227,21 @@ struct ActiveRoundView: View {
                 onDone: { showClubsInPlay = false }
             )
         }
-        .sheet(isPresented: $showScorecard) {
+        // Expanded (unfolded): the full-width physical card. Folded: the
+        // compact sheet, unchanged.
+        .fullScreenCover(isPresented: physicalScorecardBinding) {
+            if let round = controller.currentRound {
+                PhysicalScorecardView(
+                    round: round,
+                    currentHoleNumber: currentHoleNumber,
+                    bag: bag,
+                    curatedCourseId: controller.curatedCourseId,
+                    onDismiss: { showScorecard = false }
+                )
+                .themedRoot()
+            }
+        }
+        .sheet(isPresented: compactScorecardBinding) {
             if let round = controller.currentRound {
                 InRoundScorecardSheet(
                     round: round,
@@ -1112,13 +1126,21 @@ struct ActiveRoundView: View {
     }
 
     private func loadHoleTrail() {
-        guard let round = controller.currentRound,
-              let points = try? TracePointRepository.pointsForRound(round.id) else { return }
+        guard let round = controller.currentRound else { return }
         let since = holeStartedAt ?? round.startedAt
-        let coords = points.filter { $0.timestamp >= since }
-            .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        let coords = HoleTrailSource.coordinates(roundID: round.id, since: since)
         let stride = max(1, coords.count / Self.trailMaxPoints)
         holeTrail = coords.enumerated().compactMap { $0.offset % stride == 0 ? $0.element : nil }
+    }
+
+    private var physicalScorecardBinding: Binding<Bool> {
+        Binding(get: { showScorecard && displayContext.layoutClass == .expanded },
+                set: { if !$0 { showScorecard = false } })
+    }
+
+    private var compactScorecardBinding: Binding<Bool> {
+        Binding(get: { showScorecard && displayContext.layoutClass != .expanded },
+                set: { if !$0 { showScorecard = false } })
     }
 
     // MARK: - Computed accessors

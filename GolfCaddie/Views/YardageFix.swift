@@ -29,3 +29,15 @@ enum YardageFixAdapter {
         return YardageFix(coordinate: phone.coordinate, sourceLabel: "PHONE GPS")
     }
 }
+
+/// Where the map's dotted walked trail comes from. One seam so the trail
+/// follows Track B's watch-first source (`TracePointRepository.preferredTrail`,
+/// branch feat/watch-trail) with a one-line change once it lands; today it is
+/// the phone breadcrumbs.
+enum HoleTrailSource {
+    static func coordinates(roundID: UUID, since: Date) -> [CLLocationCoordinate2D] {
+        let points = (try? TracePointRepository.pointsForRound(roundID)) ?? []
+        return points.filter { $0.timestamp >= since }
+            .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+}
