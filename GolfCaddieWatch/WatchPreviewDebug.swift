@@ -36,7 +36,7 @@ enum WatchPreviewDebug {
     static let mockState = PhoneStateUpdate(
         isActive: true,
         courseName: "Welk Oaks G.C.",
-        holeNumber: 3,
+        holeNumber: 10,
         par: 4,
         distanceToGreenYards: 137,
         currentClubShortName: "7i",
@@ -58,9 +58,18 @@ enum WatchPreviewDebug {
             WatchStroke(id: "1", clubShort: "Dr", clubName: "Driver", lie: "Tee", fromYards: 412, time: "2:41", manual: false),
             WatchStroke(id: "2", clubShort: "7i", clubName: "7 Iron", lie: "Fairway", fromYards: 196, time: "2:48", manual: false),
         ],
+        // A full front nine, so the Score page shows the long-scorecard case
+        // (Finish Hole must stay reachable above it).
         scorecard: [
             WatchScoreRow(hole: 1, par: 4, strokes: 5),
-            WatchScoreRow(hole: 2, par: 3, strokes: 3),
+            WatchScoreRow(hole: 2, par: 5, strokes: 6),
+            WatchScoreRow(hole: 3, par: 3, strokes: 3),
+            WatchScoreRow(hole: 4, par: 4, strokes: 5),
+            WatchScoreRow(hole: 5, par: 4, strokes: 4),
+            WatchScoreRow(hole: 6, par: 4, strokes: 6),
+            WatchScoreRow(hole: 7, par: 4, strokes: 5),
+            WatchScoreRow(hole: 8, par: 3, strokes: 4),
+            WatchScoreRow(hole: 9, par: 5, strokes: 6),
         ],
         holePenaltyStrokes: 1,
         holeFullShots: 2

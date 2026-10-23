@@ -952,7 +952,10 @@ private struct ScoreScreen: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("\(shots)").font(WT.serif(WT.s(56))).foregroundStyle(WT.ink)
-                        Text("STROKES · HOLE \(caddie.holeNumber)" + ((s.holePenaltyStrokes ?? 0) > 0 ? " · \(s.holePenaltyStrokes ?? 0) PEN" : ""))
+                        // With a penalty, drop "STROKES" (the big number says it) so
+                        // "HOLE 10 · 1 PEN" fits — the long form truncated the count.
+                        let pens = s.holePenaltyStrokes ?? 0
+                        Text(pens > 0 ? "HOLE \(caddie.holeNumber) · \(pens) PEN" : "STROKES · HOLE \(caddie.holeNumber)")
                             .font(WT.mono(10)).tracking(1.2).foregroundStyle(WT.ink3)
                             .lineLimit(1).minimumScaleFactor(0.7)
                     }
@@ -991,23 +994,11 @@ private struct ScoreScreen: View {
                     .font(WT.mono(10)).foregroundStyle(WT.ink3).lineLimit(1).minimumScaleFactor(0.7)
             }
 
-            if s.isActive { Divider().overlay(WT.line) }
-            ForEach(s.isActive ? s.scorecard : []) { row in
-                HStack {
-                    Text("Hole \(row.hole)").font(WT.mono(13)).foregroundStyle(WT.ink2).frame(width: 56, alignment: .leading)
-                    Text("par \(row.par.map(String.init) ?? "–")").font(WT.mono(11)).foregroundStyle(WT.ink3)
-                    Spacer()
-                    let d = row.par.map { row.strokes - $0 }
-                    Text("\(row.strokes)")
-                        .font(WT.mono(14))
-                        .foregroundStyle(d.map { $0 > 0 ? WT.accent : $0 < 0 ? WT.green : WT.ink } ?? WT.ink)
-                }
-                .padding(.vertical, 5)
-                Divider().overlay(WT.line)
-            }
-
-            // Hole navigation. With a phone round: back (recover an accidental
-            // advance) + Next Hole (confirms this hole and advances) go to the
+            // Hole navigation — right under the stroke count, ABOVE the
+            // scorecard, so it never scrolls away as holes pile up (field test
+            // 2026-10-17: Finish Hole sat below 9 rows). With a phone round:
+            // back (recover an accidental advance) + Next Hole (confirms this
+            // hole and advances) go to the
             // phone over WC, and the watch steps its own hole at once. Watch
             // only: they just step the watch's hole.
             HStack(spacing: 6) {
@@ -1033,6 +1024,22 @@ private struct ScoreScreen: View {
                 .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
             }
             .padding(.top, 4)
+            .padding(.bottom, 2)
+
+            if s.isActive { Divider().overlay(WT.line) }
+            ForEach(s.isActive ? s.scorecard : []) { row in
+                HStack {
+                    Text("Hole \(row.hole)").font(WT.mono(13)).foregroundStyle(WT.ink2).frame(width: 56, alignment: .leading)
+                    Text("par \(row.par.map(String.init) ?? "–")").font(WT.mono(11)).foregroundStyle(WT.ink3)
+                    Spacer()
+                    let d = row.par.map { row.strokes - $0 }
+                    Text("\(row.strokes)")
+                        .font(WT.mono(14))
+                        .foregroundStyle(d.map { $0 > 0 ? WT.accent : $0 < 0 ? WT.green : WT.ink } ?? WT.ink)
+                }
+                .padding(.vertical, 5)
+                Divider().overlay(WT.line)
+            }
 
             Button { confirmingEnd = true } label: {
                 Text("END TRACKING").font(WT.mono(11)).tracking(1.2)
