@@ -41,7 +41,9 @@ struct HoleReviewSheet: View {
     // holds until then.
     @State private var putterClubIDs: Set<String> = [Club.putterID]
     @State private var sheetWidth: CGFloat = 0
+    @State private var sheetMinX: CGFloat = 0
     @Environment(\.layoutClass) private var layoutClass
+    @Environment(\.displayContext) private var displayContext
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
 
@@ -82,16 +84,17 @@ struct HoleReviewSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         reviewSections(showsAdjustPins: true)
-                        confirmButton
-                            .padding(.horizontal, 24)
-                            .padding(.top, 18)
                         loadErrorText
-                        Spacer(minLength: 36)
+                        Spacer(minLength: 16)
                     }
                 }
+                .safeAreaInset(edge: .bottom, spacing: 0) { confirmBar }
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sheetWidth = $0 }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            sheetWidth = $0.width
+            sheetMinX = $0.minX
+        }
         .presentationBackground(palette.paper)
         .themedRoot()
         .onAppear { HolesUnderEdit.begin(hole.id) } // a late watch trail must not re-lay this hole under the user
@@ -135,32 +138,100 @@ struct HoleReviewSheet: View {
     }
 
     private static let wideMinWidth: CGFloat = 600
-    private static let wideMapWidth: CGFloat = 300
+    private static let narrowMapWidth: CGFloat = 300
+
+    /// Map page width: up to the hinge minus its 16 pt gutter in landscape
+    /// (the Duo hinge is the window centre); a fixed column otherwise.
+    private var wideMapWidth: CGFloat {
+        let window = displayContext.windowSize
+        guard displayContext.isLandscape, window.width > 0 else { return Self.narrowMapWidth }
+        return max(Self.narrowMapWidth, window.width / 2 - RoundStageGeometry.hingeGutter - sheetMinX)
+    }
 
     private var wideBody: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                // Above the map, not over it, so it never covers a pin.
+                Stamp(text: "Drag a pin to fix it")
+                    .padding(.vertical, 10)
                 EditableHoleMap(shots: shots, holeID: hole.id,
-                                onShotMoved: { shot, coord in moveShot(shot, to: coord) })
-                    .frame(width: Self.wideMapWidth)
-                    .overlay(alignment: .top) {
-                        Stamp(text: "Drag a pin to fix it")
-                            .padding(6)
-                            .background(palette.paper)
-                            .padding(.top, 12)
-                    }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        reviewSections(showsAdjustPins: false)
-                        loadErrorText
-                        Spacer(minLength: 16)
-                    }
+                                onShotMoved: { shot, coord in moveShot(shot, to: coord) },
+                                fitAlso: greenCoordinate.map { [$0] } ?? [],
+                                framingScale: 1.1)
+            }
+            .frame(width: wideMapWidth)
+            // Hinge band: nothing interactive here.
+            Color.clear.frame(width: RoundStageGeometry.hingeGutter * 2)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    wideSections
+                    loadErrorText
+                    Spacer(minLength: 16)
                 }
             }
-            confirmButton
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
+            .safeAreaInset(edge: .bottom, spacing: 0) { confirmBar }
         }
+    }
+
+    /// Confirm pinned at the bottom on a paper bar; content scrolls above it
+    /// and the bar itself respects the home indicator.
+    private var confirmBar: some View {
+        confirmButton
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            // Opaque down through the home-indicator area so nothing scrolls
+            // visibly beneath the bar.
+            .background(palette.paper.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) { Rectangle().fill(palette.rule).frame(height: 1) }
+    }
+
+    /// Expanded right page: a one-line header, then the shots first (so 3+
+    /// rows show without scrolling at 951×669), then penalties, par, the
+    /// tracked summary and the score.
+    @ViewBuilder
+    private var wideSections: some View {
+        HStack(alignment: .center) {
+            navRow
+            Text("Hole \(hole.holeNumber)")
+                .font(.custom(AppFont.serifName, size: 24).italic().weight(.bold))
+                .foregroundStyle(palette.ink)
+            Stamp(text: isRetro ? "Hole summary" : "Confirm hole")
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+
+        section("Shots (\(shots.count))", content: shotsContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
+
+        section("Penalties (\(penalties.count))", content: penaltiesContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+
+        section("Par", content: parContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+
+        if !shots.isEmpty {
+            HoleReconstructionCard(
+                reconstruction: reconstruction,
+                mode: isReconstructed ? .reconstructed : .tracked,
+                onAdjustPins: nil
+            )
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+        }
+
+        if missingClubsCount > 0 {
+            warning
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+        }
+
+        scoreBlock
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
     }
 
     @ViewBuilder

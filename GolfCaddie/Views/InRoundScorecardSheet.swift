@@ -92,9 +92,11 @@ struct InRoundScorecardSheet: View {
                 onDismiss()
             } label: {
                 Text("‹ DONE")
-                    .font(AppFont.metadata)
+                    .font(AppFont.stampMd)
                     .tracking(1.4)
                     .foregroundStyle(palette.ink)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
             }
@@ -136,7 +138,7 @@ struct InRoundScorecardSheet: View {
     private func scorecardTable(title: String, range: ClosedRange<Int>) -> some View {
         let rowHoles = holes.filter { range.contains($0.holeNumber) }
         let rowPar = rowHoles.reduce(0) { $0 + ($1.par ?? 0) }
-        let rowShots = rowHoles.reduce(0) { $0 + holeScore($1) }
+        let rowShots = rowHoles.filter { $0.confirmedAt != nil }.reduce(0) { $0 + holeScore($1) }
         let isFront = range.lowerBound == 1
         let summaryLabel = isFront ? "OUT" : "IN"
 
@@ -217,12 +219,13 @@ struct InRoundScorecardSheet: View {
                             }
                             .buttonStyle(.plain)
                         } else if isCurrent {
-                            // In-progress current hole — show running score in flag color.
-                            // Not tappable: editing it through HoleDetailView would
-                            // desync `RoundController.currentHoleShots`/`state`.
+                            // In-progress current hole — running strokes, provisional:
+                            // grey, no ±par mark, not in the totals. Not tappable:
+                            // editing it through HoleDetailView would desync
+                            // `RoundController.currentHoleShots`/`state`.
                             Text(score > 0 ? "\(score)" : "·")
                                 .font(.custom(AppFont.monoName, size: 13).weight(.bold))
-                                .foregroundStyle(palette.flag)
+                                .foregroundStyle(palette.ink3)
                                 .tabularNumerals()
                         } else {
                             Text("·")
@@ -280,14 +283,16 @@ struct InRoundScorecardSheet: View {
         (shotsByHole[hole.id] ?? 0) + (penaltiesByHole[hole.id] ?? 0)
     }
 
+    /// Totals cover confirmed holes only — the open hole is provisional and
+    /// must not count toward the score or ±par ("THROUGH n" agrees).
     private var totalScore: Int {
-        holes.reduce(0) { $0 + holeScore($1) }
+        confirmedHoles.reduce(0) { $0 + holeScore($1) }
     }
 
     private var totalDelta: Int? {
-        let pars = holes.compactMap { $0.par }
-        guard !pars.isEmpty else { return nil }
-        return totalScore - pars.reduce(0, +)
+        let rated = confirmedHoles.filter { $0.par != nil }
+        guard !rated.isEmpty else { return nil }
+        return rated.reduce(0) { $0 + holeScore($1) - ($1.par ?? 0) }
     }
 
     // MARK: - Data

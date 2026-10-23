@@ -65,6 +65,7 @@ struct HomeView: View {
                     .padding(.horizontal, 28)
                     .padding(.bottom, 36)
             }
+            .readableOnExpanded()
         }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showBagEditor) {

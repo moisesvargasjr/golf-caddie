@@ -95,7 +95,7 @@ struct SmallActionButton: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        let color = isAlert ? palette.flag : palette.ink
+        let color = isAlert ? palette.red : palette.ink
         Button(action: action) {
             Group {
                 if isBusy {
@@ -108,7 +108,7 @@ struct SmallActionButton: View {
             .foregroundStyle(color)
             .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: InRoundMetrics.minTouch)
-            .overlay(RoundedRectangle(cornerRadius: 2).stroke(color, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 2).stroke(color, lineWidth: isAlert ? 1.4 : 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

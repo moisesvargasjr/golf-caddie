@@ -78,9 +78,9 @@ struct PhysicalScorecardView: View {
     private var closeRow: some View {
         Button(action: onDismiss) {
             Text("‹ DONE")
-                .font(AppFont.metadata).tracking(1.4)
+                .font(AppFont.stampMd).tracking(1.4)
                 .foregroundStyle(appPalette.ink)
-                .frame(minHeight: 44)
+                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

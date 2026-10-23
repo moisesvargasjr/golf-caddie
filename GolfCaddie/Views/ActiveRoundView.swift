@@ -177,7 +177,10 @@ struct ActiveRoundView: View {
             watchFixTick &+= 1
             if watchFixTick % Self.trailEveryNTicks == 0 { reloadHoleTrail() }
         }
-        .sheet(item: $reviewingHole) { hole in
+        // Full-screen so the expanded layout can split on the hinge (map on
+        // the left page, review on the right); one presentation for both
+        // widths so a fold doesn't dismiss it.
+        .fullScreenCover(item: $reviewingHole) { hole in
             HoleReviewSheet(
                 hole: hole,
                 bag: clubsInPlay,
@@ -190,6 +193,7 @@ struct ActiveRoundView: View {
                     reviewingHole = nil
                 }
             )
+            .adaptiveLayoutRoot()
         }
         #if DEBUG
         .onAppear {
@@ -199,6 +203,7 @@ struct ActiveRoundView: View {
             case "card": showScorecard = true
             case "bag": showClubsInPlay = true
             case "course": showCoursePicker = true
+            case "penalty": showPenaltySheet = true
             default: break
             }
         }
@@ -317,7 +322,8 @@ struct ActiveRoundView: View {
         case .commandPortrait, .twoPage:
             CommandCenterChrome(snapshot: inRoundSnapshot, actions: inRoundActions)
         case .wide:
-            WideRoundLayout(snapshot: inRoundSnapshot, actions: inRoundActions)
+            WideRoundLayout(snapshot: inRoundSnapshot, actions: inRoundActions,
+                            hingeX: wideHingeX)
         case .tabletop:
             TabletopChrome(snapshot: inRoundSnapshot, actions: inRoundActions)
         }
@@ -329,7 +335,9 @@ struct ActiveRoundView: View {
             HStack(alignment: .top, spacing: 8) {
                 holeNav
                 Spacer(minLength: 4)
-                VStack(alignment: .trailing, spacing: 6) {
+                // 12 pt between rows: the stamps' 44 pt hit areas (11 pt above
+                // and below) must not reach the SHOTS pill or the GPS chip.
+                VStack(alignment: .trailing, spacing: 12) {
                     // LYING N is shot-tracking detail — hidden in casual mode.
                     if !controller.isCasualMode {
                         lyingStamp
@@ -868,12 +876,12 @@ struct ActiveRoundView: View {
             Text("⚠ PENALTY")
                 .font(AppFont.stamp)
                 .tracking(1.2)
-                .foregroundStyle(palette.flag)
+                .foregroundStyle(palette.red)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .overlay(
                     RoundedRectangle(cornerRadius: 2)
-                        .stroke(palette.flag, lineWidth: 1)
+                        .stroke(palette.red, lineWidth: 1.2)
                 )
         }
         .buttonStyle(HitTargetPlainButtonStyle())
@@ -1033,6 +1041,13 @@ struct ActiveRoundView: View {
         case .tabletop: return window.height / 2 - stageFrame.minY
         case .overlay, .commandPortrait: return nil
         }
+    }
+
+    /// Hinge x in stage coordinates for H4's map overlays (window centre).
+    private var wideHingeX: CGFloat? {
+        let window = displayContext.windowSize
+        guard window != .zero, stageFrame != .zero else { return nil }
+        return window.width / 2 - stageFrame.minX
     }
 
     private var inRoundSnapshot: InRoundSnapshot {
