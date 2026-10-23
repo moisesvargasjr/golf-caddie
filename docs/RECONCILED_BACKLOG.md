@@ -23,7 +23,7 @@
 
 ---
 
-## Build status (updated 2026-06-28)
+## Build status (updated 2026-10-22)
 
 - **✅ Merged to `main`:**
   - _Foundations (night-1):_ **B2** (command idempotency), **B3** (shot provenance +
@@ -41,12 +41,43 @@
     6/18, putt err 0.89/hole, placement 12.0 m — matching/beating the R1 prototype);
     **114 unit tests green**. The B5 segmentation was hardened here (window by last-shot
     time, robust to confirm inversions).
+  - _FT5/FT6 fixes (2026-06-30 → 07-02, shipped in build 21):_ **B24** (watch input
+    redesign — PUTT +1 primary key) and **B28** (wedge chips near the green aren't putts)
+    via the `watch/input-redesign` merge; **B25** (watch stroke edit — tap a row for club
+    grid + delete); **B29** (course-picker pull-to-refresh); **B30** (phone PUTT exempt
+    from the double-tap guard — f977364, issue #5 closed); **B31** (`isPutt` derived from
+    the club on every write/edit path); **B32** (watch layout scales to the actual screen
+    size); **B9** (green flag, you→green line, tee framing + compact in-round yardage
+    card). The B26 putt debounce stays **reverted**.
+  - _Custom clubs (PR #12, build 22):_ **B33** (data-driven `Club` model + club table,
+    rename/create/delete editor, 14-club cap lifted, semantic putter flag on the watch
+    wire) and **B34** (glasses shot path guarded against doubled tap events).
+  - _Watch standalone (PRs #14, #15):_ the **watch-standalone spike** (on-wrist GPS,
+    course cache, workout route, local yardage, telemetry) and the **glance-first watch
+    UI** (hero yardage, wrist-down glance, club follows the distance).
+  - _Finish Hole (b68b1c4):_ one check per hole; `HoleFinishReconciler` reconciles the
+    tracked strokes against the entered score. Tee snapping + the watch-track comparison
+    script landed alongside (cedb2bd, field test 1).
+- **🟡 Done, pending merge (stacked — merge in this order):**
+  - **Clubs in play** (PR #16) — per-round club pick (`Round.clubsLeftOut`, v7
+    migration) for watch, glasses and phone, editable mid-round from the **Bag** cell.
+    200 tests green; Bag-sheet tap-through verified in the simulator (XCUITest).
+  - **Move stroke to hole** (PR #19, on #16) — "Move to hole…" refiles a misfiled
+    stroke in one write. 205 tests green.
+  - **Watch Finish Hole layout fix** (PR #20, on #19) — Finish Hole sits under the
+    stroke count so a long scorecard can't push it off-screen; `HOLE 10 · 1 PEN` label.
+- **🔨 In progress:**
+  - **B35 — watch GPS first.** Prefer the watch's own fix over the phone's for shot
+    locations and yardage; record `locationSource` on each shot and the watch↔phone
+    disagreement, so field rounds show which fix won and by how much. (PRs #17, #18.)
+  - **B36 — iPhone Duo adaptive layouts.** Make the phone screens adapt to the iPhone
+    Duo's size classes / canvas instead of assuming a single-pane iPhone.
 - **✅ Resolved decision — D1:** `lastShot` is **CLUB-ONLY, no distance** (see §2 D1 and
   B16). Do not relitigate.
 - **🟢 Draft / hardware-gated:** **B23** (glasses club-scroll fix — root-caused, guarded
   fix on **draft PR #3** in the glasses repo; **NEEDS G2 CONFIRMATION**).
-- **⏳ Not started:** B1 (watch auto-log card), B9, B10, B11, B12, B13, B15, B18, B19,
-  B22.
+- **⏳ Not started:** B1 (watch auto-log card), B10, B11, B12, B13, B15, B18, B19,
+  B22 (root-caused glasses-side — see §2.7).
 - **🔬 Merged but device-unverified:** the B7 live-capture **dedup** (a manual MARK-SHOT
   collapsing into a watch auto-detect) is unit-tested but wants a real round on the
   watch to confirm the feel; B4's syncing chip and B17's staleness/battery want a
