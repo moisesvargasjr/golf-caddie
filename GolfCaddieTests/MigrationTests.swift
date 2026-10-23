@@ -13,7 +13,8 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(
             Database.migrator.migrations,
             ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
-             "v4_shot_putt_confidence", "v5_custom_clubs", "v6_shot_excluded"]
+             "v4_shot_putt_confidence", "v5_custom_clubs", "v6_shot_excluded",
+             "v7_round_clubs_left_out"]
         )
     }
 

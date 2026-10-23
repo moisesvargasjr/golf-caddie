@@ -12,6 +12,7 @@ import Foundation
 /// Invoked via Xcode 27 `devicectl`:
 ///   devicectl device process launch -d <iphone> com.moisesvargasjr.golfcaddie \
 ///     -DebugStartRound 1 -DebugInjectSwings 3 -DebugInjectGap 1.0 -DebugClub 7i
+///     [-DebugClubsLeftOut threeWood,lobWedge]
 ///   devicectl device simulate location coordinate -d <iphone> --latitude .. --longitude ..
 /// then pull golfcaddie.sqlite and inspect the shot rows.
 ///
@@ -34,7 +35,11 @@ enum DebugHarness {
         }
         if startRound, !controller.isActive {
             let startHole = d.integer(forKey: "DebugStartHole")
-            try? controller.startRound(startingHole: startHole > 0 ? startHole : 1)
+            // Comma-separated bag ids left home, e.g. -DebugClubsLeftOut threeWood,lobWedge
+            let leftOut = (d.string(forKey: "DebugClubsLeftOut") ?? "")
+                .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            try? controller.startRound(startingHole: startHole > 0 ? startHole : 1,
+                                       clubsLeftOut: leftOut)
         }
         guard count > 0 else { return }
 
