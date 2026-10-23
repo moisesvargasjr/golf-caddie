@@ -37,8 +37,9 @@ enum ShotContract {
     /// is not inflated by background trail uploads.
     static let trailKey = "trail"
     /// Seconds between queued trail flushes while a session runs (also flushed on
-    /// hole change / Finish Hole and at stop).
-    static let trailFlushInterval: TimeInterval = 30
+    /// hole change / Finish Hole and at stop). 60 s: fewer radio wakes; hole-change
+    /// and stop flushes carry the timing-critical data.
+    static let trailFlushInterval: TimeInterval = 60
 }
 
 /// The watch's own GPS fix at a swing / tap. The phone prefers it over its own

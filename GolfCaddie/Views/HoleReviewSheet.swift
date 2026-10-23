@@ -135,6 +135,8 @@ struct HoleReviewSheet: View {
         }
         .presentationBackground(palette.paper)
         .themedRoot()
+        .onAppear { HolesUnderEdit.begin(hole.id) } // a late watch trail must not re-lay this hole under the user
+        .onDisappear { HolesUnderEdit.end(hole.id) }
         .sheet(isPresented: $showPenaltySheet) {
             PenaltySheet(
                 onPick: { type in addPenalty(type: type) },

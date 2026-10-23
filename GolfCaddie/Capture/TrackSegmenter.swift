@@ -144,16 +144,36 @@ enum TrackSegmenter {
         detectStops(in: try trail(forHole: hole, in: round, now: now), config: config)
     }
 
+    /// Everything per-round that hole windowing needs, read ONCE so a pass over
+    /// all of a round's holes doesn't re-read the holes, shots and track per hole.
+    struct RoundTrack {
+        let round: Round
+        let holes: [Hole]
+        let trail: [TracePoint]
+        let lastShotTimes: [UUID: Date]
+
+        func window(for hole: Hole, now: Date = Date()) -> ClosedRange<Date>? {
+            TrackSegmenter.timeWindow(forHole: hole, roundStart: round.startedAt, holes: holes,
+                                      now: now, lastShotTimes: lastShotTimes)
+        }
+
+        func trail(for hole: Hole, now: Date = Date()) -> [TracePoint] {
+            TrackSegmenter.points(trail, in: window(for: hole, now: now))
+        }
+    }
+
+    static func roundTrack(for round: Round) throws -> RoundTrack {
+        let holes = try HoleRepository.holesForRound(round.id)
+        return RoundTrack(round: round, holes: holes,
+                          trail: try TracePointRepository.preferredTrail(roundID: round.id),
+                          lastShotTimes: try lastShotTimesByHole(holes))
+    }
+
     /// The round's PREFERRED trail (watch points where the watch covered, else the
     /// phone's: B38) sliced to the hole's time window. What Path B reads, and what
     /// hand-placed pins snap to.
     static func trail(forHole hole: Hole, in round: Round, now: Date = Date()) throws -> [TracePoint] {
-        let holes = try HoleRepository.holesForRound(round.id)
-        let all = try TracePointRepository.preferredTrail(roundID: round.id)
-        let lastShotTimes = try lastShotTimesByHole(holes)
-        let window = timeWindow(forHole: hole, roundStart: round.startedAt, holes: holes,
-                                now: now, lastShotTimes: lastShotTimes)
-        return points(all, in: window)
+        try roundTrack(for: round).trail(for: hole, now: now)
     }
 
     /// Latest stroke timestamp per hole — the play-order boundary that makes

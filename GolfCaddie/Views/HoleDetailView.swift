@@ -24,6 +24,7 @@ struct HoleDetailView: View {
     @AppStorage("units") private var unitsRaw: String = Units.yards.rawValue
 
     @State private var holes: [Hole]
+    @State private var lockedHoleIDs: [UUID] = []
     @State private var index: Int
     @State private var shots: [Shot] = []
     @State private var penaltyCount: Int = 0
@@ -477,6 +478,14 @@ struct HoleDetailView: View {
             }
         }
         .themedRoot()
+        .onAppear { // a late watch trail must not re-lay holes open here
+            lockedHoleIDs = holes.map(\.id)
+            lockedHoleIDs.forEach(HolesUnderEdit.begin)
+        }
+        .onDisappear {
+            lockedHoleIDs.forEach(HolesUnderEdit.end)
+            lockedHoleIDs = []
+        }
     }
 
     // MARK: - Ledger section

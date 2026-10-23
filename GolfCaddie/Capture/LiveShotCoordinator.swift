@@ -159,13 +159,32 @@ final class LiveShotCoordinator {
         }
     }
 
+    /// Serial and off the main actor: a reconnect can deliver hours of trail at
+    /// once, and the DB work (round lookup, dedupe, insert) must not stall the UI
+    /// or the command replay running on main. Serial keeps batches in order.
+    private let trailQueue = DispatchQueue(label: "golfcaddie.trail-ingest", qos: .utility)
+
     private func ingestTrail(_ batch: WatchTrailBatch?) {
         guard let batch else { return }
-        do {
-            let result = try TraceIngest.ingest(batch)
-            if !result.roundIDs.isEmpty { controller?.watchTrailArrived(inRounds: result.roundIDs) }
-        } catch {
-            NSLog("LiveShotCoordinator: trail batch \(batch.batchId) not stored: \(error)")
+        trailQueue.async { [weak self] in
+            do {
+                let result = try TraceIngest.ingest(batch)
+                guard !result.spans.isEmpty else { return }
+                // Coalesced + debounced on main; one re-lay pass per burst.
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.controller?.noteWatchTrail(result.spans) }
+                }
+            } catch {
+                NSLog("LiveShotCoordinator: trail batch \(batch.batchId) not stored: \(error)")
+            }
+        }
+    }
+
+    /// Awaitable point for tests: every trail batch received so far is stored and
+    /// its notification delivered to the controller.
+    func waitUntilTrailIdle() async {
+        await withCheckedContinuation { continuation in
+            trailQueue.async { DispatchQueue.main.async { continuation.resume() } }
         }
     }
 

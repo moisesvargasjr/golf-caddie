@@ -7,13 +7,18 @@ enum TraceIngest {
     struct Result: Equatable {
         /// Rows actually inserted (0 for a replayed batch).
         var inserted: Int
-        /// Rounds that received at least one new point.
-        var roundIDs: Set<UUID>
+        /// Per round that received at least one new point, the time span of the batch's fixes.
+        var spans: [UUID: ClosedRange<Date>]
+        /// Fixes that matched no round and were discarded.
+        var dropped: Int = 0
+
+        var roundIDs: Set<UUID> { Set(spans.keys) }
     }
 
     /// The watch may start recording a little before the phone round, and a round
-    /// is ended a little after the last fix; tolerate that much either side.
-    static let slackBeforeStart: TimeInterval = 120
+    /// is ended a little after the last fix; tolerate that much either side. (A
+    /// watch workout often starts well before the phone round, hence 10 minutes.)
+    static let slackBeforeStart: TimeInterval = 600
     static let slackAfterEnd: TimeInterval = 300
 
     /// Splits `fixes` by the round whose time window contains each one. A fix that
@@ -40,8 +45,13 @@ enum TraceIngest {
     static func ingest(_ batch: WatchTrailBatch) throws -> Result {
         let rounds = try RoundRepository.allRounds()
         var inserted = 0
-        var touched = Set<UUID>()
-        for (roundID, fixes) in assign(batch.fixes, rounds: rounds) {
+        var spans: [UUID: ClosedRange<Date>] = [:]
+        let assigned = assign(batch.fixes, rounds: rounds)
+        let dropped = batch.fixes.count - assigned.values.reduce(0) { $0 + $1.count }
+        if dropped > 0 {
+            NSLog("TraceIngest: batch \(batch.batchId) dropped \(dropped) of \(batch.fixes.count) fixes (no round)")
+        }
+        for (roundID, fixes) in assigned {
             let points = fixes.enumerated().map { index, fix in
                 TracePoint(id: pointID(batch: batch.batchId, index: index), roundID: roundID,
                            timestamp: Date(timeIntervalSince1970: fix.timestamp),
@@ -49,10 +59,12 @@ enum TraceIngest {
                            accuracy: fix.horizontalAccuracy, source: .watch)
             }
             let added = try TracePointRepository.insertWatchPoints(points)
-            if added > 0 { touched.insert(roundID) }
+            if added > 0, let first = points.map(\.timestamp).min(), let last = points.map(\.timestamp).max() {
+                spans[roundID] = first...last
+            }
             inserted += added
         }
-        return Result(inserted: inserted, roundIDs: touched)
+        return Result(inserted: inserted, spans: spans, dropped: dropped)
     }
 
     /// Deterministic per (batch, position): a redelivered batch maps to the same

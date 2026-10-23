@@ -116,7 +116,7 @@ final class WatchTrailWireTests: XCTestCase {
     func testTrailTransferKeyIsNotTheRoundPayloadKey() {
         // The watch's "SYNCING N" chip counts payloadKey transfers only.
         XCTAssertNotEqual(ShotContract.trailKey, ShotContract.payloadKey)
-        XCTAssertEqual(ShotContract.trailFlushInterval, 30)
+        XCTAssertEqual(ShotContract.trailFlushInterval, 60)
     }
 }
 
@@ -147,10 +147,37 @@ final class TrailMergeTests: XCTestCase {
 
     func testGapsOverFifteenSecondsSplitTheWatchSpan() {
         let watch = [p(0, .watch, lat: 34), p(10, .watch, lat: 34), p(40, .watch, lat: 34), p(50, .watch, lat: 34)]
-        let phone = [p(5, nil, lat: 33), p(25, nil, lat: 33), p(45, nil, lat: 33)]
+        let phone = [p(5, nil, lat: 34), p(25, nil, lat: 34), p(45, nil, lat: 34)]
         let merged = TrailMerge.preferred(watch + phone)
         let kept = merged.filter { $0.source != .watch }.map { $0.timestamp.timeIntervalSince(t0) }
-        XCTAssertEqual(kept, [25], "only the phone point in the 30 s watch gap survives")
+        XCTAssertEqual(kept, [25], "only the plausible phone point in the 30 s watch gap survives")
+    }
+
+    // M1: a short watch gap is NOT back-filled with a phone trail that is nowhere near the watch.
+    func testShortWatchGapIsLeftEmptyWhenThePhoneWasFarAway() {
+        let watch = [p(0, .watch, lat: 34), p(10, .watch, lat: 34), p(40, .watch, lat: 34), p(50, .watch, lat: 34)]
+        let cart = [p(25, nil, lat: 33)] // 111 km away
+        let merged = TrailMerge.preferred(watch + cart)
+        XCTAssertTrue(merged.allSatisfy(\.isWatch), "interpolating across the gap is fine; a cart point is not")
+    }
+
+    func testPhonePointNearThePathOnBothSidesFillsAShortGap() {
+        let watch = [p(0, .watch, lat: 34.0000), p(10, .watch, lat: 34.0000),
+                     p(40, .watch, lat: 34.0002), p(50, .watch, lat: 34.0002)] // 22 m apart
+        let phone = [p(25, nil, lat: 34.0001)]
+        XCTAssertEqual(TrailMerge.preferred(watch + phone).filter { !$0.isWatch }.count, 1)
+    }
+
+    func testALongWatchGapIsFilledByThePhoneWhateverItSays() {
+        let watch = [p(0, .watch, lat: 34), p(10, .watch, lat: 34), p(300, .watch, lat: 34), p(310, .watch, lat: 34)]
+        let phone = [p(100, nil, lat: 33), p(200, nil, lat: 33)] // watch was off for 290 s
+        XCTAssertEqual(TrailMerge.preferred(watch + phone).filter { !$0.isWatch }.count, 2)
+    }
+
+    func testPhonePointsBeforeAndAfterTheWatchTrailAreKept() {
+        let watch = [p(100, .watch, lat: 34), p(110, .watch, lat: 34)]
+        let phone = [p(0, nil, lat: 33), p(200, nil, lat: 33)]
+        XCTAssertEqual(TrailMerge.preferred(watch + phone).filter { !$0.isWatch }.count, 2)
     }
 
     func testGapOfExactlyFifteenSecondsStillCounts() {
@@ -267,7 +294,9 @@ final class WatchTrailStoreTests: XCTestCase {
     func testSmallSlackBeforeTheRoundStartIsTolerated() {
         let r = round(1_000, nil)
         XCTAssertEqual(TraceIngest.assign(batch(from: 950, count: 1).fixes, rounds: [r]).keys.count, 1)
-        XCTAssertTrue(TraceIngest.assign(batch(from: 500, count: 1).fixes, rounds: [r]).isEmpty)
+        XCTAssertEqual(TraceIngest.assign(batch(from: 500, count: 1).fixes, rounds: [r]).keys.count, 1,
+                       "a watch workout often starts well before the phone round (10 min of slack)")
+        XCTAssertTrue(TraceIngest.assign(batch(from: 300, count: 1).fixes, rounds: [r]).isEmpty)
     }
 
     func testFixesOutsideEveryRoundAreDropped() {
@@ -282,6 +311,8 @@ final class WatchTrailStoreTests: XCTestCase {
         let result = try TraceIngest.ingest(batch(from: 10))
         XCTAssertEqual(result.inserted, 5)
         XCTAssertEqual(result.roundIDs, [round.id])
+        XCTAssertEqual(result.dropped, 0)
+        XCTAssertEqual(result.spans[round.id], t0.addingTimeInterval(10)...t0.addingTimeInterval(18))
         let points = try TracePointRepository.pointsForRound(round.id)
         XCTAssertEqual(points.count, 5)
         XCTAssertTrue(points.allSatisfy { $0.source == .watch })
@@ -315,6 +346,7 @@ final class WatchTrailStoreTests: XCTestCase {
         let result = try TraceIngest.ingest(batch(from: 10))
         XCTAssertEqual(result.inserted, 0)
         XCTAssertTrue(result.roundIDs.isEmpty)
+        XCTAssertEqual(result.dropped, 5, "fixes that matched no round are counted (and logged)")
     }
 
     // MARK: preferred trail + nearest
@@ -353,10 +385,11 @@ final class WatchTrailStoreTests: XCTestCase {
         func steps(from: Date, to: Date) async -> Int { .max }
     }
 
-    func testTrailBatchIsStoredEvenBeforeAControllerIsAttached() throws {
+    func testTrailBatchIsStoredEvenBeforeAControllerIsAttached() async throws {
         let round = try TestDatabase.seedRound(startedAt: t0)
         let coordinator = LiveShotCoordinator(steps: Walked())
         coordinator.ingest(.trail(batch(from: 10)))
+        await coordinator.waitUntilTrailIdle() // the DB work runs off the main actor
         XCTAssertEqual(try TracePointRepository.count(forRound: round.id), 5, "must not wait behind controller == nil")
     }
 
@@ -372,6 +405,7 @@ final class WatchTrailStoreTests: XCTestCase {
             WatchFix(latitude: 34, longitude: -117, horizontalAccuracy: 4, timestamp: now.timeIntervalSince1970)])))
         coordinator.ingest(.command(.puttPlusOne, sentAt: now))
         await coordinator.waitUntilIdle()
+        await coordinator.waitUntilTrailIdle()
         XCTAssertEqual(controller.currentHoleShots.count, 2)
         XCTAssertEqual(try TracePointRepository.count(forRound: XCTUnwrap(controller.currentRound).id), 1)
     }

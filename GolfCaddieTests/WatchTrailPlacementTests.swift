@@ -61,12 +61,31 @@ final class WatchTrailPlacementTests: XCTestCase {
         TracePoint(id: UUID(), roundID: UUID(), timestamp: t0, latitude: lat, longitude: lon, accuracy: 4)
     }
 
-    func testATapWithin15MetersSnapsToTheNearestTrailPoint() {
+    func testATapWithin8MetersSnapsToTheNearestTrailPoint() {
         let trail = [tp(33.0000), tp(33.0010)]
         let tap = CLLocationCoordinate2D(latitude: 33.00105, longitude: lon) // ~5.5 m from the 2nd point
         let result = TrailSnap.snap(tap, to: trail)
         XCTAssertTrue(result.snapped)
         XCTAssertEqual(result.coordinate.latitude, 33.0010, accuracy: 1e-9)
+    }
+
+    func testATapBetween8And15MetersNoLongerSnaps() {
+        let tap = CLLocationCoordinate2D(latitude: 33.00112, longitude: lon) // ~13 m from the 2nd point
+        XCTAssertFalse(TrailSnap.snap(tap, to: [tp(33.0010)]).snapped)
+    }
+
+    func testSnapsOnlyToWatchPointsWhenTheTrailHasAny() {
+        func point(_ lat: Double, _ source: TracePointSource?) -> TracePoint {
+            TracePoint(id: UUID(), roundID: UUID(), timestamp: t0, latitude: lat, longitude: lon, accuracy: 4,
+                       source: source)
+        }
+        let trail = [point(33.0000, nil), point(33.0010, .watch)]
+        let nearPhone = CLLocationCoordinate2D(latitude: 33.00003, longitude: lon) // 3 m from a phone point
+        XCTAssertFalse(TrailSnap.snap(nearPhone, to: trail).snapped, "a cart point is not the golfer's path")
+        let nearWatch = CLLocationCoordinate2D(latitude: 33.00103, longitude: lon)
+        XCTAssertTrue(TrailSnap.snap(nearWatch, to: trail).snapped)
+        // No watch data on the hole at all: the phone trail is all there is.
+        XCTAssertTrue(TrailSnap.snap(nearPhone, to: [point(33.0000, nil)]).snapped)
     }
 
     func testATapBeyond15MetersStaysWhereItWasTapped() {
@@ -77,7 +96,7 @@ final class WatchTrailPlacementTests: XCTestCase {
     }
 
     func testSnapRadiusIsFifteenMetersAndAnEmptyTrailNeverSnaps() {
-        XCTAssertEqual(TrailSnap.radiusMeters, 15)
+        XCTAssertEqual(TrailSnap.radiusMeters, 8)
         let tap = CLLocationCoordinate2D(latitude: 33.0, longitude: lon)
         XCTAssertFalse(TrailSnap.snap(tap, to: []).snapped)
     }
@@ -93,14 +112,14 @@ final class WatchTrailPlacementTests: XCTestCase {
         return (round, hole, seeded)
     }
 
-    func testPinningNearTheWatchTrailSnapsAndTagsTrack() throws {
+    func testPinningNearTheWatchTrailSnapsButIsTaggedManual() throws {
         let (round, _, shots) = try seedHoleWithTrail()
         try seedCartPhoneTrail(round.id)
         _ = try TraceIngest.ingest(watchWalk())
         let tap = CLLocationCoordinate2D(latitude: ballLat + 0.00003, longitude: lon) // ~3 m off the ball dwell
         let pinned = ShotPlacement.pinned(shots[0], at: tap)
-        XCTAssertEqual(pinned.locationSource, .track)
-        XCTAssertEqual(pinned.latitude ?? 0, ballLat, accuracy: 1e-6)
+        XCTAssertEqual(pinned.locationSource, .manual, "every hand placement is a user decision, snapped or not")
+        XCTAssertEqual(pinned.latitude ?? 0, ballLat, accuracy: 1e-6, "but it still snaps")
         XCTAssertTrue(pinned.hadGPS)
         XCTAssertNil(pinned.gpsAccuracy)
         XCTAssertNil(pinned.locationDisagreementMeters)
@@ -137,7 +156,7 @@ final class WatchTrailPlacementTests: XCTestCase {
         try trace(round.id, 100, lat: 33.0010, .watch)
         try trace(round.id, 104, lat: 33.0010, .watch)
         try controller.insertMissingShot(at: .init(latitude: 33.00103, longitude: lon), club: nil)
-        XCTAssertEqual(controller.currentHoleShots.last?.locationSource, .track)
+        XCTAssertEqual(controller.currentHoleShots.last?.locationSource, .manual)
         XCTAssertEqual(try XCTUnwrap(controller.currentHoleShots.last?.latitude), 33.0010, accuracy: 1e-9)
         try controller.insertMissingShot(at: .init(latitude: 33.01, longitude: lon), club: nil)
         XCTAssertEqual(controller.currentHoleShots.last?.locationSource, .manual)
@@ -194,7 +213,7 @@ final class WatchTrailPlacementTests: XCTestCase {
         XCTAssertTrue(before.allSatisfy { meters($0.latitude ?? 0, cartLat) < 15 })
 
         let result = try TraceIngest.ingest(watchWalk())
-        controller.watchTrailArrived(inRounds: result.roundIDs)
+        controller.watchTrailArrived(spans: result.spans)
 
         let after = try ShotRepository.shotsForHole(hole.id)
         XCTAssertTrue(after.allSatisfy { $0.locationSource == .track })
@@ -212,7 +231,7 @@ final class WatchTrailPlacementTests: XCTestCase {
         try ShotRepository.update(shots[0])
 
         let result = try TraceIngest.ingest(watchWalk())
-        controller.watchTrailArrived(inRounds: result.roundIDs)
+        controller.watchTrailArrived(spans: result.spans)
 
         let after = try ShotRepository.shotsForHole(hole.id)
         XCTAssertEqual(after[0].latitude ?? 0, 33.0100, accuracy: 1e-9)
@@ -227,7 +246,7 @@ final class WatchTrailPlacementTests: XCTestCase {
         shots[1].locationSource = .watch
         try ShotRepository.update(shots[1])
         let result = try TraceIngest.ingest(watchWalk())
-        controller.watchTrailArrived(inRounds: result.roundIDs)
+        controller.watchTrailArrived(spans: result.spans)
         let after = try ShotRepository.shotsForHole(hole.id)
         XCTAssertEqual(after.map(\.latitude), shots.map(\.latitude))
     }
@@ -237,13 +256,100 @@ final class WatchTrailPlacementTests: XCTestCase {
         try seedCartPhoneTrail(round.id)
         // Never placed: the strokes are plain phone strokes, not system-placed.
         let result = try TraceIngest.ingest(watchWalk())
-        controller.watchTrailArrived(inRounds: result.roundIDs)
+        controller.watchTrailArrived(spans: result.spans)
         XCTAssertTrue(try ShotRepository.shotsForHole(hole.id).allSatisfy { $0.latitude == nil })
 
         controller.placeCurrentHoleFromTrack()
         let once = try ShotRepository.shotsForHole(hole.id).map(\.latitude)
-        controller.watchTrailArrived(inRounds: [round.id])
-        controller.watchTrailArrived(inRounds: [round.id])
+        let everything = [round.id: t0.addingTimeInterval(-3_600)...t0.addingTimeInterval(3_600)]
+        controller.watchTrailArrived(spans: everything)
+        controller.watchTrailArrived(spans: everything)
         XCTAssertEqual(try ShotRepository.shotsForHole(hole.id).map(\.latitude), once)
+    }
+
+    // MARK: review fixes
+
+    /// H1: Path B lays the hole, the user drags a pin (it snaps), a trail batch arrives:
+    /// the pin must not move and the hole must not be re-laid.
+    func testASnappedHandPlacedPinSurvivesALateTrailBatch() throws {
+        let (controller, round, hole) = try activeControllerWithPlacedHole()
+        try seedCartPhoneTrail(round.id)
+        _ = try TraceIngest.ingest(watchWalk(tee: 30, ball: 330)) // first batch: the walk
+        controller.placeCurrentHoleFromTrack()
+        var shots = try ShotRepository.shotsForHole(hole.id)
+        // The user drags stroke 1 onto the trail (snaps to the ball dwell), keeping source reconstructed.
+        let dragTo = CLLocationCoordinate2D(latitude: ballLat + 0.00003, longitude: lon)
+        var dragged = ShotPlacement.pinned(shots[0], at: dragTo)
+        dragged.confidence = 1.0
+        try ShotRepository.update(dragged)
+        shots = try ShotRepository.shotsForHole(hole.id)
+
+        // More trail arrives (e.g. the batch that covers the tee).
+        let late = WatchTrailBatch(batchId: UUID(), fixes: (0..<20).map {
+            WatchFix(latitude: teeLat - 0.0005, longitude: lon, horizontalAccuracy: 4,
+                     timestamp: t0.timeIntervalSince1970 + 380 + Double($0) * 2)
+        })
+        let result = try TraceIngest.ingest(late)
+        controller.watchTrailArrived(spans: result.spans)
+
+        let after = try ShotRepository.shotsForHole(hole.id)
+        XCTAssertEqual(after.map(\.latitude), shots.map(\.latitude), "no stroke on the hole moved")
+        XCTAssertEqual(after[0].locationSource, .manual)
+    }
+
+    /// M4: a hole open in the review sheet / hole detail is never re-laid under the user.
+    func testAHoleOpenForEditingIsNotRelaid() throws {
+        let (controller, round, hole) = try activeControllerWithPlacedHole()
+        try seedCartPhoneTrail(round.id)
+        controller.placeCurrentHoleFromTrack()
+        let before = try ShotRepository.shotsForHole(hole.id).map(\.latitude)
+        HolesUnderEdit.begin(hole.id)
+        let result = try TraceIngest.ingest(watchWalk())
+        controller.watchTrailArrived(spans: result.spans)
+        XCTAssertEqual(try ShotRepository.shotsForHole(hole.id).map(\.latitude), before)
+        HolesUnderEdit.end(hole.id)
+        XCTAssertFalse(HolesUnderEdit.contains(hole.id))
+        controller.watchTrailArrived(spans: result.spans)
+        XCTAssertNotEqual(try ShotRepository.shotsForHole(hole.id).map(\.latitude), before)
+    }
+
+    func testHolesUnderEditNest() {
+        let id = UUID()
+        HolesUnderEdit.begin(id); HolesUnderEdit.begin(id)
+        HolesUnderEdit.end(id)
+        XCTAssertTrue(HolesUnderEdit.contains(id))
+        HolesUnderEdit.end(id)
+        XCTAssertFalse(HolesUnderEdit.contains(id))
+    }
+
+    /// H2: a reconnect burst triggers ONE re-lay pass per round.
+    func testABurstOfFiftyBatchesRelaysOncePerRound() async throws {
+        let (controller, round, _) = try activeControllerWithPlacedHole()
+        try seedCartPhoneTrail(round.id)
+        controller.placeCurrentHoleFromTrack()
+        controller.relayDebounce = 0.1
+        for i in 0..<50 {
+            let batch = WatchTrailBatch(batchId: UUID(), fixes: [
+                WatchFix(latitude: teeLat, longitude: lon, horizontalAccuracy: 4,
+                         timestamp: t0.timeIntervalSince1970 + 40 + Double(i) * 2)])
+            let result = try TraceIngest.ingest(batch)
+            controller.noteWatchTrail(result.spans)
+        }
+        XCTAssertEqual(controller.relayPassCount, 0, "nothing runs until the burst settles")
+        try await Task.sleep(nanoseconds: 500_000_000)
+        XCTAssertEqual(controller.relayPassCount, 1)
+    }
+
+    /// H2: only holes whose time window overlaps the new fixes are re-laid.
+    func testBatchesOutsideAHolesWindowDoNotRelayIt() throws {
+        let (controller, round, hole) = try activeControllerWithPlacedHole()
+        try seedCartPhoneTrail(round.id)
+        controller.placeCurrentHoleFromTrack()
+        let before = try ShotRepository.shotsForHole(hole.id).map(\.latitude)
+        _ = try TraceIngest.ingest(watchWalk()) // better data exists, but the reported span is elsewhere
+        // A walk that ended long before this hole's window opened (round start - 60 s).
+        let early = t0.addingTimeInterval(-3_000)...t0.addingTimeInterval(-2_900)
+        controller.watchTrailArrived(spans: [round.id: early])
+        XCTAssertEqual(try ShotRepository.shotsForHole(hole.id).map(\.latitude), before)
     }
 }
