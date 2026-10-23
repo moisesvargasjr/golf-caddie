@@ -84,15 +84,11 @@ struct HoleReviewSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         reviewSections(showsAdjustPins: true)
-                        confirmButton
-                            .padding(.horizontal, 24)
-                            .padding(.top, 18)
                         loadErrorText
-                        Spacer(minLength: 36)
+                        Spacer(minLength: 16)
                     }
                 }
-                // Keep the last rows clear of the home indicator.
-                .contentMargins(.bottom, 24, for: .scrollContent)
+                .safeAreaInset(edge: .bottom, spacing: 0) { confirmBar }
             }
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
@@ -161,24 +157,81 @@ struct HoleReviewSheet: View {
                 EditableHoleMap(shots: shots, holeID: hole.id,
                                 onShotMoved: { shot, coord in moveShot(shot, to: coord) },
                                 fitAlso: greenCoordinate.map { [$0] } ?? [],
-                                framingScale: 1.35)
+                                framingScale: 1.1)
             }
             .frame(width: wideMapWidth)
             // Hinge band: nothing interactive here.
             Color.clear.frame(width: RoundStageGeometry.hingeGutter * 2)
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        reviewSections(showsAdjustPins: false)
-                        loadErrorText
-                        Spacer(minLength: 16)
-                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    wideSections
+                    loadErrorText
+                    Spacer(minLength: 16)
                 }
-                confirmButton
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) { confirmBar }
         }
+    }
+
+    /// Confirm pinned at the bottom on a paper bar; content scrolls above it
+    /// and the bar itself respects the home indicator.
+    private var confirmBar: some View {
+        confirmButton
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            // Opaque down through the home-indicator area so nothing scrolls
+            // visibly beneath the bar.
+            .background(palette.paper.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) { Rectangle().fill(palette.rule).frame(height: 1) }
+    }
+
+    /// Expanded right page: a one-line header, then the shots first (so 3+
+    /// rows show without scrolling at 951×669), then penalties, par, the
+    /// tracked summary and the score.
+    @ViewBuilder
+    private var wideSections: some View {
+        HStack(alignment: .center) {
+            navRow
+            Text("Hole \(hole.holeNumber)")
+                .font(.custom(AppFont.serifName, size: 24).italic().weight(.bold))
+                .foregroundStyle(palette.ink)
+            Stamp(text: isRetro ? "Hole summary" : "Confirm hole")
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+
+        section("Shots (\(shots.count))", content: shotsContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
+
+        section("Penalties (\(penalties.count))", content: penaltiesContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+
+        section("Par", content: parContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+
+        if !shots.isEmpty {
+            HoleReconstructionCard(
+                reconstruction: reconstruction,
+                mode: isReconstructed ? .reconstructed : .tracked,
+                onAdjustPins: nil
+            )
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+        }
+
+        if missingClubsCount > 0 {
+            warning
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+        }
+
+        scoreBlock
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
     }
 
     @ViewBuilder

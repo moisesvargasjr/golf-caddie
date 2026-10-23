@@ -397,6 +397,11 @@ final class WatchTrailStoreTests: XCTestCase {
         let location = LocationManager()
         let controller = RoundController(location: location)
         try controller.startRound()
+        // Isolate from the simulator: if the test host has location permission,
+        // startRound's live tracking would record phone breadcrumbs into this
+        // round and skew trace-point counts.
+        location.stopTracking()
+        location.onLocationUpdate = nil
         let coordinator = LiveShotCoordinator(steps: Walked(), debounceInterval: 0.05)
         coordinator.attach(controller: controller, location: location)
         let now = Date()
@@ -416,6 +421,8 @@ final class WatchTrailStoreTests: XCTestCase {
         controller.phoneFixProvider = { nil }
         controller.watchFixProvider = { nil }
         try controller.startRound()
+        location.stopTracking()            // no live phone breadcrumbs (see above)
+        location.onLocationUpdate = nil
         let round = try XCTUnwrap(controller.currentRound)
         let swingTime = Date().addingTimeInterval(-600)
         // Phone sat in the cart; the watch trail (no WatchFix on the swing) has the golfer.

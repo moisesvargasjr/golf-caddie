@@ -118,7 +118,25 @@ private struct EditableHoleMapKit: UIViewRepresentable {
                 green: green.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lng) }
                     ?? fitAlso.last
             )
-            if let camera = Self.cameraFitting(allCoords, heading: bearing ?? 0) {
+            if !fitAlso.isEmpty {
+                // Review: centre on tee/pins/green with even margins — let
+                // MapKit fit the box (it accounts for the view's real size),
+                // then turn it green-up about that same centre.
+                let box = allCoords.reduce(MKMapRect.null) { rect, coord in
+                    rect.union(MKMapRect(origin: MKMapPoint(coord), size: MKMapSize(width: 1, height: 1)))
+                }
+                let scale = framingScale
+                DispatchQueue.main.async { [weak map] in
+                    guard let map, !box.isNull else { return }
+                    let pad: CGFloat = 40
+                    map.setVisibleMapRect(box, edgePadding: UIEdgeInsets(top: pad, left: pad, bottom: pad, right: pad),
+                                          animated: false)
+                    guard let camera = map.camera.copy() as? MKMapCamera else { return }
+                    camera.heading = bearing ?? 0
+                    camera.centerCoordinateDistance *= scale
+                    map.setCamera(camera, animated: false)
+                }
+            } else if let camera = Self.cameraFitting(allCoords, heading: bearing ?? 0) {
                 camera.centerCoordinateDistance *= framingScale
                 // After this layout pass, so the map already has its new bounds.
                 DispatchQueue.main.async { [weak map] in
