@@ -38,8 +38,9 @@ struct ActiveRoundView: View {
     @State private var roundScoreText: String?
     /// Walked breadcrumbs for the current hole (dotted trail on the map).
     @State private var holeTrail: [CLLocationCoordinate2D] = []
-    /// When the current hole began: last confirmation, else round start.
-    @State private var holeStartedAt: Date?
+    /// Bumped on a slow tick while the yardage comes from the watch, so the
+    /// stamp re-evaluates the 10 s staleness gate without another redraw.
+    @State private var watchFixTick = 0
 
     var body: some View {
         Group {
@@ -160,10 +161,20 @@ struct ActiveRoundView: View {
             stageChrome
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { stageFrame = $0 }
-        .onAppear { refreshRoundScore() }
-        .onChange(of: controller.currentHole?.id) { _, _ in refreshRoundScore() }
-        // Breadcrumbs are written in the background; poll for the trail.
-        .task(id: trailTaskID) { await pollHoleTrail() }
+        .onAppear {
+            refreshRoundScore()
+            reloadHoleTrail()
+        }
+        .onChange(of: controller.currentHole?.id) { _, _ in
+            refreshRoundScore()
+            reloadHoleTrail()
+        }
+        // One slow main-runloop tick (no `.task`: GRDB's sync reads trap in
+        // Swift concurrency). Trail every 5th tick, read off main.
+        .onReceive(Self.slowTick) { _ in
+            watchFixTick &+= 1
+            if watchFixTick % Self.trailEveryNTicks == 0 { reloadHoleTrail() }
+        }
         .sheet(item: $reviewingHole) { hole in
             HoleReviewSheet(
                 hole: hole,
@@ -227,23 +238,11 @@ struct ActiveRoundView: View {
                 onDone: { showClubsInPlay = false }
             )
         }
-        // Expanded (unfolded): the full-width physical card. Folded: the
-        // compact sheet, unchanged.
-        .fullScreenCover(isPresented: physicalScorecardBinding) {
+        // One presentation for both widths, so folding/unfolding while the
+        // card is open swaps its body instead of dismissing it.
+        .fullScreenCover(isPresented: $showScorecard) {
             if let round = controller.currentRound {
-                PhysicalScorecardView(
-                    round: round,
-                    currentHoleNumber: currentHoleNumber,
-                    bag: bag,
-                    curatedCourseId: controller.curatedCourseId,
-                    onDismiss: { showScorecard = false }
-                )
-                .themedRoot()
-            }
-        }
-        .sheet(isPresented: compactScorecardBinding) {
-            if let round = controller.currentRound {
-                InRoundScorecardSheet(
+                AdaptiveScorecardPresentation(
                     round: round,
                     currentHoleNumber: currentHoleNumber,
                     bag: bag,
@@ -407,8 +406,10 @@ struct ActiveRoundView: View {
     private var holeNav: some View {
         HStack(spacing: 4) {
             holeStepChevron("‹") { controller.stepHole(by: -1); mapFollowMode = true }
+                .accessibilityLabel("Previous hole")
             holePill
             holeStepChevron("›") { controller.stepHole(by: 1); mapFollowMode = true }
+                .accessibilityLabel("Next hole")
         }
     }
 
@@ -420,8 +421,7 @@ struct ActiveRoundView: View {
                     .foregroundStyle(palette.ink)
             }
         }
-        .minimumHitTarget()
-        .buttonStyle(.plain)
+        .buttonStyle(HitTargetPlainButtonStyle())
     }
 
     private var holePill: some View {
@@ -446,8 +446,7 @@ struct ActiveRoundView: View {
                 }
             }
         }
-        .minimumHitTarget()
-        .buttonStyle(.plain)
+        .buttonStyle(HitTargetPlainButtonStyle())
     }
 
     private var cardStampButton: some View {
@@ -463,8 +462,7 @@ struct ActiveRoundView: View {
                     .foregroundStyle(palette.ink)
             }
         }
-        .minimumHitTarget()
-        .buttonStyle(.plain)
+        .buttonStyle(HitTargetPlainButtonStyle())
     }
 
     private var gpsIndicator: some View {
@@ -557,8 +555,7 @@ struct ActiveRoundView: View {
                     .foregroundStyle(palette.flag)
             }
         }
-        .minimumHitTarget()
-        .buttonStyle(.plain)
+        .buttonStyle(HitTargetPlainButtonStyle())
     }
 
     // MARK: - Distance card
@@ -714,7 +711,12 @@ struct ActiveRoundView: View {
             // Two action rows: [watch] ↶ · + SHOT · + MISSED, then PUTT +1 ·
             // Finish hole (primary). The watch logs most shots, so manual
             // marking is a small secondary.
-            CompactActionRows(snapshot: inRoundSnapshot, actions: inRoundActions)
+            CompactActionRows(
+                state: InRoundActionState(
+                    canUndo: !(controller.currentHoleShots.isEmpty && controller.currentHolePenalties.isEmpty),
+                    isMarking: isMarkingShot,
+                    watchDetecting: Self.isWatchReachable),
+                actions: inRoundActions)
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
 
@@ -765,8 +767,7 @@ struct ActiveRoundView: View {
                         .stroke(palette.ink, lineWidth: 1)
                 )
         }
-        .minimumHitTarget()
-        .buttonStyle(.plain)
+        .buttonStyle(HitTargetPlainButtonStyle())
     }
 
     private var casualSheet: some View {
@@ -869,8 +870,7 @@ struct ActiveRoundView: View {
                         .stroke(palette.flag, lineWidth: 1)
                 )
         }
-        .minimumHitTarget()
-        .buttonStyle(.plain)
+        .buttonStyle(HitTargetPlainButtonStyle())
     }
 
     /// The bag minus what this round left home — the in-round club pickers.
@@ -1005,8 +1005,10 @@ struct ActiveRoundView: View {
     /// Fix the yardage is measured from (phone today; watch-first after #18).
     private var yardageFix: YardageFix? {
         // Reads WatchFixStore.latest (@Observable) and the phone fix, so a
-        // new watch fix re-renders the yardage.
-        YardageFixAdapter.current(choice: controller.currentLocationChoice())
+        // new watch fix re-renders the yardage; `watchFixTick` re-runs the
+        // 10 s staleness gate so a stale watch fix flips the stamp to PHONE.
+        _ = watchFixTick
+        return YardageFixAdapter.current(choice: controller.currentLocationChoice())
     }
 
     private var stageMode: RoundStageMode {
@@ -1065,7 +1067,8 @@ struct ActiveRoundView: View {
             canUndo: !(controller.currentHoleShots.isEmpty && controller.currentHolePenalties.isEmpty),
             errorText: actionError,
             isFollowingMap: mapFollowMode,
-            watchDetecting: Self.isWatchReachable
+            watchDetecting: Self.isWatchReachable,
+            isCasualMode: controller.isCasualMode
         )
     }
 
@@ -1089,7 +1092,10 @@ struct ActiveRoundView: View {
             },
             openHoleGrid: { showHoleGrid = true },
             linkCourse: { showCoursePicker = true },
-            recenterMap: { mapFollowMode = true }
+            recenterMap: { mapFollowMode = true },
+            addPenalty: { showPenaltySheet = true },
+            toggleCasual: { controller.setCasualMode(!controller.isCasualMode) },
+            unlinkCourse: { controller.setCuratedCourseId(nil) }
         )
     }
 
@@ -1107,9 +1113,6 @@ struct ActiveRoundView: View {
             return (par: hole.par, strokes: shots + pens, confirmed: hole.confirmedAt != nil)
         }
         roundScoreText = InRoundFormat.scoreText(holes: rows)
-        let currentID = controller.currentHole?.id
-        holeStartedAt = holes.filter { $0.id != currentID }.compactMap(\.confirmedAt).max()
-            ?? round.startedAt
     }
 
     private static var isWatchReachable: Bool {
@@ -1118,37 +1121,22 @@ struct ActiveRoundView: View {
         return session.activationState == .activated && session.isReachable
     }
 
-    private var trailTaskID: String {
-        "\(controller.currentHole?.id.uuidString ?? "-")|\(holeStartedAt?.timeIntervalSince1970 ?? 0)"
-    }
+    private static let slowTick = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+    /// 5 × 3 s = trail refresh every 15 s.
+    private static let trailEveryNTicks = 5
 
-    private static let trailRefreshSeconds: UInt64 = 15
-    private static let trailMaxPoints = 400
-
-    /// Reload this hole's breadcrumbs every few seconds (dotted map trail).
-    private func pollHoleTrail() async {
-        while !Task.isCancelled {
-            loadHoleTrail()
-            try? await Task.sleep(nanoseconds: Self.trailRefreshSeconds * 1_000_000_000)
+    /// The current hole's trail, with the same window as any past hole
+    /// (`HoleTrailSource.coordinates(forHoleID:)`), read off main.
+    private func reloadHoleTrail() {
+        guard let holeID = controller.currentHole?.id else {
+            holeTrail = []
+            return
         }
-    }
-
-    private func loadHoleTrail() {
-        guard let round = controller.currentRound else { return }
-        let since = holeStartedAt ?? round.startedAt
-        let coords = HoleTrailSource.coordinates(roundID: round.id, since: since)
-        let stride = max(1, coords.count / Self.trailMaxPoints)
-        holeTrail = coords.enumerated().compactMap { $0.offset % stride == 0 ? $0.element : nil }
-    }
-
-    private var physicalScorecardBinding: Binding<Bool> {
-        Binding(get: { showScorecard && displayContext.layoutClass == .expanded },
-                set: { if !$0 { showScorecard = false } })
-    }
-
-    private var compactScorecardBinding: Binding<Bool> {
-        Binding(get: { showScorecard && displayContext.layoutClass != .expanded },
-                set: { if !$0 { showScorecard = false } })
+        HoleTrailSource.load(forHoleID: holeID) { coords in
+            // Drop a late result for a hole we've already left.
+            guard controller.currentHole?.id == holeID else { return }
+            holeTrail = coords
+        }
     }
 
     // MARK: - Computed accessors
@@ -1162,7 +1150,7 @@ struct ActiveRoundView: View {
     /// Yards reading from the curated course (if linked) for the current hole.
     private var curatedYardsForCurrentHole: Int? {
         guard let courseId = controller.curatedCourseId,
-              let course = try? CourseDataRepository.course(byId: courseId),
+              let course = CourseLookupCache.shared.course(courseId),
               let h = course.holes.first(where: { $0.number == currentHoleNumber }),
               let y = h.yards
         else { return nil }
@@ -1187,7 +1175,7 @@ struct ActiveRoundView: View {
         if let courseId = controller.curatedCourseId,
            let hole = controller.currentHole {
             let local = try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: hole.holeNumber)
-            let curated = (try? CourseDataRepository.course(byId: courseId))?
+            let curated = CourseLookupCache.shared.course(courseId)?
                 .holes.first(where: { $0.number == hole.holeNumber })
             if let p = local?.tee ?? curated?.teeAnchor {
                 tee = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng)
@@ -1382,7 +1370,7 @@ struct ActiveRoundView: View {
         if let courseId = controller.curatedCourseId,
            let hole = controller.currentHole {
             let local = try? LocalAnchorRepository.anchor(courseId: courseId, holeNumber: hole.holeNumber)
-            let curated = (try? CourseDataRepository.course(byId: courseId))?
+            let curated = CourseLookupCache.shared.course(courseId)?
                 .holes.first(where: { $0.number == hole.holeNumber })
             if let p = local?.green ?? curated?.greenAnchor {
                 return CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng)

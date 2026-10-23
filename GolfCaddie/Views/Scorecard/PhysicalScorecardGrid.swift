@@ -36,7 +36,7 @@ struct PhysicalScorecardGrid: View {
         VStack(spacing: 0) {
             holeRow
             textRow("YARDS", height: Self.rowHeight) { col in col.yards.map(String.init) } total: { $0.yards.map(String.init) }
-            textRow("PAR", height: Self.rowHeight) { col in col.par.map(String.init) } total: { $0.par.map(String.init) }
+            textRow("PAR", height: Self.rowHeight) { col in col.par.map(String.init) } total: { $0.par.map(String.init) ?? "—" }
             if model.hasStrokeIndex {
                 textRow("HCP", height: Self.rowHeight) { col in col.strokeIndex.map(String.init) } total: { _ in nil }
             }

@@ -35,10 +35,12 @@ struct EditableHoleMap: View {
             onAnchorMoved: onAnchorMoved,
             trail: trail
         )
-        // `onAppear`-style sync load (GRDB) keyed by hole, not `.task`, to
-        // stay off the async context (see ActiveRoundView's catalog load).
+        // Read off main via a GCD hop (never `.task`: GRDB's sync reads trap
+        // in Swift concurrency), keyed by hole.
         .onChange(of: holeID, initial: true) { _, id in
-            trail = HoleTrailSource.coordinates(forHoleID: id)
+            HoleTrailSource.load(forHoleID: id) { coords in
+                if id == holeID { trail = coords }
+            }
         }
     }
 }

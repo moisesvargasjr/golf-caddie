@@ -58,6 +58,12 @@ struct InRoundSnapshot {
     var isFollowingMap: Bool
     /// Watch app reachable → it is detecting swings.
     var watchDetecting: Bool
+    /// Casual (score-only) mode — the ··· menu offers the switch back.
+    var isCasualMode: Bool = false
+
+    var actionState: InRoundActionState {
+        InRoundActionState(canUndo: canUndo, isMarking: isMarking, watchDetecting: watchDetecting)
+    }
 }
 
 struct InRoundActions {
@@ -76,6 +82,12 @@ struct InRoundActions {
     let openHoleGrid: () -> Void
     let linkCourse: () -> Void
     let recenterMap: () -> Void
+    /// Opens the existing penalty sheet.
+    var addPenalty: () -> Void = {}
+    /// Tracking ⇄ casual (the compact TRACKING stamp's action).
+    var toggleCasual: () -> Void = {}
+    /// Unlink the curated course (the compact ··· menu's action).
+    var unlinkCourse: () -> Void = {}
 }
 
 // MARK: - Pure helpers (unit tested)

@@ -143,37 +143,32 @@ final class AdaptiveLayoutTests: XCTestCase {
         XCTAssertNil(YardageFixAdapter.current(choice: choice))
     }
 
-    // MARK: Control consistency
+    // MARK: Control consistency (behavioural)
 
-    /// Manual logging is only the small "+ SHOT" secondary: no view may compose
-    /// a big Log/Mark shot button. Scans the app's view sources (the simulator
-    /// can read the host checkout through #filePath).
-    func testNoBigLogShotControlInViews() throws {
-        let views = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("GolfCaddie/Views")
-        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: views, includingPropertiesForKeys: nil))
-        let files = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
-        XCTAssertFalse(files.isEmpty)
-        let banned = ["LogShotButton", "logShotCTA", "Text(\"Log\")", "\"Log shot\""]
-        for file in files {
-            let text = try String(contentsOf: file, encoding: .utf8)
-            for term in banned {
-                XCTAssertFalse(text.contains(term), "\(file.lastPathComponent) contains \(term)")
-            }
+    /// Every layout uses one vocabulary: manual logging is the small "+ SHOT",
+    /// Finish hole is the primary, and expanded rows add PENALTY.
+    func testActionVocabulary() {
+        XCTAssertEqual(InRoundLabels.shot, "+ SHOT")
+        XCTAssertEqual(InRoundLabels.missed, "+ MISSED")
+        XCTAssertEqual(InRoundLabels.putt, "PUTT +1")
+        XCTAssertEqual(InRoundLabels.finish, "Finish hole ›")
+        // Compact: penalty stays on its stamp, so the row is shot + missed.
+        XCTAssertEqual(InRoundLabels.secondaryTitles(showsPenalty: false), ["+ SHOT", "+ MISSED"])
+        // Expanded (H4, book, portrait, tabletop): penalty is reachable here.
+        XCTAssertEqual(InRoundLabels.secondaryTitles(showsPenalty: true),
+                       ["+ SHOT", "+ MISSED", "⚠ PENALTY"])
+        for title in InRoundLabels.secondaryTitles(showsPenalty: true) {
+            XCTAssertFalse(title.localizedCaseInsensitiveContains("log"))
         }
     }
 
-    func testSecondaryShotLabelIsShort() {
-        let actions = InRoundActions(
-            logShot: {}, markMissed: {}, putt: {}, undo: {}, finishHole: {}, selectClub: { _ in },
-            openBag: {}, openCard: {}, endRound: {}, stepHole: { _ in }, openHoleGrid: {},
-            linkCourse: {}, recenterMap: {})
+    func testSnapshotActionStateCarriesOnlyWhatRowsDraw() {
         let snapshot = InRoundSnapshot(
             holeNumber: 1, par: 4, holeLengthText: nil, courseName: nil, scoreText: nil, pin: nil,
             needsCourseLink: true, pinSourceText: nil, gpsText: "", gpsColor: .clear, clubs: [],
             bagText: "", strokes: [], selectedClubShort: nil, shots: 0, penalties: 0,
-            isMarking: false, canUndo: false, errorText: nil, isFollowingMap: true, watchDetecting: false)
-        XCTAssertEqual(SecondaryActionRow(snapshot: snapshot, actions: actions).shotTitle, "+ SHOT")
+            isMarking: true, canUndo: false, errorText: nil, isFollowingMap: true, watchDetecting: true)
+        XCTAssertEqual(snapshot.actionState,
+                       InRoundActionState(canUndo: false, isMarking: true, watchDetecting: true))
     }
 }

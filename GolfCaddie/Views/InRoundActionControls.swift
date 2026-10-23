@@ -1,14 +1,38 @@
 import SwiftUI
 
-// Action controls for the expanded in-round layouts. Most shots are logged by
-// the watch, so manual logging is a small secondary ("+ SHOT HERE") and
-// Finish hole is the primary, filled action.
+// In-round action controls, shared by the compact and expanded layouts. Most
+// shots are logged by the watch, so manual logging is a small secondary
+// ("+ SHOT") and Finish hole is the primary, filled action. The controls take
+// only the values they draw (not the whole snapshot) to keep re-renders cheap.
+
+/// One vocabulary for every layout (asserted in tests).
+enum InRoundLabels {
+    static let shot = "+ SHOT"
+    static let missed = "+ MISSED"
+    static let penalty = "⚠ PENALTY"
+    static let putt = "PUTT +1"
+    static let finish = "Finish hole ›"
+    static let watchShort = "WATCH DETECTING"
+    static let watchLong = "WATCH IS DETECTING SWINGS"
+
+    /// Secondary row titles after the ↶ undo icon.
+    static func secondaryTitles(showsPenalty: Bool) -> [String] {
+        showsPenalty ? [shot, missed, penalty] : [shot, missed]
+    }
+}
+
+/// Values the action rows draw.
+struct InRoundActionState: Equatable {
+    var canUndo: Bool
+    var isMarking: Bool
+    var watchDetecting: Bool
+}
 
 /// The expanded bottom bar, two rows:
-/// 1. [⌚ WATCH IS DETECTING SWINGS] · ↶ undo · + SHOT · + MISSED (44 pt)
+/// 1. [⌚ WATCH IS DETECTING SWINGS] · ↶ · + SHOT · + MISSED · ⚠ PENALTY (44 pt)
 /// 2. PUTT +1 (~120 pt) · primary filled Finish hole › (fills the rest)
 struct InRoundActionBar: View {
-    let snapshot: InRoundSnapshot
+    let state: InRoundActionState
     let actions: InRoundActions
     /// The rail layout (H4) shows the watch line in its panel instead.
     var showsWatchStatus = true
@@ -18,40 +42,48 @@ struct InRoundActionBar: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                if showsWatchStatus, snapshot.watchDetecting {
+                if showsWatchStatus, state.watchDetecting {
                     WatchDetectingLine(isDetecting: true)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
-                SecondaryActionRow(snapshot: snapshot, actions: actions)
-                    .frame(maxWidth: 320)
+                SecondaryActionRow(state: state, actions: actions, showsPenalty: true)
+                    .frame(maxWidth: 380)
             }
             HStack(spacing: 8) {
-                PuttButton(snapshot: snapshot, actions: actions, label: "PUTT +1")
+                PuttButton(isMarking: state.isMarking, action: actions.putt)
                     .frame(width: Self.puttWidth)
-                FinishHoleButton(actions: actions)
+                FinishHoleButton(action: actions.finishHole)
             }
             .frame(maxHeight: .infinity)
         }
     }
 }
 
-/// ↶ undo · + SHOT (manual mark) · + MISSED (missing-shot pin sheet).
+/// ↶ undo · + SHOT (manual mark) · + MISSED (missing-shot pin sheet)
+/// [· ⚠ PENALTY (penalty sheet) — expanded layouts; compact has its stamp].
 struct SecondaryActionRow: View {
-    let snapshot: InRoundSnapshot
+    let state: InRoundActionState
     let actions: InRoundActions
-    var shotTitle = "+ SHOT"
+    var showsPenalty = false
 
     var body: some View {
         HStack(spacing: 6) {
-            UndoButton(snapshot: snapshot, actions: actions)
+            UndoButton(canUndo: state.canUndo, action: actions.undo)
                 .frame(width: InRoundMetrics.minTouch + 8)
-            SmallActionButton(title: shotTitle, isBusy: snapshot.isMarking,
-                              action: actions.logShot)
-                .disabled(snapshot.isMarking)
-            SmallActionButton(title: "+ MISSED", action: actions.markMissed)
+            ForEach(InRoundLabels.secondaryTitles(showsPenalty: showsPenalty), id: \.self) { title in
+                switch title {
+                case InRoundLabels.shot:
+                    SmallActionButton(title: title, isBusy: state.isMarking, action: actions.logShot)
+                        .disabled(state.isMarking)
+                case InRoundLabels.missed:
+                    SmallActionButton(title: title, action: actions.markMissed)
+                default:
+                    SmallActionButton(title: title, isAlert: true, action: actions.addPenalty)
+                }
+            }
         }
         .frame(height: InRoundMetrics.minTouch)
     }
@@ -60,22 +92,25 @@ struct SecondaryActionRow: View {
 struct SmallActionButton: View {
     let title: String
     var isBusy = false
+    var isAlert = false
     let action: () -> Void
     @Environment(\.palette) private var palette
 
     var body: some View {
+        let color = isAlert ? palette.flag : palette.ink
         Button(action: action) {
             Group {
                 if isBusy {
-                    ProgressView().tint(palette.ink)
+                    ProgressView().tint(color)
                 } else {
                     Text(title).font(AppFont.stamp).tracking(1.0)
-                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                 }
             }
-            .foregroundStyle(palette.ink)
+            .foregroundStyle(color)
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: InRoundMetrics.minTouch)
-            .overlay(RoundedRectangle(cornerRadius: 2).stroke(palette.ink, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 2).stroke(color, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -83,12 +118,12 @@ struct SmallActionButton: View {
 }
 
 struct UndoButton: View {
-    let snapshot: InRoundSnapshot
-    let actions: InRoundActions
+    let canUndo: Bool
+    let action: () -> Void
     @Environment(\.palette) private var palette
 
     var body: some View {
-        Button(action: actions.undo) {
+        Button(action: action) {
             Image(systemName: "arrow.uturn.backward")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(palette.ink)
@@ -97,21 +132,21 @@ struct UndoButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!snapshot.canUndo)
-        .opacity(snapshot.canUndo ? 1 : 0.4)
+        .disabled(!canUndo)
+        .opacity(canUndo ? 1 : 0.4)
         .accessibilityLabel("Undo last shot or penalty")
     }
 }
 
 struct PuttButton: View {
-    let snapshot: InRoundSnapshot
-    let actions: InRoundActions
-    var label = "PUTT"
+    let isMarking: Bool
+    var label = InRoundLabels.putt
     var fontSize: CGFloat = 12
+    let action: () -> Void
     @Environment(\.palette) private var palette
 
     var body: some View {
-        Button(action: actions.putt) {
+        Button(action: action) {
             VStack(spacing: 3) {
                 Image(systemName: "circle.fill").font(.system(size: fontSize - 2, weight: .bold))
                 Text(label).font(.custom(AppFont.monoName, size: fontSize).weight(.bold)).tracking(0.8)
@@ -123,25 +158,15 @@ struct PuttButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(snapshot.isMarking)
+        .disabled(isMarking)
     }
 }
 
-/// The primary action on every expanded layout: opens the Finish Hole flow.
+/// The primary action on every layout: opens the Finish Hole flow.
 struct FinishHoleButton: View {
-    let action: () -> Void
     var fontSize: CGFloat = 20
+    let action: () -> Void
     @Environment(\.palette) private var palette
-
-    init(actions: InRoundActions, fontSize: CGFloat = 20) {
-        self.action = actions.finishHole
-        self.fontSize = fontSize
-    }
-
-    init(fontSize: CGFloat = 20, action: @escaping () -> Void) {
-        self.action = action
-        self.fontSize = fontSize
-    }
 
     var body: some View {
         Button(action: action) {
@@ -162,13 +187,14 @@ struct FinishHoleButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(InRoundLabels.finish)
     }
 }
 
 /// "⌚ WATCH IS DETECTING SWINGS" — only while the watch app is reachable.
 struct WatchDetectingLine: View {
     let isDetecting: Bool
-    var label = "WATCH IS DETECTING SWINGS"
+    var label = InRoundLabels.watchLong
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -185,8 +211,9 @@ struct WatchDetectingLine: View {
 /// Compact (cover screen / iPhone) bottom rows:
 /// 1. [⌚ WATCH DETECTING] · ↶ · + SHOT · + MISSED (44 pt)
 /// 2. PUTT +1 (~104 pt) · primary Finish hole › (fills the rest)
+/// (Penalty stays on the compact sheet's PENALTY stamp.)
 struct CompactActionRows: View {
-    let snapshot: InRoundSnapshot
+    let state: InRoundActionState
     let actions: InRoundActions
 
     static let puttWidth: CGFloat = 104
@@ -194,22 +221,32 @@ struct CompactActionRows: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                if snapshot.watchDetecting {
-                    WatchDetectingLine(isDetecting: true, label: "WATCH DETECTING")
+                if state.watchDetecting {
+                    WatchDetectingLine(isDetecting: true, label: InRoundLabels.watchShort)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
-                SecondaryActionRow(snapshot: snapshot, actions: actions)
+                SecondaryActionRow(state: state, actions: actions)
                     .frame(maxWidth: 260)
             }
             HStack(spacing: 8) {
-                PuttButton(snapshot: snapshot, actions: actions, label: "PUTT +1")
+                PuttButton(isMarking: state.isMarking, action: actions.putt)
                     .frame(width: Self.puttWidth)
-                FinishHoleButton(actions: actions)
+                FinishHoleButton(action: actions.finishHole)
             }
             .frame(height: 52)
         }
+    }
+}
+
+/// Plain button style whose label gets a >= 44 pt hit area (`ExpandedHitShape`)
+/// without changing its drawn size — for the small compact stamps.
+struct HitTargetPlainButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(ExpandedHitShape())
+            .opacity(configuration.isPressed ? 0.75 : 1)
     }
 }

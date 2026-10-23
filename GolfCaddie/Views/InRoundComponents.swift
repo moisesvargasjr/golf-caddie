@@ -22,12 +22,6 @@ struct ExpandedHitShape: Shape {
     }
 }
 
-extension View {
-    /// See `ExpandedHitShape`.
-    func minimumHitTarget() -> some View {
-        contentShape(ExpandedHitShape())
-    }
-}
 
 /// "Hole 7 · PAR 4 · 412 YD · COURSE · +2 THRU 6 · CARD · END"
 struct InRoundHeaderBar: View {
@@ -57,6 +51,7 @@ struct InRoundHeaderBar: View {
             .lineLimit(1)
             Spacer(minLength: 4)
             HStack(spacing: 8) {
+                RoundOverflowMenu(snapshot: snapshot, actions: actions)
                 HeaderStamp(text: "CARD", color: palette.ink, action: actions.openCard)
                 HeaderStamp(text: "END", color: palette.flag, action: actions.endRound)
             }
@@ -374,5 +369,36 @@ struct InRoundErrorText: View {
                 .foregroundStyle(palette.red)
                 .multilineTextAlignment(.leading)
         }
+    }
+}
+
+/// "···" — tracking/casual and course link actions (same as the compact
+/// yardage card's menu + TRACKING stamp).
+struct RoundOverflowMenu: View {
+    let snapshot: InRoundSnapshot
+    let actions: InRoundActions
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        Menu {
+            Button(snapshot.isCasualMode ? "Switch to tracking" : "Switch to casual",
+                   action: actions.toggleCasual)
+            if snapshot.needsCourseLink {
+                Button("Link course…", action: actions.linkCourse)
+            } else {
+                Section(snapshot.courseName ?? "Course linked") {
+                    Button("Change course…", action: actions.linkCourse)
+                    Button("Unlink course", role: .destructive, action: actions.unlinkCourse)
+                }
+            }
+        } label: {
+            Text("···")
+                .font(.custom(AppFont.monoName, size: 14).weight(.heavy))
+                .foregroundStyle(palette.ink2)
+                .frame(minWidth: InRoundMetrics.minTouch, minHeight: InRoundMetrics.minTouch)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Round options")
     }
 }

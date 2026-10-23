@@ -5,26 +5,38 @@ import SwiftUI
 /// Where every hole map's dotted walked trail comes from. One seam so the
 /// trail follows Track B's watch-first source with a one-line change.
 enum HoleTrailSource {
-    // B38: switch to TracePointRepository.preferredTrail (watch-first trail).
+    // B38: switch the window read to the watch-first preferredTrail.
     static func coordinates(roundID: UUID, since: Date, until: Date? = nil) -> [CLLocationCoordinate2D] {
-        let points = (try? TracePointRepository.pointsForRound(roundID)) ?? []
-        return points
-            .filter { point in point.timestamp >= since && (until.map { point.timestamp <= $0 } ?? true) }
-            .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        let points = (try? TracePointRepository.points(forRound: roundID, from: since, to: until)) ?? []
+        return points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
     }
 
-    /// The trail walked during one hole: from the previous confirmation (or
-    /// the round start) to this hole's confirmation (or now).
+    /// The trail walked during one hole: from the latest confirmation of any
+    /// OTHER hole before this one's (or the round start) to this hole's
+    /// confirmation (or now, for the live hole). Synchronous GRDB reads —
+    /// never call from a `.task`; use `load(forHoleID:)`.
     static func coordinates(forHoleID holeID: UUID) -> [CLLocationCoordinate2D] {
         guard let hole = try? HoleRepository.hole(byID: holeID),
               let holes = try? HoleRepository.holesForRound(hole.roundID) else { return [] }
         let end = hole.confirmedAt
-        let start = holes.compactMap(\.confirmedAt)
-            .filter { $0 < (end ?? .distantFuture) && $0 != end }
+        let start = holes
+            .filter { $0.id != hole.id }
+            .compactMap(\.confirmedAt)
+            .filter { $0 < (end ?? .distantFuture) }
             .max()
             ?? (try? RoundRepository.allRounds())?.first { $0.id == hole.roundID }?.startedAt
             ?? .distantPast
         return downsampled(coordinates(roundID: hole.roundID, since: start, until: end))
+    }
+
+    /// Reads off the main thread (GRDB is thread-safe) and delivers on main
+    /// through a plain GCD hop — safe from any context.
+    static func load(forHoleID holeID: UUID,
+                     completion: @escaping @MainActor ([CLLocationCoordinate2D]) -> Void) {
+        DispatchQueue.global(qos: .utility).async {
+            let coords = coordinates(forHoleID: holeID)
+            DispatchQueue.main.async { MainActor.assumeIsolated { completion(coords) } }
+        }
     }
 
     static let maxPoints = 400

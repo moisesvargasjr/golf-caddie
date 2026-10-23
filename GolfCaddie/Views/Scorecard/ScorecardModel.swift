@@ -75,21 +75,25 @@ struct ScorecardModel: Equatable {
             let known = values.compactMap { $0 }
             return known.isEmpty ? nil : known.reduce(0, +)
         }
+        // A par total with an unknown hole would be wrong, so show "—" (nil).
+        let parTotal = cols.allSatisfy { $0.par != nil } ? sum(cols.map(\.par)) : nil
         return ScorecardTotals(
             yards: sum(cols.map(\.yards)),
-            par: sum(cols.map(\.par)),
+            par: parTotal,
             score: sum(cols.map(\.score)),
             putts: sum(cols.map(\.putts)),
             penalties: sum(cols.map(\.penalties))
         )
     }
 
-    /// GIR: strokes before the first putt (penalties excluded) ≤ par − 2.
-    static func greenInRegulation(shots: [Shot], par: Int?) -> Bool? {
-        guard let par else { return nil }
+    /// GIR (standard rule): strokes taken to reach the green — full shots
+    /// before the first putt PLUS penalty strokes — ≤ par − 2. Nil without a
+    /// par or without shots (nothing to judge).
+    static func greenInRegulation(shots: [Shot], penalties: Int = 0, par: Int?) -> Bool? {
+        guard let par, !shots.isEmpty else { return nil }
         let ordered = shots.sorted { $0.sequenceNumber < $1.sequenceNumber }
         let beforeFirstPutt = ordered.firstIndex(where: \.isPutt) ?? ordered.count
-        return beforeFirstPutt <= par - 2
+        return beforeFirstPutt + penalties <= par - 2
     }
 
     struct HoleInput {
@@ -109,14 +113,17 @@ struct ScorecardModel: Equatable {
             let confirmed = input?.hole.confirmedAt != nil
             let shots = input?.shots ?? []
             let pens = input?.penaltyStrokes ?? 0
+            // A confirmed hole with no shots has nothing to score (skipped /
+            // not tracked): leave score, putts and GIR blank.
+            let scored = confirmed && !shots.isEmpty
             return ScorecardColumn(
                 number: number,
                 yards: yards(curated: curated, local: localAnchors[number]),
                 par: par,
                 strokeIndex: curated?.strokeIndex,
-                score: confirmed ? shots.count + pens : nil,
-                putts: confirmed ? shots.filter(\.isPutt).count : nil,
-                gir: confirmed ? greenInRegulation(shots: shots, par: par) : nil,
+                score: scored ? shots.count + pens : nil,
+                putts: scored ? shots.filter(\.isPutt).count : nil,
+                gir: scored ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil,
                 penalties: confirmed ? pens : nil,
                 story: input.map { story(shots: $0.shots, penalties: $0.penaltyStrokes) },
                 holeID: input?.hole.id,

@@ -34,7 +34,7 @@ struct CommandCenterChrome: View {
         .scrollIndicators(.hidden)
         .roundStageRole(.panel)
 
-        InRoundActionBar(snapshot: snapshot, actions: actions, showsWatchStatus: true)
+        InRoundActionBar(state: snapshot.actionState, actions: actions, showsWatchStatus: true)
             .roundStageRole(.actions)
 
         MapStatusChrome(snapshot: snapshot, actions: actions)
@@ -73,7 +73,7 @@ struct WideRoundLayout: View {
         .scrollIndicators(.hidden)
         .roundStageRole(.panel)
 
-        InRoundActionBar(snapshot: snapshot, actions: actions, showsWatchStatus: false)
+        InRoundActionBar(state: snapshot.actionState, actions: actions, showsWatchStatus: false)
             .roundStageRole(.actions)
 
         WideMapOverlays(snapshot: snapshot, actions: actions)
@@ -113,6 +113,7 @@ private struct WideMapOverlays: View {
                 }
                 PaperCard(padding: 0) {
                     HStack(spacing: 0) {
+                        RoundOverflowMenu(snapshot: snapshot, actions: actions)
                         HeaderStamp(text: "CARD", color: palette.ink, action: actions.openCard)
                             .padding(.horizontal, 6)
                         HeaderStamp(text: "END", color: palette.flag, action: actions.endRound)
@@ -168,6 +169,10 @@ private struct TabletopUpperHalf: View {
                 if let score = snapshot.scoreText {
                     Text(score).font(AppFont.stamp).tracking(1.2).foregroundStyle(palette.flag)
                 }
+                Spacer(minLength: 4)
+                RoundOverflowMenu(snapshot: snapshot, actions: actions)
+                HeaderStamp(text: "CARD", color: palette.ink, action: actions.openCard)
+                HeaderStamp(text: "END", color: palette.flag, action: actions.endRound)
             }
             Text(["TO PIN", snapshot.pinSourceText].compactMap { $0 }.joined(separator: " · "))
                 .font(AppFont.metadata).tracking(1.4)
@@ -207,14 +212,14 @@ private struct TabletopLowerHalf: View {
             }
             .scrollIndicators(.hidden)
             HStack(spacing: 8) {
-                PuttButton(snapshot: snapshot, actions: actions, label: "PUTT +1", fontSize: 18)
+                PuttButton(isMarking: snapshot.isMarking, fontSize: 18, action: actions.putt)
                     .frame(width: 150)
-                FinishHoleButton(actions: actions, fontSize: 24)
+                FinishHoleButton(fontSize: 24, action: actions.finishHole)
             }
             .frame(height: 88)
             HStack(spacing: 8) {
                 WatchDetectingLine(isDetecting: snapshot.watchDetecting)
-                SecondaryActionRow(snapshot: snapshot, actions: actions)
+                SecondaryActionRow(state: snapshot.actionState, actions: actions, showsPenalty: true)
             }
             InRoundErrorText(text: snapshot.errorText)
         }

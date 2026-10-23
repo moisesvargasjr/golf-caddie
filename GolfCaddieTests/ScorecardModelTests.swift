@@ -42,6 +42,25 @@ final class ScorecardModelTests: XCTestCase {
             shots: [Self.shot(h, 1, club: "sevenIron"), Self.shot(h, 2, club: "sandWedge"),
                     Self.shot(h, 3, club: "putter", putt: true)], par: 3), false)
         XCTAssertNil(ScorecardModel.greenInRegulation(shots: [], par: nil))
+        XCTAssertNil(ScorecardModel.greenInRegulation(shots: [], par: 4), "no shots, nothing to judge")
+        // Par 4, on in 2 plus a penalty stroke = 3 to reach the green: no GIR.
+        XCTAssertEqual(ScorecardModel.greenInRegulation(
+            shots: [Self.shot(h, 1, club: "driver"), Self.shot(h, 2, club: "sevenIron"),
+                    Self.shot(h, 3, club: "putter", putt: true)], penalties: 1, par: 4), false)
+    }
+
+    func testConfirmedHoleWithoutShotsIsBlank() {
+        let model = ScorecardModel.build(holes: [Self.input(1, par: 4, full: 0, putts: 0)], course: nil)
+        XCTAssertNil(model.columns[0].score)
+        XCTAssertNil(model.columns[0].putts)
+        XCTAssertNil(model.columns[0].gir)
+    }
+
+    func testFullNineParTotal() {
+        let model = ScorecardModel.build(
+            holes: (1...9).map { Self.input($0, par: 4, full: 2, putts: 2) }, course: nil)
+        XCTAssertEqual(model.out.par, 36)
+        XCTAssertNil(model.inn.par)
     }
 
     func testBuildTotalsAndBlanks() {
@@ -58,7 +77,7 @@ final class ScorecardModelTests: XCTestCase {
         XCTAssertNil(model.columns[3].score, "unconfirmed holes stay blank")
         XCTAssertNil(model.columns[9].par)
         XCTAssertEqual(model.out.score, 13)
-        XCTAssertEqual(model.out.par, 16)  // includes the live hole's par
+        XCTAssertNil(model.out.par, "holes 5-9 have no par, so the OUT par total is unknown")
         XCTAssertNil(model.inn.score)
         XCTAssertEqual(model.total.putts, 5)
         XCTAssertEqual(model.girCount, 2)
