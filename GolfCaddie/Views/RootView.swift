@@ -15,6 +15,7 @@ struct RootView: View {
             content
         }
         .themedRoot()
+        .adaptiveLayoutRoot()
         .task {
             location.requestWhenInUse()
             loadConfig()

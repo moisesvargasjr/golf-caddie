@@ -18,6 +18,15 @@ struct ActiveRoundMap: View {
     /// "Auto-frame the hole" — true keeps the map fit to ball → green as you
     /// walk; a manual pan/zoom flips it off, and the recenter control flips it on.
     @Binding var followMode: Bool
+    /// Changes when the hosting layout changes (fold/unfold); a change re-fits
+    /// the hole to the map's new frame. Same instance, no rebuild.
+    var reframeToken: String = ""
+    /// Walked GPS breadcrumbs for this hole, drawn dotted. Empty = none.
+    var trail: [CLLocationCoordinate2D] = []
+    /// Added to the tee→green bearing. 0 = green up; -90 = tee left, green right.
+    var headingOffset: Double = 0
+    /// 200/150/100-yard rings around the green.
+    var showsYardageArcs: Bool = false
 
     var body: some View {
         ActiveRoundMapKit(
@@ -26,6 +35,10 @@ struct ActiveRoundMap: View {
             green: green,
             tee: tee,
             isFollowing: followMode,
+            reframeToken: reframeToken,
+            trail: trail,
+            headingOffset: headingOffset,
+            showsYardageArcs: showsYardageArcs,
             onFollowModeChange: { newValue in
                 if followMode != newValue {
                     followMode = newValue
@@ -41,6 +54,10 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     let green: CLLocationCoordinate2D?
     let tee: CLLocationCoordinate2D?
     let isFollowing: Bool
+    let reframeToken: String
+    let trail: [CLLocationCoordinate2D]
+    let headingOffset: Double
+    let showsYardageArcs: Bool
     let onFollowModeChange: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -63,7 +80,9 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         coord.onFollowModeChange = onFollowModeChange
         coord.green = green
         coord.tee = tee
-        coord.holeHeading = holeHeading
+        // No bearing (no anchors) → north up, whatever the offset.
+        coord.holeHeading = holeHeading.map { $0 + headingOffset }
+        coord.distanceScale = abs(headingOffset) == 90 ? 1.3 : 1
         coord.shotCoords = shots.compactMap { shot in
             guard let lat = shot.latitude, let lng = shot.longitude else { return nil }
             return CLLocationCoordinate2D(latitude: lat, longitude: lng)
@@ -73,14 +92,27 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         syncGreenAnnotation(in: map)
         syncPolyline(in: map)
         coord.syncTargetLine(map)
+        syncTrail(in: map, coord: coord)
+        syncYardageArcs(in: map, coord: coord)
 
         // Re-frame ball → green when auto-frame is on AND something that changes
         // the framing changed (hole/green/tee/heading, or the shot set). Walking
         // is handled separately in didUpdate userLocation (throttled by distance).
         let key = frameKey()
         if isFollowing, coord.lastFrameKey != key {
+            let layoutChanged = coord.lastReframeToken != reframeToken
             coord.lastFrameKey = key
-            coord.reframe(map, animated: true)
+            coord.lastReframeToken = reframeToken
+            if layoutChanged {
+                // Fold/unfold resizes the map in this same pass; fit after
+                // layout so the camera centres in the NEW frame.
+                DispatchQueue.main.async { [weak map] in
+                    guard let map else { return }
+                    coord.reframe(map, animated: false)
+                }
+            } else {
+                coord.reframe(map, animated: true)
+            }
         }
         // Returning to auto-frame after a manual pan: force a reframe.
         if isFollowing, !coord.wasFollowing {
@@ -94,7 +126,7 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         let g = green.map { "\($0.latitude),\($0.longitude)" } ?? "-"
         let t = tee.map { "\($0.latitude),\($0.longitude)" } ?? "-"
         let h = holeHeading.map { String(Int($0)) } ?? "-"
-        return "\(g)|\(t)|\(h)|\(shots.count)"
+        return "\(g)|\(t)|\(h)|\(shots.count)|\(reframeToken)|\(Int(headingOffset))"
     }
 
     /// Add/move/remove the single green-flag marker to track the `green` input.
@@ -150,7 +182,8 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
     private func syncPolyline(in map: MKMapView) {
         // Remove existing — but only the shot trail; the you → green target
         // line is owned by syncTargetLine and must survive shot-set changes.
-        let oldLines = map.overlays.compactMap { $0 as? MKPolyline }.filter { !($0 is TargetLinePolyline) }
+        let oldLines = map.overlays.compactMap { $0 as? MKPolyline }
+            .filter { !($0 is TargetLinePolyline) && !($0 is TrailPolyline) }
         map.removeOverlays(oldLines)
 
         let coords = shots.compactMap { shot -> CLLocationCoordinate2D? in
@@ -162,8 +195,39 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         map.addOverlay(polyline)
     }
 
+    /// Dotted walked-GPS trail; replaced only when the breadcrumb set changes.
+    private func syncTrail(in map: MKMapView, coord: Coordinator) {
+        let last = trail.last.map { "\($0.latitude),\($0.longitude)" } ?? "-"
+        let key = "\(trail.count)|\(last)"
+        guard coord.lastTrailKey != key else { return }
+        coord.lastTrailKey = key
+        map.removeOverlays(map.overlays.filter { $0 is TrailPolyline })
+        guard trail.count >= 2 else { return }
+        map.addOverlay(TrailPolyline(coordinates: trail, count: trail.count))
+    }
+
+    /// 200 / 150 / 100-yard rings centred on the green.
+    private func syncYardageArcs(in map: MKMapView, coord: Coordinator) {
+        let g = green.map { "\($0.latitude),\($0.longitude)" } ?? "-"
+        let key = showsYardageArcs ? g : "off"
+        guard coord.lastArcKey != key else { return }
+        coord.lastArcKey = key
+        map.removeOverlays(map.overlays.filter { $0 is YardageRing })
+        guard showsYardageArcs, let green else { return }
+        let rings = [200.0, 150.0, 100.0].map { yards in
+            YardageRing(center: green, radius: yards * 0.9144)
+        }
+        map.addOverlays(rings, level: .aboveRoads)
+    }
+
     final class Coordinator: NSObject, MKMapViewDelegate {
         var onFollowModeChange: (Bool) -> Void
+        var lastTrailKey: String?
+        var lastReframeToken: String?
+        /// >1 pulls the camera back — the horizontal (H4) map fits the hole
+        /// across its shorter axis.
+        var distanceScale: Double = 1
+        var lastArcKey: String?
 
         // Framing inputs, kept fresh by updateUIView so the location-driven
         // reframe (didUpdate) can read them.
@@ -189,7 +253,8 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
             if let tee { coords.append(tee) }
             let user = map.userLocation.location?.coordinate
             if let user, CLLocationCoordinate2DIsValid(user) { coords.append(user) }
-            guard let camera = Self.cameraFitting(coords, heading: holeHeading ?? 0) else { return }
+            guard let camera = Self.cameraFitting(coords, heading: holeHeading ?? 0,
+                                                  distanceScale: distanceScale) else { return }
             lastFrameUserCoord = user
             programmaticChange = true
             map.setCamera(camera, animated: animated)
@@ -223,14 +288,15 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         /// Camera that frames `coords` with a tight margin, green-up. Distance is
         /// driven by the span of ball → green, so it zooms in as you walk up; a
         /// floor keeps a single point from zooming to the street.
-        static func cameraFitting(_ coords: [CLLocationCoordinate2D], heading: CLLocationDirection) -> MKMapCamera? {
+        static func cameraFitting(_ coords: [CLLocationCoordinate2D], heading: CLLocationDirection,
+                                  distanceScale: Double = 1) -> MKMapCamera? {
             guard !coords.isEmpty else { return nil }
             let lats = coords.map(\.latitude), lngs = coords.map(\.longitude)
             let minLat = lats.min()!, maxLat = lats.max()!, minLng = lngs.min()!, maxLng = lngs.max()!
             let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2)
             let diagonal = CLLocation(latitude: maxLat, longitude: minLng)
                 .distance(from: CLLocation(latitude: minLat, longitude: maxLng))
-            let distance = max(diagonal * 1.45, 160)
+            let distance = max(diagonal * 1.45 * distanceScale, 160)
             return MKMapCamera(lookingAtCenter: center, fromDistance: distance, pitch: 0, heading: heading)
         }
 
@@ -306,6 +372,21 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
                 r.lineDashPattern = [2, 5]
                 return r
             }
+            if let trail = overlay as? TrailPolyline {
+                let r = MKPolylineRenderer(polyline: trail)
+                r.strokeColor = UIColor.white.withAlphaComponent(0.85)
+                r.lineWidth = 2.5
+                r.lineCap = .round
+                r.lineDashPattern = [0.5, 6]
+                return r
+            }
+            if let ring = overlay as? YardageRing {
+                let r = MKCircleRenderer(circle: ring)
+                r.strokeColor = UIColor.white.withAlphaComponent(0.5)
+                r.lineWidth = 1
+                r.lineDashPattern = [4, 4]
+                return r
+            }
             if let line = overlay as? MKPolyline {
                 let r = MKPolylineRenderer(polyline: line)
                 r.strokeColor = UIColor.white.withAlphaComponent(0.7)
@@ -323,6 +404,12 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
 /// Marker subclass so the renderer can tell the you → green target line apart
 /// from the shot-trail polyline (both are MKPolylines on the same map).
 private final class TargetLinePolyline: MKPolyline {}
+
+/// Walked GPS breadcrumbs (dotted).
+private final class TrailPolyline: MKPolyline {}
+
+/// A 200/150/100-yard ring around the green.
+private final class YardageRing: MKCircle {}
 
 /// The green-flag marker at the hole's green anchor (B9). `dynamic` so a
 /// coordinate move (local anchor recapture mid-round) animates in place

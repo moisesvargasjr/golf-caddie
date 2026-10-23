@@ -1,5 +1,6 @@
 import CoreLocation
 import SwiftUI
+import WatchConnectivity
 
 struct ActiveRoundView: View {
     let controller: RoundController
@@ -30,6 +31,15 @@ struct ActiveRoundView: View {
     @State private var lyingPulse: Bool = false
     @State private var showScorecard: Bool = false
     @State private var showClubsInPlay = false
+    @Environment(\.displayContext) private var displayContext
+    /// Global frame of the round stage — locates the hinge in local coordinates.
+    @State private var stageFrame: CGRect = .zero
+    /// "+2 THRU 6", cached per hole change (DB reads, not per render).
+    @State private var roundScoreText: String?
+    /// Walked breadcrumbs for the current hole (dotted trail on the map).
+    @State private var holeTrail: [CLLocationCoordinate2D] = []
+    /// When the current hole began: last confirmation, else round start.
+    @State private var holeStartedAt: Date?
 
     var body: some View {
         Group {
@@ -118,89 +128,42 @@ struct ActiveRoundView: View {
     }
 
     private var activeBody: some View {
-        ZStack {
+        // One container for every pose: `AdaptiveRoundLayout` moves/resizes
+        // its children by role, so the single map (and all @State here)
+        // survives fold/unfold. `.overlay` reproduces the original ZStack.
+        AdaptiveRoundLayout(mode: stageMode, hinge: stageHinge) {
             ActiveRoundMap(
                 shots: controller.currentHoleShots,
                 holeHeading: holeBearing,
                 green: holeGreenCoordinate,
                 tee: holeTeeCoordinate,
-                followMode: $mapFollowMode
+                followMode: $mapFollowMode,
+                reframeToken: "\(stageMode)",
+                trail: holeTrail,
+                // H4 draws the hole horizontally: tee left, green right.
+                headingOffset: stageMode == .wide ? -90 : 0,
+                showsYardageArcs: stageMode == .wide
             )
             .ignoresSafeArea()
+            .overlay {
+                if stageMode == .tabletop {
+                    RoundedRectangle(cornerRadius: 2).stroke(palette.ink, lineWidth: 1.2)
+                }
+            }
+            .roundStageRole(.map)
             // Dim layer so paper cards stay legible on top of bright satellite imagery.
-            Color.black.opacity(0.18)
+            Color.black.opacity(stageMode == .overlay ? 0.18 : 0.06)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+                .roundStageRole(.map)
 
-            // Top overlays — hole pill on the left, action stamps on the right.
-            VStack(spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    holeNav
-                    Spacer(minLength: 4)
-                    VStack(alignment: .trailing, spacing: 6) {
-                        // LYING N is shot-tracking detail — hidden in casual mode.
-                        if !controller.isCasualMode {
-                            lyingStamp
-                        }
-                        HStack(spacing: 6) {
-                            modeToggleButton
-                            cardStampButton
-                            endStampButton
-                        }
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 2)
-
-                HStack(alignment: .top) {
-                    distanceCard
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 6) {
-                        gpsIndicator
-                        if !mapFollowMode {
-                            Button {
-                                mapFollowMode = true
-                            } label: {
-                                PaperCard(padding: EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "location.fill")
-                                            .font(.system(size: 11, weight: .bold))
-                                        Text("FOLLOW")
-                                            .font(AppFont.stamp)
-                                            .tracking(1.2)
-                                    }
-                                    .foregroundStyle(palette.ink)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
-
-                // Shot strip is shot-tracking detail — hidden in casual mode.
-                if !controller.isCasualMode, !controller.currentHoleShots.isEmpty {
-                    shotStrip
-                        .padding(.horizontal, 12)
-                        .padding(.top, 6)
-                }
-
-                Spacer()
-            }
-
-            // Bottom paper sheet — casual mode swaps the tracking controls for a
-            // simple per-hole score stepper.
-            VStack {
-                Spacer()
-                if controller.isCasualMode {
-                    casualSheet
-                } else {
-                    bottomSheet
-                }
-            }
-            .ignoresSafeArea(edges: .bottom)
+            stageChrome
         }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { stageFrame = $0 }
+        .onAppear { refreshRoundScore() }
+        .onChange(of: controller.currentHole?.id) { _, _ in refreshRoundScore() }
+        // Breadcrumbs are written in the background; poll for the trail.
+        .task(id: trailTaskID) { await pollHoleTrail() }
         .sheet(item: $reviewingHole) { hole in
             HoleReviewSheet(
                 hole: hole,
@@ -218,6 +181,13 @@ struct ActiveRoundView: View {
         #if DEBUG
         .onAppear {
             if UserDefaults.standard.bool(forKey: "DebugShowHoleGrid") { showHoleGrid = true }
+            switch DebugHarness.openScreen {
+            case "review": reviewingHole = controller.currentHole
+            case "card": showScorecard = true
+            case "bag": showClubsInPlay = true
+            case "course": showCoursePicker = true
+            default: break
+            }
         }
         #endif
         .sheet(isPresented: $showHoleGrid) {
@@ -320,6 +290,97 @@ struct ActiveRoundView: View {
         }
     }
 
+    // MARK: - Stage chrome
+
+    @ViewBuilder
+    private var stageChrome: some View {
+        switch stageMode {
+        case .overlay:
+            compactTopOverlays
+            compactBottomSheet
+        case .commandPortrait, .twoPage:
+            CommandCenterChrome(snapshot: inRoundSnapshot, actions: inRoundActions)
+        case .wide:
+            WideRoundLayout(snapshot: inRoundSnapshot, actions: inRoundActions)
+        case .tabletop:
+            TabletopChrome(snapshot: inRoundSnapshot, actions: inRoundActions)
+        }
+    }
+
+    /// Compact (cover screen / iPhone): the original floating cards.
+    private var compactTopOverlays: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                holeNav
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 6) {
+                    // LYING N is shot-tracking detail — hidden in casual mode.
+                    if !controller.isCasualMode {
+                        lyingStamp
+                    }
+                    HStack(spacing: 6) {
+                        modeToggleButton
+                        cardStampButton
+                        endStampButton
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 2)
+
+            HStack(alignment: .top) {
+                distanceCard
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    gpsIndicator
+                    if !mapFollowMode {
+                        Button {
+                            mapFollowMode = true
+                        } label: {
+                            PaperCard(padding: EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "location.fill")
+                                        .font(.system(size: 11, weight: .bold))
+                                    Text("FOLLOW")
+                                        .font(AppFont.stamp)
+                                        .tracking(1.2)
+                                }
+                                .foregroundStyle(palette.ink)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+
+            // Shot strip is shot-tracking detail — hidden in casual mode.
+            if !controller.isCasualMode, !controller.currentHoleShots.isEmpty {
+                shotStrip
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+            }
+
+            Spacer()
+        }
+    }
+
+    /// Compact: the original bottom paper sheet.
+    private var compactBottomSheet: some View {
+        // Bottom paper sheet — casual mode swaps the tracking controls for a
+        // simple per-hole score stepper.
+        VStack {
+            Spacer()
+            if controller.isCasualMode {
+                casualSheet
+            } else {
+                bottomSheet
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+    }
+
     // MARK: - Top overlays
 
     // Tappable so it doubles as a discreet, always-available entry point to
@@ -356,10 +417,16 @@ struct ActiveRoundView: View {
                     Text("Hole \(currentHoleNumber)")
                         .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
                         .foregroundStyle(palette.ink)
+                        .lineLimit(1)
+                        .fixedSize()
                     Text(holePillCaption)
                         .font(.custom(AppFont.monoName, size: 9).weight(.bold))
                         .tracking(1.2)
                         .foregroundStyle(palette.ink2)
+                        // Cover screen (~375 pt usable): keep "PAR 4 · 343 YD"
+                        // on one line (shrink) instead of wrapping the pill.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
             }
         }
@@ -374,6 +441,8 @@ struct ActiveRoundView: View {
                 Text("CARD")
                     .font(AppFont.stamp)
                     .tracking(1.2)
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(palette.ink)
             }
         }
@@ -451,6 +520,8 @@ struct ActiveRoundView: View {
             )
             .font(AppFont.stamp)
             .tracking(1.2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .scaleEffect(lyingPulse ? 1.08 : 1.0)
         }
     }
@@ -463,6 +534,8 @@ struct ActiveRoundView: View {
                 Text("END")
                     .font(AppFont.stamp)
                     .tracking(1.2)
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(palette.flag)
             }
         }
@@ -592,10 +665,7 @@ struct ActiveRoundView: View {
                     }
                 }
                 Spacer()
-                HStack(spacing: 8) {
-                    missingShotStampButton
-                    penaltyStampButton
-                }
+                penaltyStampButton
             }
             .padding(.horizontal, 20)
 
@@ -610,21 +680,12 @@ struct ActiveRoundView: View {
                 }
                 .padding(.top, 14)
 
-            // Action row: Undo · Log shot (primary) · +Putt · Next hole.
-            HStack(spacing: 10) {
-                actionIconButton(systemName: "arrow.uturn.backward") {
-                    showUndoConfirm = true
-                }
-                .disabled(controller.currentHoleShots.isEmpty && controller.currentHolePenalties.isEmpty)
-
-                logShotCTA
-
-                puttButton
-
-                nextHoleButton
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
+            // Two action rows: [watch] ↶ · + SHOT · + MISSED, then PUTT +1 ·
+            // Finish hole (primary). The watch logs most shots, so manual
+            // marking is a small secondary.
+            CompactActionRows(snapshot: inRoundSnapshot, actions: inRoundActions)
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
 
             errorBanner
                 .padding(.horizontal, 20)
@@ -663,6 +724,8 @@ struct ActiveRoundView: View {
             Text(controller.isCasualMode ? "○ CASUAL" : "● TRACKING")
                 .font(AppFont.stamp)
                 .tracking(1.2)
+                .lineLimit(1)
+                .fixedSize()
                 .foregroundStyle(palette.ink)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -790,48 +853,6 @@ struct ActiveRoundView: View {
         .buttonStyle(.plain)
     }
 
-    private var missingShotStampButton: some View {
-        Button {
-            // Snapshot the center NOW (MainActor, on user tap) so the sheet
-            // never has to recompute it from a SwiftUI diff context.
-            pendingMissingShotCenter = missingShotInitialCenter
-            showMissingShotSheet = true
-        } label: {
-            Text("+ MISS")
-                .font(AppFont.stamp)
-                .tracking(1.2)
-                .foregroundStyle(palette.ink)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 2)
-                        .stroke(palette.ink, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var nextHoleButton: some View {
-        Button {
-            reviewingHole = controller.currentHole
-        } label: {
-            HStack(spacing: 3) {
-                Text("Next")
-                    .font(.custom(AppFont.serifName, size: 14).italic().weight(.regular))
-                    .foregroundStyle(palette.ink)
-                Text("›")
-                    .font(.custom(AppFont.serifName, size: 18).weight(.bold))
-                    .foregroundStyle(palette.ink)
-            }
-            .frame(width: 76, height: 50)
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(palette.ink, lineWidth: 1.2)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     /// The bag minus what this round left home — the in-round club pickers.
     private var clubsInPlay: [Club] {
         ClubsInPlay.resolve(bag: bag, leftOut: controller.currentRound?.clubsLeftOut ?? [])
@@ -921,61 +942,6 @@ struct ActiveRoundView: View {
         .buttonStyle(.plain)
     }
 
-    private func actionIconButton(systemName: String, iconColor: Color? = nil, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(iconColor ?? palette.ink)
-                .frame(width: 50, height: 50)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 2)
-                        .stroke(palette.ink, lineWidth: 1.2)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var puttButton: some View {
-        Button(action: markPutt) {
-            VStack(spacing: 1) {
-                Image(systemName: "circle.fill").font(.system(size: 9, weight: .bold))
-                Text("PUTT").font(AppFont.stamp).tracking(0.8)
-            }
-            .foregroundStyle(palette.ink)
-            .frame(width: 58, height: 50)
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(palette.ink, lineWidth: 1.2)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(isMarkingShot)
-    }
-    private var logShotCTA: some View {
-        Button(action: markShot) {
-            HStack(spacing: 4) {
-                if isMarkingShot {
-                    ProgressView()
-                        .tint(palette.paper)
-                } else {
-                    Text("Log")
-                        .font(.custom(AppFont.serifName, size: 20).italic().weight(.regular))
-                        .foregroundStyle(palette.paper.opacity(0.85))
-                    Text("shot")
-                        .font(.custom(AppFont.serifName, size: 20).weight(.bold))
-                        .foregroundStyle(palette.paper)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(palette.flag)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
-        }
-        .buttonStyle(.plain)
-        .disabled(isMarkingShot)
-    }
-
     @ViewBuilder
     private var errorBanner: some View {
         if let actionError {
@@ -1011,6 +977,148 @@ struct ActiveRoundView: View {
         }
         if isFixStale { return "GPS STALE" }
         return "GPS ±\(Int(loc.horizontalAccuracy.rounded()))M"
+    }
+
+
+    // MARK: - Expanded (Duo inner screen) layout model
+
+    /// Fix the yardage is measured from (phone today; watch-first after #18).
+    private var yardageFix: YardageFix? {
+        YardageFixAdapter.current(phone: location.latestLocation)
+    }
+
+    private var stageMode: RoundStageMode {
+        RoundStageMode.resolve(displayContext, isCasualMode: controller.isCasualMode)
+    }
+
+    /// The Duo hinge runs through the window's center; convert to the stage's
+    /// local coordinates (x for the landscape modes, y for tabletop).
+    private var stageHinge: CGFloat? {
+        let window = displayContext.windowSize
+        guard window != .zero, stageFrame != .zero else { return nil }
+        switch stageMode {
+        case .twoPage, .wide: return window.width / 2 - stageFrame.minX
+        case .tabletop: return window.height / 2 - stageFrame.minY
+        case .overlay, .commandPortrait: return nil
+        }
+    }
+
+    private var inRoundSnapshot: InRoundSnapshot {
+        let clubs = clubsInPlay
+        let pin: InRoundPin? = distanceToGreenYards.map { yards in
+            let f = units.format(yards: yards)
+            return InRoundPin(value: f.value, unit: f.unit,
+                              front: units.format(yards: max(0, yards - 14)).value,
+                              back: units.format(yards: yards + 14).value)
+        }
+        return InRoundSnapshot(
+            holeNumber: currentHoleNumber,
+            par: controller.currentHole?.par,
+            holeLengthText: curatedYardsForCurrentHole.map {
+                let f = units.format(yards: $0)
+                return "\(f.value) \(f.unit.uppercased())"
+            },
+            courseName: controller.curatedCourseId.flatMap { id in
+                curatedCourses.first { $0.id == id }?.name
+            },
+            scoreText: roundScoreText,
+            pin: pin,
+            needsCourseLink: controller.curatedCourseId == nil,
+            pinSourceText: pin == nil ? nil : yardageFix?.sourceLabel,
+            gpsText: gpsAccuracyText,
+            gpsColor: gpsColor,
+            clubs: clubs.map { club in
+                InRoundClubChip(
+                    club: club,
+                    avgText: ClubAverages.shared.average(for: club.id)
+                        .flatMap { $0 > 0 ? "\(units.format(yards: $0).value)" : nil },
+                    isSelected: controller.currentClub == club)
+            },
+            bagText: "BAG · \(clubs.count) OF \(bag.count)",
+            strokes: InRoundFormat.strokeLines(shots: controller.currentHoleShots, units: units),
+            selectedClubShort: controller.currentClub?.shortName,
+            shots: controller.shotsInCurrentHole,
+            penalties: controller.currentHolePenaltyStrokes,
+            isMarking: isMarkingShot,
+            canUndo: !(controller.currentHoleShots.isEmpty && controller.currentHolePenalties.isEmpty),
+            errorText: actionError,
+            isFollowingMap: mapFollowMode,
+            watchDetecting: Self.isWatchReachable
+        )
+    }
+
+    private var inRoundActions: InRoundActions {
+        InRoundActions(
+            logShot: markShot,
+            markMissed: {
+                pendingMissingShotCenter = missingShotInitialCenter
+                showMissingShotSheet = true
+            },
+            putt: markPutt,
+            undo: { showUndoConfirm = true },
+            finishHole: { reviewingHole = controller.currentHole },
+            selectClub: { controller.setCurrentClub($0) },
+            openBag: { showClubsInPlay = true },
+            openCard: { showScorecard = true },
+            endRound: { showEndRoundConfirm = true },
+            stepHole: { delta in
+                controller.stepHole(by: delta)
+                mapFollowMode = true
+            },
+            openHoleGrid: { showHoleGrid = true },
+            linkCourse: { showCoursePicker = true },
+            recenterMap: { mapFollowMode = true }
+        )
+    }
+
+    /// Recompute "+2 THRU 6" from the persisted holes. Errors leave it blank —
+    /// the header just omits the score.
+    private func refreshRoundScore() {
+        guard let round = controller.currentRound,
+              let holes = try? HoleRepository.holesForRound(round.id) else {
+            roundScoreText = nil
+            return
+        }
+        let rows = holes.map { hole in
+            let shots = (try? ShotRepository.shotsForHole(hole.id).count) ?? 0
+            let pens = ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []).reduce(0) { $0 + $1.strokeCount }
+            return (par: hole.par, strokes: shots + pens, confirmed: hole.confirmedAt != nil)
+        }
+        roundScoreText = InRoundFormat.scoreText(holes: rows)
+        let currentID = controller.currentHole?.id
+        holeStartedAt = holes.filter { $0.id != currentID }.compactMap(\.confirmedAt).max()
+            ?? round.startedAt
+    }
+
+    private static var isWatchReachable: Bool {
+        guard WCSession.isSupported() else { return false }
+        let session = WCSession.default
+        return session.activationState == .activated && session.isReachable
+    }
+
+    private var trailTaskID: String {
+        "\(controller.currentHole?.id.uuidString ?? "-")|\(holeStartedAt?.timeIntervalSince1970 ?? 0)"
+    }
+
+    private static let trailRefreshSeconds: UInt64 = 15
+    private static let trailMaxPoints = 400
+
+    /// Reload this hole's breadcrumbs every few seconds (dotted map trail).
+    private func pollHoleTrail() async {
+        while !Task.isCancelled {
+            loadHoleTrail()
+            try? await Task.sleep(nanoseconds: Self.trailRefreshSeconds * 1_000_000_000)
+        }
+    }
+
+    private func loadHoleTrail() {
+        guard let round = controller.currentRound,
+              let points = try? TracePointRepository.pointsForRound(round.id) else { return }
+        let since = holeStartedAt ?? round.startedAt
+        let coords = points.filter { $0.timestamp >= since }
+            .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        let stride = max(1, coords.count / Self.trailMaxPoints)
+        holeTrail = coords.enumerated().compactMap { $0.offset % stride == 0 ? $0.element : nil }
     }
 
     // MARK: - Computed accessors
@@ -1096,10 +1204,10 @@ struct ActiveRoundView: View {
     private var distanceToGreenYards: Int? {
         guard let courseId = controller.curatedCourseId,
               let hole = controller.currentHole,
-              let loc = location.latestLocation, loc.horizontalAccuracy > 0
+              let fix = yardageFix
         else { return nil }
         return GlassesStateMapper.yardsToGreen(
-            from: loc.coordinate, courseId: courseId, holeNumber: hole.holeNumber)
+            from: fix.coordinate, courseId: courseId, holeNumber: hole.holeNumber)
     }
 
     /// `navigationDestination(isPresented:)` wants a `Binding<Bool>`. Bridge

@@ -19,6 +19,10 @@ import Foundation
 /// Launch-arg keys are read straight from UserDefaults (NSUserDefaults maps
 /// `-Key Value` launch arguments automatically).
 enum DebugHarness {
+    /// `-DebugOpen review|card|bag|course|logbook|settings` — opens one screen
+    /// on launch so simulator screenshots don't need taps.
+    static var openScreen: String? { UserDefaults.standard.string(forKey: "DebugOpen") }
+
     @MainActor
     static func runIfRequested(controller: RoundController, location: LocationManager) {
         let d = UserDefaults.standard

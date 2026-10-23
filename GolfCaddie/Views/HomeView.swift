@@ -23,6 +23,10 @@ struct HomeView: View {
     @State private var roundCount: Int = 0
     @State private var loadError: String?
     @State private var showBagEditor: Bool = false
+    #if DEBUG
+    @State private var debugShowLogbook = false
+    @State private var debugShowSettings = false
+    #endif
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -89,7 +93,19 @@ struct HomeView: View {
         .onAppear {
             refresh()
             normalizeClubsLeftOut()
+            #if DEBUG
+            switch DebugHarness.openScreen {
+            case "logbook": debugShowLogbook = true
+            case "settings": debugShowSettings = true
+            case "bag": showClubsInPlay = true
+            default: break
+            }
+            #endif
         }
+        #if DEBUG
+        .navigationDestination(isPresented: $debugShowLogbook) { RoundListView(bag: bag) }
+        .navigationDestination(isPresented: $debugShowSettings) { SettingsView(bag: $bag) }
+        #endif
     }
 
     // MARK: - Top bar
