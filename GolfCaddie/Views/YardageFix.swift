@@ -13,20 +13,17 @@ struct YardageFix: Equatable {
     }
 }
 
-/// Thin seam between the phone's yardage and the "watch GPS first" policy of
-/// PR #18 (`LocationPreference.choose` + `WatchFixStore`). Until #18 merges it
-/// uses the phone's live fix; after the merge only `current(phone:)` changes:
-///
-///     let choice = LocationPreference.choose(
-///         watch: WatchFixStore.shared.latest,
-///         phone: phone.map(GeoFix.init), at: Date())
-///     guard let fix = choice.fix else { return nil }
-///     return YardageFix(coordinate: fix.coordinate,
-///                       sourceLabel: choice.source == .watch ? "WATCH GPS" : "PHONE GPS")
+/// Yardage follows the "watch GPS first" policy (B35): the round's
+/// `LocationChoice` (`RoundController.currentLocationChoice`, streamed-watch
+/// 10 s gate) picks the watch fix when fresh, else the phone's.
 enum YardageFixAdapter {
-    static func current(phone: CLLocation?) -> YardageFix? {
-        guard let phone, phone.horizontalAccuracy > 0 else { return nil }
-        return YardageFix(coordinate: phone.coordinate, sourceLabel: "PHONE GPS")
+    static func current(choice: LocationChoice) -> YardageFix? {
+        guard let fix = choice.fix else { return nil }
+        switch choice.source {
+        case .watch: return YardageFix(coordinate: fix.coordinate, sourceLabel: "WATCH GPS")
+        case .phone: return YardageFix(coordinate: fix.coordinate, sourceLabel: "PHONE GPS")
+        case .none: return nil
+        }
     }
 }
 
@@ -35,6 +32,7 @@ enum YardageFixAdapter {
 /// branch feat/watch-trail) with a one-line change once it lands; today it is
 /// the phone breadcrumbs.
 enum HoleTrailSource {
+    // B38: switch to TracePointRepository.preferredTrail (watch-first trail).
     static func coordinates(roundID: UUID, since: Date) -> [CLLocationCoordinate2D] {
         let points = (try? TracePointRepository.pointsForRound(roundID)) ?? []
         return points.filter { $0.timestamp >= since }

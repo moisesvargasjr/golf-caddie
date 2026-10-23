@@ -1010,7 +1010,9 @@ struct ActiveRoundView: View {
 
     /// Fix the yardage is measured from (phone today; watch-first after #18).
     private var yardageFix: YardageFix? {
-        YardageFixAdapter.current(phone: location.latestLocation)
+        // Reads WatchFixStore.latest (@Observable) and the phone fix, so a
+        // new watch fix re-renders the yardage.
+        YardageFixAdapter.current(choice: controller.currentLocationChoice())
     }
 
     private var stageMode: RoundStageMode {
