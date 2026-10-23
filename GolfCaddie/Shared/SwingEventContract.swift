@@ -32,6 +32,14 @@ enum ShotContract {
     static let fixStreamInterval: TimeInterval = 2
     /// A fix older than this at send time is not streamed (see `WatchFixStream`).
     static let fixStreamMaxSendAge: TimeInterval = 2
+    /// transferUserInfo key for a watch trail batch (B38). Separate from
+    /// `payloadKey` so the watch's "SYNCING N" chip, which counts round traffic,
+    /// is not inflated by background trail uploads.
+    static let trailKey = "trail"
+    /// Seconds between queued trail flushes while a session runs (also flushed on
+    /// hole change / Finish Hole and at stop). 60 s: fewer radio wakes; hole-change
+    /// and stop flushes carry the timing-critical data.
+    static let trailFlushInterval: TimeInterval = 60
 }
 
 /// The watch's own GPS fix at a swing / tap. The phone prefers it over its own
@@ -157,7 +165,7 @@ struct IdentifiedCommand: Codable, Equatable {
 /// handles event, command and fix traffic. Swings and commands ride the queued
 /// `transferUserInfo`; `.fix` rides `sendMessage` only (see `fix(_:)`).
 struct WatchToPhoneMessage: Codable, Equatable {
-    enum Kind: String, Codable { case swing, command, fix }
+    enum Kind: String, Codable { case swing, command, fix, trail }
 
     var kind: Kind
     var swing: SwingEvent?
@@ -166,6 +174,9 @@ struct WatchToPhoneMessage: Codable, Equatable {
     /// pre-B35 payload decodes with nil, so the contract stays v1. An OLD phone
     /// fails to decode the new `fix` kind and drops it, which is harmless.
     var watchFix: WatchFix? = nil
+    /// A batch of the watch's GPS trail (kind == .trail), queued via
+    /// `transferUserInfo`. Optional = additive; contract stays v1.
+    var trail: WatchTrailBatch? = nil
 
     static func swing(_ event: SwingEvent) -> WatchToPhoneMessage {
         WatchToPhoneMessage(kind: .swing, swing: event, command: nil)
@@ -188,6 +199,12 @@ struct WatchToPhoneMessage: Codable, Equatable {
     /// fix is stale by the time it lands and is worse than none.
     static func fix(_ fix: WatchFix) -> WatchToPhoneMessage {
         WatchToPhoneMessage(kind: .fix, swing: nil, command: nil, watchFix: fix)
+    }
+
+    /// A trail batch for queued delivery (B38). Unlike `.fix`, trail data is
+    /// historical and worth delivering late: the phone files it by timestamp.
+    static func trail(_ batch: WatchTrailBatch) -> WatchToPhoneMessage {
+        WatchToPhoneMessage(kind: .trail, swing: nil, command: nil, trail: batch)
     }
 
     func encoded() throws -> Data { try JSONEncoder().encode(self) }
@@ -275,4 +292,47 @@ struct PhoneStateUpdate: Codable, Equatable {
         distanceToGreenYards: nil, currentClubShortName: nil, clubEpoch: 0,
         clubs: [], strokes: [], scorecard: []
     )
+}
+
+/// A batch of the watch's thinned GPS trail (B38). `batchId` makes redelivery
+/// idempotent. Wire format is compact on purpose (watch battery + BLE traffic):
+/// each fix is a 4-number row `[lat, lon, hAcc, unixSeconds]` rounded to useful
+/// precision (6 decimals is about 0.1 m, hAcc to 0.1 m, time to 1 ms), about 55
+/// bytes a fix instead of ~110 as a keyed object.
+struct WatchTrailBatch: Codable, Equatable {
+    var batchId: UUID
+    var fixes: [WatchFix]
+
+    private enum CodingKeys: String, CodingKey { case batchId = "b", fixes = "f" }
+
+    init(batchId: UUID, fixes: [WatchFix]) {
+        self.batchId = batchId
+        self.fixes = fixes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        batchId = try c.decode(UUID.self, forKey: .batchId)
+        let rows = try c.decode([[Double]].self, forKey: .fixes)
+        fixes = try rows.map { row in
+            guard row.count == 4 else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .fixes, in: c, debugDescription: "trail fix row must have 4 numbers")
+            }
+            return WatchFix(latitude: row[0], longitude: row[1], horizontalAccuracy: row[2], timestamp: row[3])
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(batchId, forKey: .batchId)
+        try c.encode(fixes.map { [Self.round($0.latitude, 6), Self.round($0.longitude, 6),
+                                  Self.round($0.horizontalAccuracy, 1), Self.round($0.timestamp, 3)] },
+                     forKey: .fixes)
+    }
+
+    private static func round(_ value: Double, _ places: Int) -> Double {
+        let scale = pow(10.0, Double(places))
+        return (value * scale).rounded() / scale
+    }
 }

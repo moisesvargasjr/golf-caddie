@@ -130,13 +130,20 @@ final class LiveShotCoordinator {
             WatchFixStore.shared.update(message.watchFix)
             return
         }
+        // A trail batch is history, filed by its own timestamps: store it
+        // immediately (also before a controller is attached, so it is never
+        // buffered or dropped) and leave command/swing ordering untouched.
+        if message.kind == .trail {
+            ingestTrail(message.trail)
+            return
+        }
         guard controller != nil else { bufferedBeforeAttach.append(message); return }
         switch message.kind {
         case .swing:
             guard let event = message.swing else { return }
             pending.append(event)
             restartDebounce()
-        case .fix:
+        case .fix, .trail:
             return
         case .command:
             guard let identified = message.command else { return }
@@ -149,6 +156,35 @@ final class LiveShotCoordinator {
             } else {
                 handle(identified)
             }
+        }
+    }
+
+    /// Serial and off the main actor: a reconnect can deliver hours of trail at
+    /// once, and the DB work (round lookup, dedupe, insert) must not stall the UI
+    /// or the command replay running on main. Serial keeps batches in order.
+    private let trailQueue = DispatchQueue(label: "golfcaddie.trail-ingest", qos: .utility)
+
+    private func ingestTrail(_ batch: WatchTrailBatch?) {
+        guard let batch else { return }
+        trailQueue.async { [weak self] in
+            do {
+                let result = try TraceIngest.ingest(batch)
+                guard !result.spans.isEmpty else { return }
+                // Coalesced + debounced on main; one re-lay pass per burst.
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.controller?.noteWatchTrail(result.spans) }
+                }
+            } catch {
+                NSLog("LiveShotCoordinator: trail batch \(batch.batchId) not stored: \(error)")
+            }
+        }
+    }
+
+    /// Awaitable point for tests: every trail batch received so far is stored and
+    /// its notification delivered to the controller.
+    func waitUntilTrailIdle() async {
+        await withCheckedContinuation { continuation in
+            trailQueue.async { DispatchQueue.main.async { continuation.resume() } }
         }
     }
 
@@ -240,8 +276,10 @@ final class LiveShotCoordinator {
         guard let sentAt = identified.sentAt else { return nil }
         let tapped = Date(timeIntervalSince1970: sentAt)
         let late = now().timeIntervalSince(tapped) > Self.liveWindow
-        let phone = late ? breadcrumb(near: tapped) : controller?.phoneFix()
-        let choice = LocationPreference.choose(watch: identified.fix, phone: phone, at: tapped)
+        let crumb = breadcrumb(near: tapped)
+        let phone = late ? crumb.flatMap(Self.phoneFix) : controller?.phoneFix()
+        let choice = Self.withTrail(
+            LocationPreference.choose(watch: identified.fix, phone: phone, at: tapped), crumb: crumb)
         guard late || choice.source == .watch else { return nil }
         return .init(timestamp: late ? tapped : now(), choice: choice)
     }
@@ -277,8 +315,26 @@ final class LiveShotCoordinator {
     /// the honest answer.
     private func fuse(_ event: SwingEvent) -> LocationChoice {
         let target = event.candidateTime
-        let phone = breadcrumb(near: target) ?? liveFix(for: target)
-        return LocationPreference.choose(watch: event.fix, phone: phone, at: target)
+        let crumb = breadcrumb(near: target)
+        let phone = crumb.flatMap(Self.phoneFix) ?? liveFix(for: target)
+        return Self.withTrail(LocationPreference.choose(watch: event.fix, phone: phone, at: target), crumb: crumb)
+    }
+
+    /// A breadcrumb that came from the watch's own trail is a watch location: use
+    /// it (tagged `watch`) unless the swing/tap carried a usable fix of its own.
+    private static func withTrail(_ choice: LocationChoice, crumb: TracePoint?) -> LocationChoice {
+        guard choice.source != .watch, let crumb, crumb.isWatch, crumb.accuracy > 0 else { return choice }
+        return LocationChoice(fix: geoFix(crumb), source: .watch, disagreementMeters: choice.disagreementMeters)
+    }
+
+    /// The phone's breadcrumb as a phone fix (nil for a watch-recorded point).
+    private static func phoneFix(_ crumb: TracePoint) -> GeoFix? {
+        crumb.isWatch ? nil : geoFix(crumb)
+    }
+
+    private static func geoFix(_ crumb: TracePoint) -> GeoFix {
+        GeoFix(latitude: crumb.latitude, longitude: crumb.longitude, horizontalAccuracy: crumb.accuracy,
+               timestamp: crumb.timestamp.timeIntervalSince1970)
     }
 
     /// The phone's live fix, but only for a swing that just happened.
@@ -288,12 +344,13 @@ final class LiveShotCoordinator {
         return GeoFix(loc)
     }
 
-    private func breadcrumb(near target: Date) -> GeoFix? {
+    /// The nearest point of the round's preferred trail (watch points win where
+    /// the watch covered) within 10 s of `target`.
+    private func breadcrumb(near target: Date) -> TracePoint? {
         guard let roundID = controller?.currentRound?.id,
               let breadcrumb = try? TracePointRepository.nearest(toTimestamp: target, inRound: roundID),
               abs(breadcrumb.timestamp.timeIntervalSince(target)) <= 10 else { return nil }
-        return GeoFix(latitude: breadcrumb.latitude, longitude: breadcrumb.longitude,
-                      horizontalAccuracy: breadcrumb.accuracy, timestamp: breadcrumb.timestamp.timeIntervalSince1970)
+        return breadcrumb
     }
 }
 

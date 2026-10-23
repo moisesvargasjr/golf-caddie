@@ -225,6 +225,17 @@ enum Database {
             }
         }
 
+        // Watch trail (B38): the watch uploads its own GPS trail so a phone left in
+        // the cart still yields the walked path. NULL = phone breadcrumb (all
+        // legacy rows); 'watch' = from a watch trail batch.
+        migrator.registerMigration("v9_trace_point_source") { db in
+            try db.alter(table: "tracePoint") { t in
+                t.add(column: "source", .text)
+            }
+            try db.create(index: "tracePoint_roundID_timestamp_idx", on: "tracePoint",
+                          columns: ["roundID", "timestamp"])
+        }
+
         return migrator
     }
 }

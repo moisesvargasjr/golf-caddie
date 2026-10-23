@@ -14,7 +14,7 @@ final class MigrationTests: XCTestCase {
             Database.migrator.migrations,
             ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
              "v4_shot_putt_confidence", "v5_custom_clubs", "v6_shot_excluded",
-             "v7_round_clubs_left_out", "v8_shot_location_source"]
+             "v7_round_clubs_left_out", "v8_shot_location_source", "v9_trace_point_source"]
         )
     }
 

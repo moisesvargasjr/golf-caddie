@@ -10,7 +10,8 @@ read from the coursedata checkout next to this repo (or --catalog).
 
 Reports: fix cadence + accuracy, watch-vs-phone track gap, per-shot yardage
 agreement, first-shot distance to the tee point, putt distance to the green,
-shot location sources + watch-vs-phone disagreement (B35), battery. Stdlib only. Never commit the inputs — they're a GPS trail.
+shot location sources + watch-vs-phone disagreement (B35), watch trail rows
+(tracePoint.source = 'watch') vs phone breadcrumbs (B38), battery. Stdlib only. Never commit the inputs — they're a GPS trail.
 """
 import argparse, bisect, csv, datetime as dt, json, math, os, sqlite3, statistics as st, sys, tempfile, zipfile
 
@@ -47,6 +48,46 @@ def load_telemetry(path):
             session = json.load(open(os.path.join(root, "session.json"))) if "session.json" in files else {}
             return fixes, session
     sys.exit(f"no fixes.csv under {path}")
+
+
+def phone_trace_filter(db: sqlite3.Connection) -> str:
+    """SQL clause selecting phone breadcrumbs only (v9 added tracePoint.source; NULL = phone)."""
+    cols = {r[1] for r in db.execute("pragma table_info(tracePoint)")}
+    return " and (source is null or source = 'phone')" if "source" in cols else ""
+
+
+def report_trace_sources(db: sqlite3.Connection, rid: str) -> None:
+    """B38: watch trail rows (tracePoint.source = 'watch') vs the phone's breadcrumbs."""
+    cols = {r[1] for r in db.execute("pragma table_info(tracePoint)")}
+    if "source" not in cols:
+        print("\nTrail sources: n/a (database predates migration v9)")
+        return
+    rows = db.execute("select timestamp, latitude, longitude, source from tracePoint where roundID=? "
+                      "order by timestamp", (rid,)).fetchall()
+    watch = [(ts(t), la, lo) for t, la, lo, src in rows if src == "watch"]
+    phone = [(ts(t), la, lo) for t, la, lo, src in rows if src != "watch"]
+    print(f"\nTrail sources: watch {len(watch)} points, phone {len(phone)} points")
+    if len(watch) < 2:
+        print("No watch trail uploaded for this round (batches are queued via transferUserInfo)")
+        return
+    wt = [x[0] for x in watch]
+    gaps = [b - a for a, b in zip(wt, wt[1:])]
+    covered = sum(g for g in gaps if g <= 15)
+    print(f"Watch trail: {covered / 60:.0f} min covered, cadence median {st.median(gaps):.1f}s, "
+          f"gaps >15s (phone fills in): {sum(g > 15 for g in gaps)}")
+    apart = []
+    for t, la, lo in phone:
+        i = bisect.bisect_left(wt, t)
+        c = [watch[j] for j in (i - 1, i) if 0 <= j < len(watch)]
+        if c:
+            f = min(c, key=lambda x: abs(x[0] - t))
+            if abs(f[0] - t) <= 3:
+                apart.append(meters((la, lo), (f[1], f[2])))
+    if apart:
+        far = sum(d > 25 for d in apart)
+        print(f"Phone vs watch trail at {len(apart)} paired moments: median {st.median(apart):.1f} m, "
+              f"p90 {pct(apart, .9):.1f}, max {max(apart):.1f}; >25 m apart: {far}/{len(apart)} "
+              f"(phone left behind)")
 
 
 def report_location_sources(db: sqlite3.Connection, rid: str) -> None:
@@ -108,7 +149,8 @@ def main():
 
     # --- track gap ------------------------------------------------------------
     p = [(ts(t), la, lo, ac) for t, la, lo, ac in db.execute(
-        "select timestamp, latitude, longitude, accuracy from tracePoint where roundID=? order by timestamp", (rid,))]
+        "select timestamp, latitude, longitude, accuracy from tracePoint where roundID=?"
+        + phone_trace_filter(db) + " order by timestamp", (rid,))]
     g = []
     for t, la, lo, _ in p:
         i = bisect.bisect_left(wt, t)
@@ -161,6 +203,7 @@ def main():
     if teed:
         print(f"First shot → tee point: median {st.median(teed):.1f} m, within 15 m: {sum(d <= 15 for d in teed)}/{len(teed)}")
 
+    report_trace_sources(db, rid)
     report_location_sources(db, rid)
 
     # --- battery --------------------------------------------------------------

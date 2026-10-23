@@ -435,7 +435,7 @@ final class RoundController {
             throw GlassesError.noActiveHole
         }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
-        let shot = Shot(
+        let drafted = Shot(
             id: UUID(),
             holeID: hole.id,
             sequenceNumber: nextSeq,
@@ -450,6 +450,8 @@ final class RoundController {
             isPutt: Shot.derivedIsPutt(club: club),
             locationSource: .manual
         )
+        // B38: a pin dropped within ~15 m of the golfer's path snaps onto it (track).
+        let shot = ShotPlacement.pinned(drafted, at: coord)
         try ShotRepository.insertShot(shot, at: nextSeq)
         currentHoleShots.append(shot)
     }
@@ -873,6 +875,96 @@ final class RoundController {
             try? ShotRepository.update(updated)
         }
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
+    // MARK: - Late watch trail (B38)
+
+    /// Quiet period after the last trail batch before holes are re-laid. A
+    /// reconnect delivers a burst of batches within seconds; re-laying per batch
+    /// would redo the same work dozens of times.
+    @ObservationIgnored
+    var relayDebounce: TimeInterval = 1.0
+
+    @ObservationIgnored
+    private var pendingRelay: [UUID: ClosedRange<Date>] = [:]
+
+    @ObservationIgnored
+    private var relayTimer: Timer?
+
+    /// Number of (round) re-lay passes run so far; the burst test pins this.
+    @ObservationIgnored
+    private(set) var relayPassCount = 0
+
+    /// Trail points just landed for these rounds/time spans. Collects them and
+    /// re-lays once after the burst settles.
+    func noteWatchTrail(_ spans: [UUID: ClosedRange<Date>]) {
+        for (roundID, span) in spans {
+            let merged = pendingRelay[roundID].map {
+                min($0.lowerBound, span.lowerBound)...max($0.upperBound, span.upperBound)
+            }
+            pendingRelay[roundID] = merged ?? span
+        }
+        relayTimer?.invalidate()
+        relayTimer = Timer.scheduledTimer(withTimeInterval: relayDebounce, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.runPendingRelay() }
+        }
+    }
+
+    private func runPendingRelay() {
+        let spans = pendingRelay
+        pendingRelay = [:]
+        relayTimer = nil
+        watchTrailArrived(spans: spans)
+    }
+
+    /// Re-lay holes the SYSTEM placed from the track, now that a better trail
+    /// exists. Per round, reads the holes/shots/trail once, and touches only holes
+    /// whose time window overlaps the new fixes.
+    ///
+    /// Safety: a hole is only touched when EVERY stroke on it is system-placed
+    /// (`.reconstructed` with `locationSource == .track`, or still unlocated).
+    /// Every hand placement is tagged `manual` (snapped or not), and a watch-fixed
+    /// stroke is `watch`, so either makes the whole hole off limits: placement is
+    /// positional (stroke N to stop N), so we never move some strokes around
+    /// others. Holes open in review/detail (`HolesUnderEdit`) are skipped too.
+    func watchTrailArrived(spans: [UUID: ClosedRange<Date>]) {
+        guard !spans.isEmpty, let rounds = try? RoundRepository.allRounds() else { return }
+        for round in rounds {
+            guard let span = spans[round.id], let track = try? TrackSegmenter.roundTrack(for: round) else { continue }
+            relayPassCount += 1
+            for hole in track.holes where !HolesUnderEdit.contains(hole.id) {
+                guard let window = track.window(for: hole), window.overlaps(span) else { continue }
+                replaceTrackPlacement(hole: hole, in: track)
+            }
+        }
+        if case let .active(_, hole) = state {
+            currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? currentHoleShots
+        }
+    }
+
+    private func replaceTrackPlacement(hole: Hole, in track: TrackSegmenter.RoundTrack) {
+        let shots = ((try? ShotRepository.shotsForHole(hole.id)) ?? [])
+            .sorted { $0.sequenceNumber < $1.sequenceNumber }
+        guard !shots.isEmpty, shots.contains(where: { $0.locationSource == .track }),
+              shots.allSatisfy({ $0.source == .reconstructed && ($0.locationSource == .track || $0.latitude == nil) })
+        else { return }
+        let round = track.round
+        let green = GlassesStateMapper.greenCoordinate(courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let tee = GlassesStateMapper.teeCoordinate(courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let stops = TrackSegmenter.detectStops(in: track.trail(for: hole))
+        let recon = PathBReconstructor.reconstruct(score: shots.count, stops: stops, tee: tee, green: green)
+        for (shot, placed) in zip(shots, recon.shots) {
+            var updated = shot
+            updated.latitude = placed.latitude
+            updated.longitude = placed.longitude
+            updated.hadGPS = true
+            updated.gpsAccuracy = nil
+            updated.isPutt = placed.isPutt
+            updated.locationSource = .track
+            updated.confidence = Self.pathBConfidence(placed)
+            guard updated != shot else { continue }
+            try? ShotRepository.update(updated)
+        }
     }
 
     /// Confidence for a Path-B placed pin: a fallback guess (no dwell behind it)

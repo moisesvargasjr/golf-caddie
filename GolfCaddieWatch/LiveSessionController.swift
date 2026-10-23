@@ -79,9 +79,11 @@ final class LiveSessionController: ObservableObject {
         location.onFix = { [weak self] fix in
             guard let self, self.running else { return }
             if fix.horizontalAccuracy > 0 {
-                WatchSession.shared.latestFix = WatchFix(
+                let watchFix = WatchFix(
                     latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude,
                     horizontalAccuracy: fix.horizontalAccuracy, timestamp: fix.timestamp.timeIntervalSince1970)
+                WatchSession.shared.latestFix = watchFix
+                WatchSession.shared.recordTrailFix(watchFix)
             }
             self.caddie.ingest(fix)
             // Logged AFTER ingest so the row carries the yardage this fix produced,
