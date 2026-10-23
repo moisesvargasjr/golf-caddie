@@ -64,6 +64,13 @@ extension SpikeSessionReceiver: WCSessionDelegate {
             WatchCatalogPusher.watchRequestedResend()
             return
         }
+        // Watch trail batch (B38): filed by timestamp, independent of round traffic.
+        if let data = userInfo[ShotContract.trailKey] as? Data {
+            if let message = try? WatchToPhoneMessage.decode(data), message.kind == .trail {
+                LiveShotCoordinator.shared.receive(message)
+            }
+            return
+        }
         guard let data = userInfo[ShotContract.payloadKey] as? Data,
               let message = try? WatchToPhoneMessage.decode(data) else { return }
         LiveShotCoordinator.shared.receive(message)

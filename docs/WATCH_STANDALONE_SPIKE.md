@@ -281,3 +281,44 @@ watch-vs-phone distance whenever both were usable.
   disagreement distribution. A large median means the phone was regularly left behind.
 - Not verified on device: stream cadence and `isReachable` behavior with the phone in a bag
   or cart, and how often the 10 s age gate drops the stream's fix.
+
+## Watch trail (B38)
+
+Problem: with the phone left in the cart, every trail, Path B placement, stop and
+breadcrumb lookup came from the phone, so it described the cart, not the walk. The live
+fix stream (B35) is `sendMessage` only and drops whenever the phone is out of range.
+
+- **Watch.** `WatchTrailRecorder` (Shared) buffers the watch's fixes while a session runs:
+  hAcc 0 to 20 m only, thinned to one fix per 2 s or 3 m of movement. `WatchSession.flushTrail`
+  queues them with `transferUserInfo` (key `trail`, not the round payload key, so "SYNCING N"
+  is unaffected) every 30 s, on Finish Hole / hole change, and at session end (stop, workout
+  failure, system end). Batches are at most 60 fixes, each with a `batchId`. Wire: new
+  `WatchToPhoneMessage.Kind.trail` + optional `trail`; each fix is a 4-number row
+  `[lat, lon, hAcc, unixSeconds]` (about 55 bytes). Old payloads still decode (contract v1).
+- **Phone storage.** Migration `v9_trace_point_source` adds nullable `tracePoint.source`
+  (NULL/`phone` = phone breadcrumb, `watch` = trail batch). `TraceIngest` files each fix in
+  the round whose time window contains it (120 s slack before the start, 300 s after the end;
+  exact containment wins), so a batch delivered after the round ended still lands correctly.
+  Point ids derive from `batchId` + index and watch rows are also deduped by (round,
+  timestamp, source): redelivery inserts nothing. Ingest runs straight from
+  `LiveShotCoordinator.ingest`, before the controller guard, so it is never buffered behind
+  `controller == nil` and never touches swing/command ordering.
+- **Preferred trail.** `TrailMerge.preferred` / `TracePointRepository.preferredTrail`: over any
+  span covered by watch points (consecutive points <= 15 s apart) only watch points are used;
+  phone points fill the rest. Readers switched to it: `TrackSegmenter.stops`/`trail` (so Path B
+  and `placeCurrentHoleFromTrack`), `TracePointRepository.nearest` (swing/tap `breadcrumb(near:)`,
+  a watch trail point is tagged `locationSource = watch`). No map view draws a trail today.
+- **Pin placement.** `ShotPlacement.pinned`: a pin dropped within 15 m of the hole's preferred
+  trail snaps to the nearest trail point (`locationSource = track`), else stays put
+  (`manual`). Used by hole detail and hole review (`moveShot`) and by `insertMissingShot`
+  (the in-round missing-shot sheet).
+- **Late data.** `RoundController.watchTrailArrived` re-lays holes whose strokes are ALL
+  system-placed (`reconstructed` + `track`). One hand-placed (`manual`) or watch-fixed pin makes
+  the whole hole off limits, since placement is positional.
+- **Reading a round.** `scripts/compare-watch-track.py` prints watch vs phone trail point
+  counts, watch coverage and how far apart the two trails were.
+- **Cost estimate.** Walking or standing: about one kept fix per 2 s, 15 per 30 s flush, around
+  0.9 KB per batch, about 110 KB per hour, about 0.5 MB for a 4.5 h round, roughly 120 small
+  `transferUserInfo` calls an hour. The GPS is already running for the workout. Not measured.
+- Not verified on device: delivery timing after reconnect, battery delta, flush at app
+  suspension (up to 30 s of buffered fixes can be lost if the watch app is killed).

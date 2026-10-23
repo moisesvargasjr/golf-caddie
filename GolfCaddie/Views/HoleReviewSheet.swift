@@ -527,13 +527,8 @@ struct HoleReviewSheet: View {
     // reconstructor reads a located-but-accuracyless shot as user-confirmed
     // (full confidence), so the amber "check" cue clears on reload.
     private func moveShot(_ shot: Shot, to coord: CLLocationCoordinate2D) {
-        var updated = shot
-        updated.latitude = coord.latitude
-        updated.longitude = coord.longitude
-        updated.hadGPS = true
-        updated.gpsAccuracy = nil
-        updated.locationSource = .manual // hand-placed pin (B35)
-        updated.locationDisagreementMeters = nil
+        // Within ~15 m of the golfer's trail the pin snaps to it (track), else manual (B38).
+        var updated = ShotPlacement.pinned(shot, at: coord)
         updated.confidence = 1.0 // user-placed = ground truth (also clears Path-B's amber flag)
         do {
             try ShotRepository.update(updated)

@@ -41,12 +41,44 @@ final class WatchSession: NSObject, ObservableObject {
         fixTimer = Timer.scheduledTimer(withTimeInterval: ShotContract.fixStreamInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sendLatestFix() }
         }
+        trailTimer?.invalidate()
+        trailTimer = Timer.scheduledTimer(withTimeInterval: ShotContract.trailFlushInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.flushTrail() }
+        }
     }
 
+    /// Ends the live stream AND the trail: whatever is buffered is queued first, so
+    /// every path that ends a session (stop, workout failure, system end) uploads it.
     func stopFixStream() {
         fixTimer?.invalidate()
         fixTimer = nil
+        trailTimer?.invalidate()
+        trailTimer = nil
+        flushTrail()
         latestFix = nil
+    }
+
+    // MARK: - Trail upload (B38)
+
+    private var trail = WatchTrailRecorder()
+    private var trailTimer: Timer?
+
+    /// Buffer a GPS fix for the trail (thinned + filtered by the recorder).
+    func recordTrailFix(_ fix: WatchFix) {
+        trail.record(fix)
+    }
+
+    /// Queue the buffered trail for the phone with `transferUserInfo`: unlike the
+    /// live fix, a trail batch is still valuable when it lands late (out of range,
+    /// phone in the cart), and the system delivers it on reconnect. Each batch has
+    /// its own id so the phone applies it at most once. Flushed every 30 s, on a
+    /// hole change / Finish Hole, and when the session ends.
+    func flushTrail() {
+        guard WCSession.isSupported() else { return }
+        for batch in trail.drain() {
+            guard let data = try? WatchToPhoneMessage.trail(batch).encoded() else { continue }
+            WCSession.default.transferUserInfo([ShotContract.trailKey: data])
+        }
     }
 
     private func sendLatestFix() {
@@ -74,6 +106,8 @@ final class WatchSession: NSObject, ObservableObject {
             identified.fix = latestFix
             message.command = identified
         }
+        // The hole is changing: get its trail on the queue before the golfer walks on.
+        if message.command?.command.changesHole == true { flushTrail() }
         guard WCSession.isSupported(), let data = try? message.encoded() else { return }
         WCSession.default.transferUserInfo([ShotContract.payloadKey: data])
         refreshOutstanding()
@@ -252,6 +286,14 @@ extension WatchSession: WCSessionDelegate {
 }
 
 private extension WatchCommand {
+    /// Commands after which the golfer is on another hole.
+    var changesHole: Bool {
+        switch self {
+        case .advanceHole, .previousHole, .finishHole: return true
+        default: return false
+        }
+    }
+
     /// Commands that log a stroke at the golfer's position.
     var isLocated: Bool {
         switch self {

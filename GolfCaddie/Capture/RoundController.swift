@@ -435,7 +435,7 @@ final class RoundController {
             throw GlassesError.noActiveHole
         }
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
-        let shot = Shot(
+        let drafted = Shot(
             id: UUID(),
             holeID: hole.id,
             sequenceNumber: nextSeq,
@@ -450,6 +450,8 @@ final class RoundController {
             isPutt: Shot.derivedIsPutt(club: club),
             locationSource: .manual
         )
+        // B38: a pin dropped within ~15 m of the golfer's path snaps onto it (track).
+        let shot = ShotPlacement.pinned(drafted, at: coord)
         try ShotRepository.insertShot(shot, at: nextSeq)
         currentHoleShots.append(shot)
     }
@@ -865,6 +867,52 @@ final class RoundController {
             try? ShotRepository.update(updated)
         }
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
+    /// B38: watch trail points just landed for `roundIDs` (a queued batch delivered
+    /// late, e.g. the golfer opened the review away from the cart). Re-lay holes
+    /// the SYSTEM placed from the track, now that a better trail exists.
+    ///
+    /// Safety: a hole is only touched when EVERY stroke on it is system-placed
+    /// (`.reconstructed` with `locationSource == .track`, or still unlocated).
+    /// Placement is positional (stroke N to stop N), so a single hand-placed
+    /// (`manual`) or watch-fixed pin makes the whole hole off limits: it is never
+    /// moved, nor are its neighbours shifted around it.
+    func watchTrailArrived(inRounds roundIDs: Set<UUID>) {
+        guard !roundIDs.isEmpty,
+              let rounds = try? RoundRepository.allRounds() else { return }
+        for round in rounds where roundIDs.contains(round.id) {
+            for hole in (try? HoleRepository.holesForRound(round.id)) ?? [] {
+                replaceTrackPlacement(hole: hole, in: round)
+            }
+        }
+        if case let .active(_, hole) = state {
+            currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? currentHoleShots
+        }
+    }
+
+    private func replaceTrackPlacement(hole: Hole, in round: Round) {
+        let shots = ((try? ShotRepository.shotsForHole(hole.id)) ?? [])
+            .sorted { $0.sequenceNumber < $1.sequenceNumber }
+        guard !shots.isEmpty, shots.contains(where: { $0.locationSource == .track }),
+              shots.allSatisfy({ $0.source == .reconstructed && ($0.locationSource == .track || $0.latitude == nil) })
+        else { return }
+        let green = GlassesStateMapper.greenCoordinate(courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let tee = GlassesStateMapper.teeCoordinate(courseId: round.curatedCourseId, holeNumber: hole.holeNumber)
+        let stops = (try? TrackSegmenter.stops(forHole: hole, in: round)) ?? []
+        let recon = PathBReconstructor.reconstruct(score: shots.count, stops: stops, tee: tee, green: green)
+        for (shot, placed) in zip(shots, recon.shots) {
+            var updated = shot
+            updated.latitude = placed.latitude
+            updated.longitude = placed.longitude
+            updated.hadGPS = true
+            updated.gpsAccuracy = nil
+            updated.isPutt = placed.isPutt
+            updated.locationSource = .track
+            updated.confidence = Self.pathBConfidence(placed)
+            guard updated != shot else { continue }
+            try? ShotRepository.update(updated)
+        }
     }
 
     /// Confidence for a Path-B placed pin: a fallback guess (no dwell behind it)

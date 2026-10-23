@@ -141,12 +141,19 @@ enum TrackSegmenter {
     /// (always available, unlike tee anchors — Emerald Isle has none).
     static func stops(forHole hole: Hole, in round: Round,
                       config: StopDetectionConfig = .default, now: Date = Date()) throws -> [TrackStop] {
+        detectStops(in: try trail(forHole: hole, in: round, now: now), config: config)
+    }
+
+    /// The round's PREFERRED trail (watch points where the watch covered, else the
+    /// phone's: B38) sliced to the hole's time window. What Path B reads, and what
+    /// hand-placed pins snap to.
+    static func trail(forHole hole: Hole, in round: Round, now: Date = Date()) throws -> [TracePoint] {
         let holes = try HoleRepository.holesForRound(round.id)
-        let all = try TracePointRepository.pointsForRound(round.id)
+        let all = try TracePointRepository.preferredTrail(roundID: round.id)
         let lastShotTimes = try lastShotTimesByHole(holes)
         let window = timeWindow(forHole: hole, roundStart: round.startedAt, holes: holes,
                                 now: now, lastShotTimes: lastShotTimes)
-        return detectStops(in: points(all, in: window), config: config)
+        return points(all, in: window)
     }
 
     /// Latest stroke timestamp per hole — the play-order boundary that makes
