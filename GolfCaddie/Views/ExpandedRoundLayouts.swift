@@ -15,6 +15,7 @@ struct CommandCenterChrome: View {
 
     var body: some View {
         PaperBackground()
+            .zIndex(-1)  // under the shared map, which comes first in the stage
             .roundStageRole(.page)
 
         InRoundHeaderBar(snapshot: snapshot, actions: actions)
@@ -56,6 +57,7 @@ struct WideRoundLayout: View {
 
     var body: some View {
         PaperBackground()
+            .zIndex(-1)  // under the shared map, which comes first in the stage
             .roundStageRole(.page)
 
         ScrollView {
@@ -142,6 +144,7 @@ struct TabletopChrome: View {
 
     var body: some View {
         PaperBackground()
+            .zIndex(-1)  // under the shared map, which comes first in the stage
             .roundStageRole(.page)
 
         TabletopUpperHalf(snapshot: snapshot, actions: actions)

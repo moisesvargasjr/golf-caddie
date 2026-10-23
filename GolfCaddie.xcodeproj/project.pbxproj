@@ -94,6 +94,7 @@
 		7DA91DFBFD17CA0C079142E3 /* Stamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34060B43428C97611E8532F4 /* Stamp.swift */; };
 		7E812869690DC31723AD4061 /* YardageFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4289F74DE8C577EA8DDBD344 /* YardageFix.swift */; };
 		8560129CF8022BF3D73DC681 /* WatchStatePublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAD0B7E81AC25EB8B83B9463 /* WatchStatePublisher.swift */; };
+		88A1C7240A9645D78B4846AE /* ExpandedLayoutSnapshotRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E28AC7C53047C97B3BE21C5 /* ExpandedLayoutSnapshotRenderer.swift */; };
 		8A7527673057375382523425 /* CourseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60F94159B63AFEA26728836 /* CourseCatalog.swift */; };
 		8ABA2DDCBFA18A40BDCB9685 /* Distance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F646E6FC56052DAFAE74D374 /* Distance.swift */; };
 		8DB18581CE5F8E81598E66AE /* TracePointRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F44C2D883B910A964ED558B /* TracePointRepositoryTests.swift */; };
@@ -273,6 +274,7 @@
 		87055D49388638181A9FFBBA /* ClubsInPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubsInPlay.swift; sourceTree = "<group>"; };
 		884D9CFC0229E054A051082C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8A9A0C0BD7378ECCBECDB60C /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
+		8E28AC7C53047C97B3BE21C5 /* ExpandedLayoutSnapshotRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedLayoutSnapshotRenderer.swift; sourceTree = "<group>"; };
 		8F713A68FDC1375D0DB06E15 /* WatchCatalogPusher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCatalogPusher.swift; sourceTree = "<group>"; };
 		8FD6949066E849BBA391ED41 /* ClubRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubRepositoryTests.swift; sourceTree = "<group>"; };
 		928974233C727A81AEE4C39F /* ClubValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClubValidation.swift; sourceTree = "<group>"; };
@@ -354,6 +356,7 @@
 				762371003D0ED0BC05597624 /* ClubsInPlayTests.swift */,
 				B96FEF495A19646584595DE9 /* CourseCatalogTests.swift */,
 				C50E81AFF23C93859674DBC3 /* DistanceTests.swift */,
+				8E28AC7C53047C97B3BE21C5 /* ExpandedLayoutSnapshotRenderer.swift */,
 				14435F38C886D865EF996AAF /* GlassesStateMapperTests.swift */,
 				21934D321727E19C002D7144 /* HoleFinishReconcilerTests.swift */,
 				1C07BB10722BB642D1510227 /* IsPuttDerivationTests.swift */,
@@ -782,6 +785,7 @@
 				948A6F5F755CF59947A075B8 /* ClubsInPlayTests.swift in Sources */,
 				69197FFD9C4E3905F171AC76 /* CourseCatalogTests.swift in Sources */,
 				95AD9FF04B01CA91C846B5FD /* DistanceTests.swift in Sources */,
+				88A1C7240A9645D78B4846AE /* ExpandedLayoutSnapshotRenderer.swift in Sources */,
 				C484E3007DAC72948353A765 /* GlassesStateMapperTests.swift in Sources */,
 				473F40308EC786DE04591DA8 /* HoleFinishReconcilerTests.swift in Sources */,
 				7699F5EC014A132209E6E9F9 /* IsPuttDerivationTests.swift in Sources */,
