@@ -27,6 +27,35 @@ final class WatchSession: NSObject, ObservableObject {
     /// stamped onto swings and located commands. The phone judges freshness.
     var latestFix: WatchFix?
 
+    // MARK: - Position stream to the phone (B35)
+
+    private var fixTimer: Timer?
+
+    /// While a session runs, tell the phone where the watch is about every
+    /// `fixStreamInterval` s so phone-originated actions (phone MARK, glasses,
+    /// yardage) can use the golfer's position instead of the phone's. Live only:
+    /// `sendMessage` when reachable, dropped on any failure. NEVER
+    /// `transferUserInfo`: a queued fix is stale on arrival and worse than none.
+    func startFixStream() {
+        fixTimer?.invalidate()
+        fixTimer = Timer.scheduledTimer(withTimeInterval: ShotContract.fixStreamInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.sendLatestFix() }
+        }
+    }
+
+    func stopFixStream() {
+        fixTimer?.invalidate()
+        fixTimer = nil
+        latestFix = nil
+    }
+
+    private func sendLatestFix() {
+        guard WCSession.isSupported(),
+              let data = WatchFixStream.payload(latest: latestFix, reachable: WCSession.default.isReachable,
+                                                now: Date()) else { return }
+        WCSession.default.sendMessage([ShotContract.payloadKey: data], replyHandler: nil, errorHandler: nil)
+    }
+
     func activate() {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self

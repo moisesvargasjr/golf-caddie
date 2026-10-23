@@ -242,6 +242,7 @@ final class LiveSessionController: ObservableObject {
             telemetry.start()
             WatchSession.shared.activeTelemetrySessionId = telemetry.activeSessionId
             location.start()
+            WatchSession.shared.startFixStream()
 
             detectionCount = 0
             startedAt = Date()
@@ -343,6 +344,7 @@ final class LiveSessionController: ObservableObject {
         #endif
         workout.stop()
         location.stop()
+        WatchSession.shared.stopFixStream()
         finishTelemetry()
         caddie.reset()
         detector = nil

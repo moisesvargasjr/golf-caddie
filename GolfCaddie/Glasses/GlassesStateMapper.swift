@@ -19,6 +19,8 @@ struct GlassesStateInputs {
     var locationUnavailable: Bool
     var batteryPercent: Int?
     var glassesInputEnabled: Bool = false
+    /// The watch's streamed fix (B35): yardage is measured from it when usable.
+    var watchFix: WatchFix? = nil
 }
 
 // Pure read model: live RoundController + repositories → GolfState.
@@ -51,7 +53,8 @@ enum GlassesStateMapper {
             lastLocationReceivedAt: location.lastLocationReceivedAt,
             locationUnavailable: location.locationUnavailable,
             batteryPercent: batteryPercent,
-            glassesInputEnabled: UserDefaults.standard.bool(forKey: "glassesInputEnabled")
+            glassesInputEnabled: UserDefaults.standard.bool(forKey: "glassesInputEnabled"),
+            watchFix: WatchFixStore.shared.latest
         ))
     }
 
@@ -88,10 +91,12 @@ enum GlassesStateMapper {
                 shotCount: holeShotCount,
                 penalties: holePenaltyStrokes,
                 score: holeScore,
-                distanceToGreenYards: distanceToGreen(
+                distanceToGreenYards: yardsToGreen(
+                    watchFix: inputs.watchFix,
+                    phone: inputs.latestLocation.map(GeoFix.init),
                     courseId: inputs.curatedCourseId,
                     holeNumber: hole.holeNumber,
-                    latestLocation: inputs.latestLocation
+                    at: Date()
                 )
             ),
             currentClub: inputs.currentClub?.shortName,
@@ -241,29 +246,21 @@ enum GlassesStateMapper {
         )
     }
 
-    /// Live yards from the current fix to the hole's green anchor (local
-    /// capture wins over curated). nil — and thus omitted — when the round
-    /// didn't match a curated course, no green anchor exists yet, or there's
-    /// no fix. Same yardage primitive as everywhere else.
-    private static func distanceToGreen(
+    /// Live yards to the hole's green from where the golfer is (B35): the
+    /// watch's fix when usable, else the phone's. nil (omitted) when the round
+    /// didn't match a curated course, no green anchor exists yet, or neither
+    /// device has a usable fix. Same yardage primitive as everywhere else.
+    static func yardsToGreen(
+        watchFix: WatchFix?,
+        phone: GeoFix?,
         courseId: String?,
         holeNumber: Int,
-        latestLocation: CLLocation?
+        at time: Date
     ) -> Int? {
         guard let courseId,
-              let loc = latestLocation, loc.horizontalAccuracy > 0
+              let origin = LocationPreference.choose(watch: watchFix, phone: phone, at: time).fix
         else { return nil }
-        let local = try? LocalAnchorRepository.anchor(
-            courseId: courseId, holeNumber: holeNumber
-        )
-        let curatedGreen = (try? CourseDataRepository.course(byId: courseId))?
-            .holes.first { $0.number == holeNumber }?.greenAnchor
-        guard let green = local?.green ?? curatedGreen else { return nil }
-        let meters = Distance.meters(
-            from: loc.coordinate,
-            to: CLLocationCoordinate2D(latitude: green.lat, longitude: green.lng)
-        )
-        return Int(Distance.yards(fromMeters: meters).rounded())
+        return yardsToGreen(from: origin.coordinate, courseId: courseId, holeNumber: holeNumber)
     }
 
     /// The hole's green coordinate (local capture wins over curated), or nil if

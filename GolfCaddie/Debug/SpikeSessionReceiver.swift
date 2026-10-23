@@ -69,6 +69,15 @@ extension SpikeSessionReceiver: WCSessionDelegate {
         LiveShotCoordinator.shared.receive(message)
     }
 
+    /// The watch's live position stream (B35), sent with `sendMessage` only
+    /// while the phone is reachable. Anything else arriving here is ignored:
+    /// durable traffic (swings, commands) belongs on `transferUserInfo`.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        guard let data = message[ShotContract.payloadKey] as? Data,
+              let decoded = try? WatchToPhoneMessage.decode(data), decoded.kind == .fix else { return }
+        LiveShotCoordinator.shared.receive(decoded)
+    }
+
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
         // The temp file is deleted when this callback returns — move it now.
         if file.metadata?[ShotContract.fileKindKey] as? String == WatchTelemetryFormat.fileKind {

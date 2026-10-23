@@ -95,6 +95,28 @@ final class RoundController {
     @ObservationIgnored
     private var lastBreadcrumb: CLLocation?
 
+    /// B35 seams: where the watch's streamed fix and the phone's live fix come
+    /// from. Production reads `WatchFixStore` and `LocationManager`; tests inject.
+    @ObservationIgnored
+    var watchFixProvider: () -> WatchFix? = { WatchFixStore.shared.latest }
+
+    @ObservationIgnored
+    var phoneFixProvider: (() -> GeoFix?)?
+
+    /// The phone's own latest fix.
+    func phoneFix() -> GeoFix? {
+        if let phoneFixProvider { return phoneFixProvider() }
+        return location.latestLocation.map(GeoFix.init)
+    }
+
+    /// B35 "watch GPS first": where the golfer is right now. The watch's
+    /// streamed fix when usable (even if the phone reports better accuracy: the
+    /// phone may be in the cart), else the phone's. `source` + `disagreementMeters`
+    /// are what each shot records.
+    func currentLocationChoice(at time: Date = Date()) -> LocationChoice {
+        LocationPreference.choose(watch: watchFixProvider(), phone: phoneFix(), at: time)
+    }
+
     init(location: LocationManager) {
         self.location = location
         location.onLocationUpdate = { [weak self] loc in
@@ -422,7 +444,8 @@ final class RoundController {
             club: club?.id,
             source: .manual,
             notes: nil,
-            isPutt: Shot.derivedIsPutt(club: club)
+            isPutt: Shot.derivedIsPutt(club: club),
+            locationSource: .manual
         )
         try ShotRepository.insertShot(shot, at: nextSeq)
         currentHoleShots.append(shot)
@@ -438,7 +461,9 @@ final class RoundController {
     @discardableResult
     func ingestAutoShot(at coordinate: CLLocationCoordinate2D?, accuracy: Double?,
                         club: Club?, timestamp: Date,
-                        source: ShotSource = .watchAuto, isPutt: Bool = false) throws -> UUID {
+                        source: ShotSource = .watchAuto, isPutt: Bool = false,
+                        locationSource: ShotLocationSource? = nil,
+                        disagreementMeters: Double? = nil) throws -> UUID {
         guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
         let resolvedClub = club ?? currentClub
         // B31: a putter club means a putt no matter what the caller's flag said
@@ -493,7 +518,9 @@ final class RoundController {
             club: resolvedClub?.id,
             source: source,
             notes: nil,
-            isPutt: resolvedIsPutt
+            isPutt: resolvedIsPutt,
+            locationSource: coordinate == nil ? nil : locationSource,
+            locationDisagreementMeters: coordinate == nil ? nil : disagreementMeters
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
@@ -507,7 +534,8 @@ final class RoundController {
     func addShotFromWatch(late: LateWatchTap? = nil) throws {
         let at = late ?? liveWatchTap()
         try ingestAutoShot(at: at.coordinate, accuracy: at.accuracy,
-                           club: currentClub, timestamp: at.timestamp, source: .watchManual)
+                           club: currentClub, timestamp: at.timestamp, source: .watchManual,
+                           locationSource: at.locationSource, disagreementMeters: at.disagreementMeters)
     }
 
     /// When + where a watch MARK/putt tap happened, overriding "now at the
@@ -518,15 +546,16 @@ final class RoundController {
     /// time (honest no-GPS beats a wrong location).
     struct LateWatchTap {
         let timestamp: Date
-        let coordinate: CLLocationCoordinate2D?
-        let accuracy: Double?
+        let choice: LocationChoice
+
+        var coordinate: CLLocationCoordinate2D? { choice.fix?.coordinate }
+        var accuracy: Double? { choice.fix?.horizontalAccuracy }
+        var locationSource: ShotLocationSource? { ShotLocationSource(choice.source) }
+        var disagreementMeters: Double? { choice.disagreementMeters }
     }
 
     private func liveWatchTap() -> LateWatchTap {
-        let loc = location.latestLocation
-        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
-        return LateWatchTap(timestamp: Date(), coordinate: hasFix ? loc?.coordinate : nil,
-                            accuracy: hasFix ? loc?.horizontalAccuracy : nil)
+        LateWatchTap(timestamp: Date(), choice: currentLocationChoice())
     }
 
     /// Watch putt counter (+1) — a putter shot at the live fix. Putts are not
@@ -540,7 +569,8 @@ final class RoundController {
     func addPuttFromWatch(late: LateWatchTap? = nil) throws {
         let at = late ?? liveWatchTap()
         try ingestAutoShot(at: at.coordinate, accuracy: at.accuracy,
-                           club: resolvedPutter(), timestamp: at.timestamp, source: .watchManual, isPutt: true)
+                           club: resolvedPutter(), timestamp: at.timestamp, source: .watchManual, isPutt: true,
+                           locationSource: at.locationSource, disagreementMeters: at.disagreementMeters)
     }
 
     /// Watch "Finish Hole": the golfer gave the putt count and confirmed the
@@ -826,6 +856,8 @@ final class RoundController {
             updated.gpsAccuracy = nil
             updated.isPutt = placed.isPutt
             updated.source = .reconstructed
+            updated.locationSource = .track
+            updated.locationDisagreementMeters = nil
             updated.confidence = Self.pathBConfidence(placed)
             try? ShotRepository.update(updated)
         }
@@ -931,26 +963,28 @@ final class RoundController {
             }
             lastGlassesShotAt = Date()
         }
-        let loc = location.latestLocation
-        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
+        let choice = currentLocationChoice()
+        let hasFix = choice.fix != nil
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,
             sequenceNumber: nextSeq,
             timestamp: Date(),
-            latitude: hasFix ? loc?.coordinate.latitude : nil,
-            longitude: hasFix ? loc?.coordinate.longitude : nil,
-            gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
+            latitude: choice.fix?.latitude,
+            longitude: choice.fix?.longitude,
+            gpsAccuracy: choice.fix?.horizontalAccuracy,
             hadGPS: hasFix,
             club: currentClub?.id,
             source: .glasses,
             notes: nil,
-            isPutt: isPutt // B31 gap: this path never derived the putt flag
+            isPutt: isPutt, // B31 gap: this path never derived the putt flag
+            locationSource: ShotLocationSource(choice.source),
+            locationDisagreementMeters: choice.disagreementMeters
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
-        lastMarkResult = .success(shotID: shot.id, accuracy: hasFix ? loc?.horizontalAccuracy : nil)
+        lastMarkResult = .success(shotID: shot.id, accuracy: choice.fix?.horizontalAccuracy)
         lastGlassesActionAt = Date()
         if hasFix { Haptics.success() } else { Haptics.warning() }
     }
@@ -1036,26 +1070,28 @@ final class RoundController {
         // up-to-5 s stall the field test felt standing on the phone Mark button
         // (FT4 #6). It unifies all live logging (phone/watch/glasses) on one
         // mechanism; reconstruction (B5–B7) refines locations from the track later.
-        let loc = location.latestLocation
-        let hasFix = (loc?.horizontalAccuracy ?? -1) > 0
+        let choice = currentLocationChoice()
+        let hasFix = choice.fix != nil
         let nextSeq = (try? ShotRepository.nextSequenceNumber(forHole: hole.id)) ?? 1
         let shot = Shot(
             id: UUID(),
             holeID: hole.id,
             sequenceNumber: nextSeq,
             timestamp: Date(),
-            latitude: hasFix ? loc?.coordinate.latitude : nil,
-            longitude: hasFix ? loc?.coordinate.longitude : nil,
-            gpsAccuracy: hasFix ? loc?.horizontalAccuracy : nil,
+            latitude: choice.fix?.latitude,
+            longitude: choice.fix?.longitude,
+            gpsAccuracy: choice.fix?.horizontalAccuracy,
             hadGPS: hasFix,
             club: club?.id,
             source: source,
             notes: nil,
-            isPutt: resolvedIsPutt
+            isPutt: resolvedIsPutt,
+            locationSource: ShotLocationSource(choice.source),
+            locationDisagreementMeters: choice.disagreementMeters
         )
         try ShotRepository.insert(shot)
         currentHoleShots.append(shot)
-        lastMarkResult = .success(shotID: shot.id, accuracy: hasFix ? loc?.horizontalAccuracy : nil)
+        lastMarkResult = .success(shotID: shot.id, accuracy: choice.fix?.horizontalAccuracy)
 
         if hasFix {
             Haptics.success()

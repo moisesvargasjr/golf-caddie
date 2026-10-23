@@ -252,3 +252,30 @@ filled in `WatchSession.send`). The phone (`LiveShotCoordinator.usableWatchFix`)
 when it is within 5 s of the swing/tap and hAcc ≤ 15 m, else falls back to the breadcrumb
 as before. A late tap with neither still gets no GPS. Fields are optional — old payloads
 decode, contract stays v1.
+
+## Watch GPS first (B35)
+
+Rule: whenever the watch has a usable fix, it beats the phone's, even if the phone reports
+better hAcc (a phone in the cart can show 3 m and be 100 m from the golfer).
+`LocationPreference.choose(watch:phone:at:)` (Shared) is the single policy: usable = 0 < hAcc
+<= 15 m and |age| <= 5 s; else the phone fix (hAcc > 0); else none. It also returns the
+watch-vs-phone distance whenever both were usable.
+
+- **Stream.** While a session runs the watch sends its latest fix every ~3 s with
+  `WCSession.sendMessage` (only when reachable, dropped on failure, never `transferUserInfo`:
+  a queued fix is stale on arrival). Wire: `WatchToPhoneMessage.Kind.fix` + optional
+  `watchFix`; older payloads still decode, contract stays v1. The phone keeps it in
+  `WatchFixStore` (newest timestamp wins, in memory only).
+- **Used by:** phone MARK/putt (`markShotInternal`), glasses shots, watch taps and swings
+  (attached fix first, else the stream), `WatchStatePublisher` and glasses `distanceToGreenYards`.
+  Not yet: the phone's own on-screen yardage (`ActiveRoundView.distanceToGreenYards`), a view
+  file left alone for now, so it can differ from the watch/glasses number when the phone is away.
+- **Recorded (migration `v8_shot_location_source`).** `shot.locationSource` = watch / phone /
+  manual (map-tap insert or dragged pin) / track (Path B placement); nil = pre-v8 or no GPS.
+  `shot.locationDisagreementMeters` = watch-vs-phone distance when both were usable.
+- **Watch UI.** Club suggestion and the detect card's "from N yd" use the wrist yardage first,
+  like the hero readout.
+- **Reading a round:** `scripts/compare-watch-track.py` prints source counts and the
+  disagreement distribution. A large median means the phone was regularly left behind.
+- Not verified on device: stream cadence and `isReachable` behavior with the phone in a bag
+  or cart, and how often the 5 s age gate drops the stream's fix.

@@ -28,6 +28,8 @@ enum ShotContract {
     /// (watch has never received a push: fresh install / reinstall). Separate
     /// from `payloadKey` — it isn't a round message.
     static let catalogRequestKey = "catalogRequest"
+    /// Seconds between watch → phone fix messages while a session runs (B35).
+    static let fixStreamInterval: TimeInterval = 3
 }
 
 /// The watch's own GPS fix at a swing / tap. The phone prefers it over its own
@@ -149,14 +151,19 @@ struct IdentifiedCommand: Codable, Equatable {
     var fix: WatchFix? = nil
 }
 
-/// The single `transferUserInfo` payload type — a tagged union so one decode
-/// path handles both event and command traffic.
+/// The single watch → phone payload type — a tagged union so one decode path
+/// handles event, command and fix traffic. Swings and commands ride the queued
+/// `transferUserInfo`; `.fix` rides `sendMessage` only (see `fix(_:)`).
 struct WatchToPhoneMessage: Codable, Equatable {
-    enum Kind: String, Codable { case swing, command }
+    enum Kind: String, Codable { case swing, command, fix }
 
     var kind: Kind
     var swing: SwingEvent?
     var command: IdentifiedCommand?
+    /// The watch's latest GPS (kind == .fix). Optional = additive: every
+    /// pre-B35 payload decodes with nil, so the contract stays v1. An OLD phone
+    /// fails to decode the new `fix` kind and drops it, which is harmless.
+    var watchFix: WatchFix? = nil
 
     static func swing(_ event: SwingEvent) -> WatchToPhoneMessage {
         WatchToPhoneMessage(kind: .swing, swing: event, command: nil)
@@ -171,6 +178,14 @@ struct WatchToPhoneMessage: Codable, Equatable {
         WatchToPhoneMessage(kind: .command, swing: nil,
                             command: IdentifiedCommand(id: id, command: command,
                                                        sentAt: sentAt?.timeIntervalSince1970, fix: fix))
+    }
+
+    /// The watch's current position, streamed to the phone (B35) so phone-
+    /// originated actions (MARK on the phone, glasses, yardage) can use where
+    /// the golfer is. Deliberately NEVER sent via `transferUserInfo`: a queued
+    /// fix is stale by the time it lands and is worse than none.
+    static func fix(_ fix: WatchFix) -> WatchToPhoneMessage {
+        WatchToPhoneMessage(kind: .fix, swing: nil, command: nil, watchFix: fix)
     }
 
     func encoded() throws -> Data { try JSONEncoder().encode(self) }

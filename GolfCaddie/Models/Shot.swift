@@ -11,6 +11,24 @@ enum ShotSource: String, Codable {
     case reconstructed // laid by end-of-hole reconstruction (B6/B7), not live-logged
 }
 
+/// Where a shot's coordinate came from (B35). watch/phone = the device whose GPS
+/// fix was used; manual = a hand-placed pin (map tap or drag); track = laid from
+/// the GPS track by Path-B reconstruction. nil = unknown (pre-v8) or no GPS.
+enum ShotLocationSource: String, Codable {
+    case watch
+    case phone
+    case manual
+    case track
+
+    init?(_ source: LocationSource) {
+        switch source {
+        case .watch: self = .watch
+        case .phone: self = .phone
+        case .none: return nil
+        }
+    }
+}
+
 struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable {
     static let databaseTableName = "shot"
 
@@ -42,6 +60,11 @@ struct Shot: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
     /// so the location + club survive and hole review can restore it. Every
     /// normal read skips excluded rows (ShotRepository).
     var excludedAt: Date? = nil
+    /// Which device (or hand) located this shot; see `ShotLocationSource`.
+    var locationSource: ShotLocationSource? = nil
+    /// Meters between the watch and phone fixes when both were usable at the
+    /// shot (how far the phone was from the golfer); nil otherwise.
+    var locationDisagreementMeters: Double? = nil
 }
 
 extension Shot {
