@@ -53,6 +53,21 @@ enum TracePointRepository {
     /// caller accepts, so span coverage near the target is computed correctly.
     private static let nearestWindowSeconds: TimeInterval = 40
 
+    /// Points for one round inside a time window, filtered in SQL (a hole's
+    /// trail without decoding the whole round). `end` nil = open-ended.
+    static func points(forRound roundID: UUID, from start: Date, to end: Date?) throws -> [TracePoint] {
+        try Database.shared.read { db in
+            var request = TracePoint.filter(Column("roundID") == roundID && Column("timestamp") >= start)
+            if let end { request = request.filter(Column("timestamp") <= end) }
+            return try request.order(Column("timestamp")).fetchAll(db)
+        }
+    }
+
+    /// `preferredTrail` for one time window (a hole), filtered in SQL first.
+    static func preferredTrail(roundID: UUID, from start: Date, to end: Date?) throws -> [TracePoint] {
+        TrailMerge.preferred(try points(forRound: roundID, from: start, to: end))
+    }
+
     static func count(forRound roundID: UUID) throws -> Int {
         try Database.shared.read { db in
             try TracePoint.filter(Column("roundID") == roundID).fetchCount(db)

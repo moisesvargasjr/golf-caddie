@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// The watch's most recent streamed GPS fix (B35), for phone-originated actions
 /// (phone MARK, glasses, yardage) that need to know where the golfer is.
@@ -6,6 +7,7 @@ import Foundation
 /// replaying one after a relaunch would be wrong. Freshness is judged by the
 /// reader (`LocationPreference`), not here.
 @MainActor
+@Observable
 final class WatchFixStore {
     static let shared = WatchFixStore()
 

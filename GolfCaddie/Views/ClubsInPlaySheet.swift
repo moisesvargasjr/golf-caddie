@@ -49,23 +49,27 @@ struct ClubsInPlaySheet: View {
     private var navRow: some View {
         HStack {
             Button {
+                onDone()
+            } label: {
+                Text("‹ DONE")
+                    .font(AppFont.metadata)
+                    .tracking(1.4)
+                    .foregroundStyle(palette.ink)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            Spacer()
+            Button {
                 leftOut = []
             } label: {
                 Text("ALL IN")
                     .font(AppFont.metadata)
                     .tracking(1.4)
                     .foregroundStyle(leftOut.isEmpty ? palette.ink3 : palette.ink)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .disabled(leftOut.isEmpty)
-            Spacer()
-            Button {
-                onDone()
-            } label: {
-                Text("DONE")
-                    .font(AppFont.metadata)
-                    .tracking(1.4)
-                    .foregroundStyle(palette.ink)
-            }
         }
     }
 

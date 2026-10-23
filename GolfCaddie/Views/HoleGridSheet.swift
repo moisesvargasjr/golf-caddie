@@ -52,6 +52,8 @@ struct HoleGridSheet: View {
                         Text("‹ DONE")
                             .font(AppFont.metadata).tracking(1.4)
                             .foregroundStyle(palette.ink)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                 }
             }

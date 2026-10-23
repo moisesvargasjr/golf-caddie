@@ -40,6 +40,8 @@ struct HoleReviewSheet: View {
     // RoundController.reconstructHole. Loaded in reload(); the seed-id default
     // holds until then.
     @State private var putterClubIDs: Set<String> = [Club.putterID]
+    @State private var sheetWidth: CGFloat = 0
+    @Environment(\.layoutClass) private var layoutClass
 
     private var units: Units { Units(rawValue: unitsRaw) ?? .yards }
 
@@ -74,65 +76,22 @@ struct HoleReviewSheet: View {
         ZStack {
             PaperBackground()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    navRow
-                        .padding(.horizontal, 24)
-                        .padding(.top, 18)
-
-                    masthead
-                        .padding(.horizontal, 24)
-                        .padding(.top, 18)
-
-                    if !shots.isEmpty {
-                        HoleReconstructionCard(
-                            reconstruction: reconstruction,
-                            mode: isReconstructed ? .reconstructed : .tracked,
-                            onAdjustPins: hasLocatedShots ? { showPinMap = true } : nil
-                        )
-                        .padding(.horizontal, 24)
-                        .padding(.top, 22)
-                    }
-
-                    section("Par", content: parContent)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-
-                    section("Shots (\(shots.count))", content: shotsContent)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-
-                    section("Penalties (\(penalties.count))", content: penaltiesContent)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-
-                    if missingClubsCount > 0 {
-                        warning
+            if isWide {
+                wideBody
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        reviewSections(showsAdjustPins: true)
+                        confirmButton
                             .padding(.horizontal, 24)
-                            .padding(.top, 16)
+                            .padding(.top, 18)
+                        loadErrorText
+                        Spacer(minLength: 36)
                     }
-
-                    scoreBlock
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-
-                    confirmButton
-                        .padding(.horizontal, 24)
-                        .padding(.top, 18)
-
-                    if let loadError {
-                        Text(loadError)
-                            .font(AppFont.micro)
-                            .tracking(1.2)
-                            .foregroundStyle(palette.red)
-                            .padding(.horizontal, 24)
-                            .padding(.top, 16)
-                    }
-
-                    Spacer(minLength: 36)
                 }
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sheetWidth = $0 }
         .presentationBackground(palette.paper)
         .themedRoot()
         .onAppear { HolesUnderEdit.begin(hole.id) } // a late watch trail must not re-lay this hole under the user
@@ -167,6 +126,98 @@ struct HoleReviewSheet: View {
 
     // MARK: - Top
 
+    // MARK: - Layout variants
+
+    /// Expanded (Duo inner screen) and the sheet is wide enough for two
+    /// columns: draggable-pin map on the left, review on the right.
+    private var isWide: Bool {
+        layoutClass == .expanded && sheetWidth >= Self.wideMinWidth && hasLocatedShots
+    }
+
+    private static let wideMinWidth: CGFloat = 600
+    private static let wideMapWidth: CGFloat = 300
+
+    private var wideBody: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                EditableHoleMap(shots: shots, holeID: hole.id,
+                                onShotMoved: { shot, coord in moveShot(shot, to: coord) })
+                    .frame(width: Self.wideMapWidth)
+                    .overlay(alignment: .top) {
+                        Stamp(text: "Drag a pin to fix it")
+                            .padding(6)
+                            .background(palette.paper)
+                            .padding(.top, 12)
+                    }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        reviewSections(showsAdjustPins: false)
+                        loadErrorText
+                        Spacer(minLength: 16)
+                    }
+                }
+            }
+            confirmButton
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+        }
+    }
+
+    @ViewBuilder
+    private func reviewSections(showsAdjustPins: Bool) -> some View {
+        navRow
+            .padding(.horizontal, 24)
+            .padding(.top, 18)
+
+        masthead
+            .padding(.horizontal, 24)
+            .padding(.top, 18)
+
+        if !shots.isEmpty {
+            HoleReconstructionCard(
+                reconstruction: reconstruction,
+                mode: isReconstructed ? .reconstructed : .tracked,
+                onAdjustPins: (showsAdjustPins && hasLocatedShots) ? { showPinMap = true } : nil
+            )
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+        }
+
+        section("Par", content: parContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+
+        section("Shots (\(shots.count))", content: shotsContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+
+        section("Penalties (\(penalties.count))", content: penaltiesContent)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+
+        if missingClubsCount > 0 {
+            warning
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+        }
+
+        scoreBlock
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+    }
+
+    @ViewBuilder
+    private var loadErrorText: some View {
+        if let loadError {
+            Text(loadError)
+                .font(AppFont.micro)
+                .tracking(1.2)
+                .foregroundStyle(palette.red)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+        }
+    }
+
     private var navRow: some View {
         HStack {
             Button {
@@ -176,6 +227,8 @@ struct HoleReviewSheet: View {
                     .font(AppFont.metadata)
                     .tracking(1.4)
                     .foregroundStyle(palette.ink)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             Spacer()
         }
@@ -255,7 +308,7 @@ struct HoleReviewSheet: View {
             showAddShotSheet = true
         } label: {
             HStack {
-                Stamp(text: "+ Add Missing Shot")
+                Stamp(text: InRoundLabels.missed)
                 Spacer()
             }
         }
@@ -420,16 +473,18 @@ struct HoleReviewSheet: View {
                     .fontWeight(.regular)
                     .foregroundStyle(palette.paper.opacity(0.85))
                 if !isRetro {
-                    Text("hole")
+                    Text(isWide ? "\(score) · Hole \(hole.holeNumber % 18 + 1) ›" : "hole")
                         .font(AppFont.cta)
                         .foregroundStyle(palette.paper)
                 }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(palette.ink)
+            // Same filled flag primary as "Finish hole ›".
+            .background(palette.flag)
             .clipShape(RoundedRectangle(cornerRadius: 4))
-            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
