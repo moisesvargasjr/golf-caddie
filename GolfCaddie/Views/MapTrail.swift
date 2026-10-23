@@ -5,9 +5,10 @@ import SwiftUI
 /// Where every hole map's dotted walked trail comes from. One seam so the
 /// trail follows Track B's watch-first source with a one-line change.
 enum HoleTrailSource {
-    // B38: switch the window read to the watch-first preferredTrail.
+    /// B38: the watch-first trail (watch points where it covered, phone
+    /// points elsewhere), windowed in SQL.
     static func coordinates(roundID: UUID, since: Date, until: Date? = nil) -> [CLLocationCoordinate2D] {
-        let points = (try? TracePointRepository.points(forRound: roundID, from: since, to: until)) ?? []
+        let points = (try? TracePointRepository.preferredTrail(roundID: roundID, from: since, to: until)) ?? []
         return points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
     }
 

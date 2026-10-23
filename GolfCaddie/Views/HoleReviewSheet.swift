@@ -308,7 +308,7 @@ struct HoleReviewSheet: View {
             showAddShotSheet = true
         } label: {
             HStack {
-                Stamp(text: "+ Add Missing Shot")
+                Stamp(text: InRoundLabels.missed)
                 Spacer()
             }
         }
@@ -480,9 +480,11 @@ struct HoleReviewSheet: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(palette.ink)
+            // Same filled flag primary as "Finish hole ›".
+            .background(palette.flag)
             .clipShape(RoundedRectangle(cornerRadius: 4))
-            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

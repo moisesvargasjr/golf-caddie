@@ -75,14 +75,18 @@ struct MissingShotPinSheet: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
 
-                Text("Pan the map until the crosshair sits where the missed shot landed, then tap ADD.")
+                Text("Pan the map until the crosshair sits where the missed shot landed, then tap Add.")
                     .font(AppFont.micro)
                     .tracking(0.8)
                     .foregroundStyle(palette.ink3)
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
 
-                Spacer(minLength: 24)
+                Spacer(minLength: 16)
+
+                addButton
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 16)
             }
         }
         .presentationBackground(palette.paper)
@@ -100,17 +104,25 @@ struct MissingShotPinSheet: View {
                     .contentShape(Rectangle())
             }
             Spacer()
-            Button {
-                onAdd(currentCenter, club)
-            } label: {
-                Text("ADD ›")
-                    .font(AppFont.metadata)
-                    .tracking(1.4)
-                    .foregroundStyle(palette.flag)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-            }
         }
+    }
+
+    /// Bottom primary, same style as the review's Confirm / "Finish hole ›".
+    private var addButton: some View {
+        Button {
+            onAdd(currentCenter, club)
+        } label: {
+            Text("Add missed shot ›")
+                .font(AppFont.cta)
+                .foregroundStyle(palette.paper)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(palette.flag)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var masthead: some View {

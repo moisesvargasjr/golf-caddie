@@ -43,9 +43,7 @@ struct InRoundActionBar: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 if showsWatchStatus, state.watchDetecting {
-                    WatchDetectingLine(isDetecting: true)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                    WatchStatusFitting(isDetecting: true)
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
@@ -248,5 +246,21 @@ struct HitTargetPlainButtonStyle: ButtonStyle {
         configuration.label
             .contentShape(ExpandedHitShape())
             .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
+/// "WATCH IS DETECTING SWINGS" when it fits, else "WATCH DETECTING".
+struct WatchStatusFitting: View {
+    let isDetecting: Bool
+
+    var body: some View {
+        if isDetecting {
+            ViewThatFits(in: .horizontal) {
+                WatchDetectingLine(isDetecting: true).lineLimit(1).fixedSize()
+                WatchDetectingLine(isDetecting: true, label: InRoundLabels.watchShort).lineLimit(1).fixedSize()
+                Image(systemName: "applewatch").font(.system(size: 11, weight: .semibold))
+                    .accessibilityLabel(InRoundLabels.watchShort)
+            }
+        }
     }
 }

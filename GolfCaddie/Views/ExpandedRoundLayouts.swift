@@ -25,8 +25,8 @@ struct CommandCenterChrome: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 YardageCard(snapshot: snapshot, actions: actions)
-                ClubGridSection(snapshot: snapshot, actions: actions, columns: 4)
-                StrokeListSection(snapshot: snapshot)
+                StrokeListSection(snapshot: snapshot, maxRows: 4)
+                ClubGridSection(snapshot: snapshot, actions: actions, columns: 4, compactCells: true)
                 InRoundErrorText(text: snapshot.errorText)
             }
             .padding(.vertical, 4)
@@ -63,8 +63,8 @@ struct WideRoundLayout: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 YardageCard(snapshot: snapshot, actions: actions, heroSize: 52)
+                StrokeListSection(snapshot: snapshot, maxRows: 4)
                 ClubGridSection(snapshot: snapshot, actions: actions, columns: 4, compactCells: true)
-                StrokeListSection(snapshot: snapshot)
                 WatchDetectingLine(isDetecting: snapshot.watchDetecting)
                 InRoundErrorText(text: snapshot.errorText)
             }
@@ -163,17 +163,22 @@ private struct TabletopUpperHalf: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 HoleStepper(snapshot: snapshot, actions: actions)
-                Stamp(text: snapshot.par.map { "PAR \($0)" } ?? "PAR —")
-                if let score = snapshot.scoreText {
-                    Text(score).font(AppFont.stamp).tracking(1.2).foregroundStyle(palette.flag)
-                }
                 Spacer(minLength: 4)
                 RoundOverflowMenu(snapshot: snapshot, actions: actions)
                 HeaderStamp(text: "CARD", color: palette.ink, action: actions.openCard)
                 HeaderStamp(text: "END", color: palette.flag, action: actions.endRound)
+                    .padding(.leading, 6)
             }
+            HStack(spacing: 8) {
+                Stamp(text: snapshot.par.map { "PAR \($0)" } ?? "PAR —")
+                if let score = snapshot.scoreText {
+                    Text(score).font(AppFont.stamp).tracking(1.2).foregroundStyle(palette.flag)
+                }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             Text(["TO PIN", snapshot.pinSourceText].compactMap { $0 }.joined(separator: " · "))
                 .font(AppFont.metadata).tracking(1.4)
                 .foregroundStyle(palette.ink2)
@@ -212,15 +217,15 @@ private struct TabletopLowerHalf: View {
             }
             .scrollIndicators(.hidden)
             HStack(spacing: 8) {
+                WatchStatusFitting(isDetecting: snapshot.watchDetecting)
+                SecondaryActionRow(state: snapshot.actionState, actions: actions, showsPenalty: true)
+            }
+            HStack(spacing: 8) {
                 PuttButton(isMarking: snapshot.isMarking, fontSize: 18, action: actions.putt)
                     .frame(width: 150)
                 FinishHoleButton(fontSize: 24, action: actions.finishHole)
             }
             .frame(height: 88)
-            HStack(spacing: 8) {
-                WatchDetectingLine(isDetecting: snapshot.watchDetecting)
-                SecondaryActionRow(state: snapshot.actionState, actions: actions, showsPenalty: true)
-            }
             InRoundErrorText(text: snapshot.errorText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

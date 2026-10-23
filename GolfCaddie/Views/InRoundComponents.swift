@@ -54,6 +54,7 @@ struct InRoundHeaderBar: View {
                 RoundOverflowMenu(snapshot: snapshot, actions: actions)
                 HeaderStamp(text: "CARD", color: palette.ink, action: actions.openCard)
                 HeaderStamp(text: "END", color: palette.flag, action: actions.endRound)
+                    .padding(.leading, 6)
             }
             .fixedSize()
             .layoutPriority(2)
@@ -87,6 +88,8 @@ struct HoleStepper: View {
                         .foregroundStyle(palette.ink)
                         .tabularNumerals()
                 }
+                .lineLimit(1)
+                .fixedSize()
                 .frame(minHeight: InRoundMetrics.minTouch)
                 .contentShape(Rectangle())
             }
@@ -287,7 +290,15 @@ private struct ClubGridCell: View {
 /// "This hole" — number · club on the left, distance and source on the right.
 struct StrokeListSection: View {
     let snapshot: InRoundSnapshot
+    /// Show only the latest N strokes (nil = all), so the list fits above the
+    /// club grid on the expanded screen.
+    var maxRows: Int? = nil
     @Environment(\.palette) private var palette
+
+    private var visibleStrokes: [InRoundStrokeLine] {
+        guard let maxRows, snapshot.strokes.count > maxRows else { return snapshot.strokes }
+        return Array(snapshot.strokes.suffix(maxRows))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -304,7 +315,11 @@ struct StrokeListSection: View {
                     .foregroundStyle(palette.ink3)
                     .padding(.vertical, 6)
             }
-            ForEach(snapshot.strokes) { line in
+            if visibleStrokes.count < snapshot.strokes.count {
+                Text("+ \(snapshot.strokes.count - visibleStrokes.count) earlier")
+                    .font(AppFont.micro).tracking(1.2).foregroundStyle(palette.ink3)
+            }
+            ForEach(visibleStrokes) { line in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("\(line.number)")
                         .font(AppFont.monoNumeral).foregroundStyle(palette.ink3).tabularNumerals()

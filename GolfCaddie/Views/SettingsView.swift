@@ -86,6 +86,8 @@ struct SettingsView: View {
                                 Text("Even Realities G2")
                                     .font(AppFont.bodyLarge)
                                     .foregroundStyle(palette.ink)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 Text("127.0.0.1:\(GlassesServer.port) · device-only")
                                     .font(AppFont.micro)
                                     .tracking(1.2)
@@ -170,6 +172,7 @@ struct SettingsView: View {
             }
             .background(PaperBackground())
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {

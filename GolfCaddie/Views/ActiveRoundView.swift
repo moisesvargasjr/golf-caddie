@@ -41,6 +41,8 @@ struct ActiveRoundView: View {
     /// Bumped on a slow tick while the yardage comes from the watch, so the
     /// stamp re-evaluates the 10 s staleness gate without another redraw.
     @State private var watchFixTick = 0
+    /// Visible width of the compact club row (whole-cell sizing).
+    @State private var clubRowWidth: CGFloat = 0
 
     var body: some View {
         Group {
@@ -336,6 +338,7 @@ struct ActiveRoundView: View {
                         modeToggleButton
                         cardStampButton
                         endStampButton
+                            .padding(.leading, 4)
                     }
                 }
             }
@@ -388,6 +391,7 @@ struct ActiveRoundView: View {
             Spacer()
             if controller.isCasualMode {
                 casualSheet
+                    .frame(maxWidth: displayContext.layoutClass == .expanded ? 600 : .infinity)
             } else {
                 bottomSheet
             }
@@ -442,7 +446,7 @@ struct ActiveRoundView: View {
                         // Cover screen (~375 pt usable): keep "PAR 4 · 343 YD"
                         // on one line (shrink) instead of wrapping the pill.
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.55)
                 }
             }
         }
@@ -762,6 +766,8 @@ struct ActiveRoundView: View {
                 .foregroundStyle(palette.ink)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
+                // Paper fill so it reads on bright imagery in light mode too.
+                .background(palette.paper)
                 .overlay(
                     RoundedRectangle(cornerRadius: 2)
                         .stroke(palette.ink, lineWidth: 1)
@@ -873,6 +879,15 @@ struct ActiveRoundView: View {
         .buttonStyle(HitTargetPlainButtonStyle())
     }
 
+    /// Club cell width that fits a whole number of cells in the visible row
+    /// (cells were >= 58 pt: 50 min + 2×4 padding).
+    private var clubCellWidth: CGFloat {
+        let minCell: CGFloat = 58
+        guard clubRowWidth > minCell else { return minCell }
+        let count = max(1, (clubRowWidth / minCell).rounded(.down))
+        return clubRowWidth / count
+    }
+
     /// The bag minus what this round left home — the in-round club pickers.
     private var clubsInPlay: [Club] {
         ClubsInPlay.resolve(bag: bag, leftOut: controller.currentRound?.clubsLeftOut ?? [])
@@ -886,19 +901,13 @@ struct ActiveRoundView: View {
                         clubCell(club)
                     }
                 }
+                .scrollTargetLayout()
             }
-            .mask(
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: .black, location: 0.06),
-                        .init(color: .black, location: 0.86),
-                        .init(color: .clear, location: 0.99),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
+            // Whole cells only: the cell width divides the visible width, and
+            // the scroll snaps to cell edges, so no half chip sits at rest
+            // against the Bag cell.
+            .scrollTargetBehavior(.viewAligned)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { clubRowWidth = $0 }
             Rectangle().fill(palette.rule).frame(width: 1)
             editClubsCell
         }
@@ -951,8 +960,7 @@ struct ActiveRoundView: View {
                         .font(.custom(AppFont.monoName, size: 9).weight(.bold))
                 }
             }
-            .frame(minWidth: 50)
-            .padding(.horizontal, 4)
+            .frame(width: clubCellWidth)
             .padding(.vertical, 8)
             .background(isSelected ? palette.ink : Color.clear)
             .overlay(alignment: .trailing) {

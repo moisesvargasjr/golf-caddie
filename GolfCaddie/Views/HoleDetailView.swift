@@ -534,7 +534,7 @@ struct HoleDetailView: View {
                 showAddShotSheet = true
             } label: {
                 HStack {
-                    Stamp(text: "+ Add Missing Shot")
+                    Stamp(text: InRoundLabels.missed)
                     Spacer()
                 }
             }

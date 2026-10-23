@@ -91,7 +91,7 @@ struct InRoundScorecardSheet: View {
             Button {
                 onDismiss()
             } label: {
-                Text("‹ CLOSE")
+                Text("‹ DONE")
                     .font(AppFont.metadata)
                     .tracking(1.4)
                     .foregroundStyle(palette.ink)

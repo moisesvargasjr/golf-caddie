@@ -49,19 +49,25 @@ struct PhysicalScorecardView: View {
         NavigationStack {
             ZStack {
                 PaperBackground()
-                GeometryReader { proxy in
-                    ScrollView([.horizontal, .vertical]) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            closeRow
-                            card
-                                .frame(width: max(Self.minCardWidth, proxy.size.width - 32))
-                            if let loadError {
-                                Text(loadError).font(AppFont.micro).foregroundStyle(appPalette.red)
+                // The safe-area-respecting column: "‹ DONE" stays put; the card
+                // scrolls (>= 820 pt wide) inside the safe area, never under
+                // the trailing status strip.
+                VStack(alignment: .leading, spacing: 4) {
+                    closeRow
+                        .padding(.horizontal, 16)
+                    GeometryReader { proxy in
+                        ScrollView([.horizontal, .vertical]) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                card
+                                    .frame(width: max(Self.minCardWidth, proxy.size.width - 32))
+                                if let loadError {
+                                    Text(loadError).font(AppFont.micro).foregroundStyle(appPalette.red)
+                                }
                             }
+                            .padding(16)
                         }
-                        .padding(16)
+                        .scrollIndicators(.hidden)
                     }
-                    .scrollIndicators(.hidden)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -71,7 +77,7 @@ struct PhysicalScorecardView: View {
 
     private var closeRow: some View {
         Button(action: onDismiss) {
-            Text("‹ CLOSE")
+            Text("‹ DONE")
                 .font(AppFont.metadata).tracking(1.4)
                 .foregroundStyle(appPalette.ink)
                 .frame(minHeight: 44)
