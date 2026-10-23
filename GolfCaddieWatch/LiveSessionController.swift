@@ -71,7 +71,11 @@ final class LiveSessionController: ObservableObject {
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
         WatchSession.shared.activate()
         recorder.onRateSample = { [weak self] hz in self?.deliveredHz = hz }
-        workout.onFailure = { [weak self] message in self?.lastError = "Workout: \(message)" }
+        workout.onFailure = { [weak self] message in
+            self?.lastError = "Workout: \(message)"
+            WatchSession.shared.stopFixStream() // the session is dead; stop telling the phone where we are
+        }
+        workout.onUnexpectedEnd = { WatchSession.shared.stopFixStream() }
         location.onFix = { [weak self] fix in
             guard let self, self.running else { return }
             if fix.horizontalAccuracy > 0 {
@@ -257,6 +261,7 @@ final class LiveSessionController: ObservableObject {
             workout.stop()
             recorder.stop()
             location.stop()
+            WatchSession.shared.stopFixStream()
             finishTelemetry()
             detector = nil
         }

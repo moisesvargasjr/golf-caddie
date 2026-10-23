@@ -31,7 +31,7 @@ final class WatchSession: NSObject, ObservableObject {
 
     private var fixTimer: Timer?
 
-    /// While a session runs, tell the phone where the watch is about every
+    /// While a session runs, tell the phone where the watch is every
     /// `fixStreamInterval` s so phone-originated actions (phone MARK, glasses,
     /// yardage) can use the golfer's position instead of the phone's. Live only:
     /// `sendMessage` when reachable, dropped on any failure. NEVER

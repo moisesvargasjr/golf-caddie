@@ -258,7 +258,9 @@ enum GlassesStateMapper {
         at time: Date
     ) -> Int? {
         guard let courseId,
-              let origin = LocationPreference.choose(watch: watchFix, phone: phone, at: time).fix
+              let origin = LocationPreference.choose(
+                  watch: watchFix, phone: phone, at: time,
+                  watchMaxAge: LocationPreference.streamedWatchFixMaxAge).fix
         else { return nil }
         return yardsToGreen(from: origin.coordinate, courseId: courseId, holeNumber: holeNumber)
     }

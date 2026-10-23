@@ -59,11 +59,17 @@ enum LocationPreference {
     static let watchFixMaxAge: TimeInterval = 5
     /// A watch fix coarser than this is no better than the phone's guess.
     static let watchFixMaxAccuracy: Double = 15
+    /// Looser age gate for phone-originated reads of the STREAMED fix (phone
+    /// MARK, glasses, yardage): there is no swing timestamp to match, and one
+    /// dropped `sendMessage` on a 2 s stream must not flip "watch first" to the
+    /// phone. Swing/tap fixes are timestamp-matched and keep `watchFixMaxAge`.
+    static let streamedWatchFixMaxAge: TimeInterval = 10
 
     /// The watch's fix if it's trustworthy for something that happened at `time`.
-    static func usableWatchFix(_ fix: WatchFix?, at time: Date) -> GeoFix? {
+    static func usableWatchFix(_ fix: WatchFix?, at time: Date,
+                               maxAge: TimeInterval = watchFixMaxAge) -> GeoFix? {
         guard let fix, fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= watchFixMaxAccuracy,
-              abs(fix.timestamp - time.timeIntervalSince1970) <= watchFixMaxAge else { return nil }
+              abs(fix.timestamp - time.timeIntervalSince1970) <= maxAge else { return nil }
         return GeoFix(fix)
     }
 
@@ -71,9 +77,10 @@ enum LocationPreference {
     /// Else none. The caller chooses which phone fix is relevant (live fix or
     /// the breadcrumb nearest a past moment); the policy only rejects invalid
     /// accuracy.
-    static func choose(watch: WatchFix?, phone: GeoFix?, at time: Date) -> LocationChoice {
+    static func choose(watch: WatchFix?, phone: GeoFix?, at time: Date,
+                       watchMaxAge: TimeInterval = watchFixMaxAge) -> LocationChoice {
         let usablePhone = phone.flatMap { $0.horizontalAccuracy > 0 ? $0 : nil }
-        guard let usableWatch = usableWatchFix(watch, at: time) else {
+        guard let usableWatch = usableWatchFix(watch, at: time, maxAge: watchMaxAge) else {
             return LocationChoice(fix: usablePhone, source: usablePhone == nil ? .none : .phone,
                                   disagreementMeters: nil)
         }
@@ -93,8 +100,11 @@ enum WatchFixStream {
     /// The encoded `.fix` message, or nil when there is nothing worth sending:
     /// phone unreachable, no fix yet, or a fix too old / invalid to be useful.
     static func payload(latest: WatchFix?, reachable: Bool, now: Date) -> Data? {
+        // Tight send-time gate: GPS is 1 Hz, so anything older than this means
+        // the receiver stalled; don't ship a fix that is nearly stale on arrival.
         guard reachable, let latest,
-              LocationPreference.usableWatchFix(latest, at: now) != nil else { return nil }
+              LocationPreference.usableWatchFix(latest, at: now, maxAge: ShotContract.fixStreamMaxSendAge) != nil
+        else { return nil }
         return try? WatchToPhoneMessage.fix(latest).encoded()
     }
 }

@@ -93,6 +93,30 @@ final class LocationPreferenceTests: XCTestCase {
         XCTAssertEqual(LocationPreference.choose(watch: nil, phone: phone(age: 60), at: t).source, .phone)
     }
 
+    func testStreamedFixesGetALooserAgeGateThanTimestampMatchedOnes() {
+        XCTAssertEqual(LocationPreference.watchFixMaxAge, 5)
+        XCTAssertEqual(LocationPreference.streamedWatchFixMaxAge, 10)
+        let streamed = LocationPreference.streamedWatchFixMaxAge
+        // 8 s old: stale for a swing/tap, still good for a phone-originated read.
+        XCTAssertEqual(LocationPreference.choose(watch: watch(age: 8), phone: phone(), at: t).source, .phone)
+        XCTAssertEqual(
+            LocationPreference.choose(watch: watch(age: 8), phone: phone(), at: t, watchMaxAge: streamed).source,
+            .watch)
+        XCTAssertEqual(
+            LocationPreference.choose(watch: watch(age: 10), phone: nil, at: t, watchMaxAge: streamed).source,
+            .watch)
+        XCTAssertEqual(
+            LocationPreference.choose(watch: watch(age: 10.5), phone: phone(), at: t, watchMaxAge: streamed).source,
+            .phone)
+    }
+
+    func testLooserAgeStillRequiresAccuracy() {
+        let streamed = LocationPreference.streamedWatchFixMaxAge
+        XCTAssertEqual(
+            LocationPreference.choose(watch: watch(acc: 20, age: 8), phone: phone(), at: t,
+                                      watchMaxAge: streamed).source, .phone)
+    }
+
     func testUsableWatchFixGate() {
         XCTAssertNotNil(LocationPreference.usableWatchFix(watch(age: 4), at: t))
         XCTAssertNil(LocationPreference.usableWatchFix(watch(age: 6), at: t))
@@ -156,7 +180,18 @@ final class WatchFixStreamTests: XCTestCase {
         XCTAssertNil(WatchFixStream.payload(latest: fix(acc: 0), reachable: true, now: now))
     }
 
-    func testIntervalIsAboutThreeSeconds() {
-        XCTAssertEqual(ShotContract.fixStreamInterval, 3)
+    func testIntervalIsTwoSeconds() {
+        XCTAssertEqual(ShotContract.fixStreamInterval, 2)
+    }
+
+    func testSendTimeFreshnessGateIsTwoSeconds() {
+        XCTAssertEqual(ShotContract.fixStreamMaxSendAge, 2)
+        XCTAssertNotNil(WatchFixStream.payload(latest: fix(age: 2), reachable: true, now: now))
+        XCTAssertNil(WatchFixStream.payload(latest: fix(age: 2.5), reachable: true, now: now))
+        XCTAssertNil(WatchFixStream.payload(latest: fix(age: 4), reachable: true, now: now))
+    }
+
+    func testInaccurateFixIsNotSent() {
+        XCTAssertNil(WatchFixStream.payload(latest: fix(acc: 16), reachable: true, now: now))
     }
 }

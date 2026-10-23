@@ -114,7 +114,8 @@ final class RoundController {
     /// phone may be in the cart), else the phone's. `source` + `disagreementMeters`
     /// are what each shot records.
     func currentLocationChoice(at time: Date = Date()) -> LocationChoice {
-        LocationPreference.choose(watch: watchFixProvider(), phone: phoneFix(), at: time)
+        LocationPreference.choose(watch: watchFixProvider(), phone: phoneFix(), at: time,
+                                  watchMaxAge: LocationPreference.streamedWatchFixMaxAge)
     }
 
     init(location: LocationManager) {
@@ -223,6 +224,7 @@ final class RoundController {
         )
         try RoundRepository.insert(round)
         try HoleRepository.insert(hole)
+        WatchFixStore.shared.reset() // never carry a previous round's fix over
         state = .active(round: round, hole: hole)
         UserDefaults.standard.set(hole.id.uuidString, forKey: Self.activeHoleKey(round.id))
         currentHoleShots = []
@@ -251,6 +253,7 @@ final class RoundController {
         try RoundRepository.update(ended)
         location.stopTracking()
         mostRecentlyEndedRound = ended
+        WatchFixStore.shared.reset()
         state = .idle
         currentHoleShots = []
         currentHolePenalties = []

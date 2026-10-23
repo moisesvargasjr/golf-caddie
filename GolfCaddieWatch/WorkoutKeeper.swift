@@ -24,6 +24,9 @@ final class WorkoutKeeper: NSObject, HKWorkoutSessionDelegate {
 
     /// Reported on the main queue if the session fails mid-recording.
     var onFailure: (@MainActor (String) -> Void)?
+    /// The system ended the current workout (not via `stop()`): everything that
+    /// depends on the session running must wind down.
+    var onUnexpectedEnd: (@MainActor () -> Void)?
 
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { throw KeeperError.healthDataUnavailable }
@@ -81,7 +84,14 @@ final class WorkoutKeeper: NSObject, HKWorkoutSessionDelegate {
     // MARK: - HKWorkoutSessionDelegate
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState,
-                        from fromState: HKWorkoutSessionState, date: Date) {}
+                        from fromState: HKWorkoutSessionState, date: Date) {
+        // `stop()` nils `session` before ending it, so only a system-initiated end
+        // of the CURRENT session matches here (a late callback from an old session
+        // must not stop a newer one).
+        guard toState == .ended || toState == .stopped, workoutSession === session,
+              let onUnexpectedEnd else { return }
+        DispatchQueue.main.async { onUnexpectedEnd() }
+    }
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         let message = error.localizedDescription

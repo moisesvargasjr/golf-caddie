@@ -72,6 +72,13 @@ final class WatchGPSFirstTests: XCTestCase {
         XCTAssertTrue(shot.hadGPS)
     }
 
+    func testPhoneMarkToleratesOneDroppedStreamMessage() async throws {
+        // 8 s old = a dropped message on a 2 s stream; still "watch first".
+        let controller = try controller(watch: freshWatchFix(age: 8), phone: cart)
+        try await controller.markShot()
+        XCTAssertEqual(controller.currentHoleShots.last?.locationSource, .watch)
+    }
+
     func testPhoneMarkFallsBackToThePhoneWhenTheWatchFixIsStale() async throws {
         let controller = try controller(watch: freshWatchFix(age: 30), phone: cart)
         try await controller.markShot()
@@ -213,6 +220,23 @@ final class WatchGPSFirstTests: XCTestCase {
         let yards = GlassesStateMapper.yardsToGreen(
             watchFix: freshWatchFix(accuracy: 12), phone: cart, courseId: courseId, holeNumber: 1, at: Date())
         XCTAssertEqual(try XCTUnwrap(yards), 109, accuracy: 3) // 100 m
+    }
+
+    func testYardageToleratesAStreamedFixUpToTenSecondsOld() throws {
+        let courseId = try seedGreen(at: 33.0018)
+        let yards = GlassesStateMapper.yardsToGreen(
+            watchFix: freshWatchFix(age: 8), phone: cart, courseId: courseId, holeNumber: 1, at: Date())
+        XCTAssertEqual(try XCTUnwrap(yards), 109, accuracy: 3)
+    }
+
+    func testStoreIsClearedWhenARoundStartsAndEnds() throws {
+        WatchFixStore.shared.update(freshWatchFix())
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound()
+        XCTAssertNil(WatchFixStore.shared.latest, "a stale fix must not carry into a new round")
+        WatchFixStore.shared.update(freshWatchFix())
+        try controller.endRound()
+        XCTAssertNil(WatchFixStore.shared.latest)
     }
 
     func testYardageFallsBackToThePhoneWhenTheWatchFixIsStale() throws {

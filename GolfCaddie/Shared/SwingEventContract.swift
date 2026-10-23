@@ -29,7 +29,9 @@ enum ShotContract {
     /// from `payloadKey` — it isn't a round message.
     static let catalogRequestKey = "catalogRequest"
     /// Seconds between watch → phone fix messages while a session runs (B35).
-    static let fixStreamInterval: TimeInterval = 3
+    static let fixStreamInterval: TimeInterval = 2
+    /// A fix older than this at send time is not streamed (see `WatchFixStream`).
+    static let fixStreamMaxSendAge: TimeInterval = 2
 }
 
 /// The watch's own GPS fix at a swing / tap. The phone prefers it over its own

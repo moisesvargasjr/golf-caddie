@@ -261,11 +261,13 @@ better hAcc (a phone in the cart can show 3 m and be 100 m from the golfer).
 <= 15 m and |age| <= 5 s; else the phone fix (hAcc > 0); else none. It also returns the
 watch-vs-phone distance whenever both were usable.
 
-- **Stream.** While a session runs the watch sends its latest fix every ~3 s with
+- **Stream.** While a session runs the watch sends its latest fix every 2 s with
   `WCSession.sendMessage` (only when reachable, dropped on failure, never `transferUserInfo`:
-  a queued fix is stale on arrival). Wire: `WatchToPhoneMessage.Kind.fix` + optional
+  a queued fix is stale on arrival; a fix older than 2 s at send time is not sent). Wire: `WatchToPhoneMessage.Kind.fix` + optional
   `watchFix`; older payloads still decode, contract stays v1. The phone keeps it in
-  `WatchFixStore` (newest timestamp wins, in memory only).
+  `WatchFixStore` (newest timestamp wins, in memory only, cleared when a round starts or ends).
+  Phone-originated reads of it accept a fix up to 10 s old (one dropped message must not flip
+  the policy); timestamp-matched swing/tap fixes keep the 5 s gate.
 - **Used by:** phone MARK/putt (`markShotInternal`), glasses shots, watch taps and swings
   (attached fix first, else the stream), `WatchStatePublisher` and glasses `distanceToGreenYards`.
   Not yet: the phone's own on-screen yardage (`ActiveRoundView.distanceToGreenYards`), a view
@@ -278,4 +280,4 @@ watch-vs-phone distance whenever both were usable.
 - **Reading a round:** `scripts/compare-watch-track.py` prints source counts and the
   disagreement distribution. A large median means the phone was regularly left behind.
 - Not verified on device: stream cadence and `isReachable` behavior with the phone in a bag
-  or cart, and how often the 5 s age gate drops the stream's fix.
+  or cart, and how often the 10 s age gate drops the stream's fix.
