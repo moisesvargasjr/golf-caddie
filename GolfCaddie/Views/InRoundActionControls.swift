@@ -5,7 +5,7 @@ import SwiftUI
 // Finish hole is the primary, filled action.
 
 /// The expanded bottom bar, two rows:
-/// 1. [⌚ WATCH IS DETECTING SWINGS] · ↶ undo · + SHOT HERE · + MISSED (44 pt)
+/// 1. [⌚ WATCH IS DETECTING SWINGS] · ↶ undo · + SHOT · + MISSED (44 pt)
 /// 2. PUTT +1 (~120 pt) · primary filled Finish hole › (fills the rest)
 struct InRoundActionBar: View {
     let snapshot: InRoundSnapshot
@@ -38,11 +38,11 @@ struct InRoundActionBar: View {
     }
 }
 
-/// ↶ undo · + SHOT HERE (manual mark) · + MISSED (missing-shot pin sheet).
+/// ↶ undo · + SHOT (manual mark) · + MISSED (missing-shot pin sheet).
 struct SecondaryActionRow: View {
     let snapshot: InRoundSnapshot
     let actions: InRoundActions
-    var shotTitle = "+ SHOT HERE"
+    var shotTitle = "+ SHOT"
 
     var body: some View {
         HStack(spacing: 6) {
@@ -129,12 +129,22 @@ struct PuttButton: View {
 
 /// The primary action on every expanded layout: opens the Finish Hole flow.
 struct FinishHoleButton: View {
-    let actions: InRoundActions
+    let action: () -> Void
     var fontSize: CGFloat = 20
     @Environment(\.palette) private var palette
 
+    init(actions: InRoundActions, fontSize: CGFloat = 20) {
+        self.action = actions.finishHole
+        self.fontSize = fontSize
+    }
+
+    init(fontSize: CGFloat = 20, action: @escaping () -> Void) {
+        self.action = action
+        self.fontSize = fontSize
+    }
+
     var body: some View {
-        Button(action: actions.finishHole) {
+        Button(action: action) {
             HStack(spacing: 6) {
                 Text("Finish").font(.custom(AppFont.serifName, size: fontSize).italic())
                     .foregroundStyle(palette.paper.opacity(0.85))
@@ -191,7 +201,7 @@ struct CompactActionRows: View {
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
-                SecondaryActionRow(snapshot: snapshot, actions: actions, shotTitle: "+ SHOT")
+                SecondaryActionRow(snapshot: snapshot, actions: actions)
                     .frame(maxWidth: 260)
             }
             HStack(spacing: 8) {

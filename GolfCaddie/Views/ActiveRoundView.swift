@@ -279,7 +279,8 @@ struct ActiveRoundView: View {
                 onAdd: { coord, club in
                     insertMissingShot(at: coord, club: club)
                 },
-                onCancel: { showMissingShotSheet = false }
+                onCancel: { showMissingShotSheet = false },
+                trail: holeTrail
             )
         }
         // Glasses-advance retro summary (field-test 2026-05-22): the phone
@@ -419,6 +420,7 @@ struct ActiveRoundView: View {
                     .foregroundStyle(palette.ink)
             }
         }
+        .minimumHitTarget()
         .buttonStyle(.plain)
     }
 
@@ -444,6 +446,7 @@ struct ActiveRoundView: View {
                 }
             }
         }
+        .minimumHitTarget()
         .buttonStyle(.plain)
     }
 
@@ -460,6 +463,7 @@ struct ActiveRoundView: View {
                     .foregroundStyle(palette.ink)
             }
         }
+        .minimumHitTarget()
         .buttonStyle(.plain)
     }
 
@@ -553,6 +557,7 @@ struct ActiveRoundView: View {
                     .foregroundStyle(palette.flag)
             }
         }
+        .minimumHitTarget()
         .buttonStyle(.plain)
     }
 
@@ -760,6 +765,7 @@ struct ActiveRoundView: View {
                         .stroke(palette.ink, lineWidth: 1)
                 )
         }
+        .minimumHitTarget()
         .buttonStyle(.plain)
     }
 
@@ -813,24 +819,11 @@ struct ActiveRoundView: View {
     // Casual hole-out: reconstruct the strokes from the GPS track (Path B), then
     // open the same review sheet (card + draggable pins) to confirm/adjust.
     private var casualNextButton: some View {
-        Button {
+        FinishHoleButton {
             controller.placeCurrentHoleFromTrack()
             reviewingHole = controller.currentHole
-        } label: {
-            HStack(spacing: 6) {
-                Text("Next")
-                    .font(.custom(AppFont.serifName, size: 18).italic().weight(.regular))
-                Text("›")
-                    .font(.custom(AppFont.serifName, size: 20).weight(.bold))
-            }
-            .foregroundStyle(palette.paper)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(palette.ink)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 3)
         }
-        .buttonStyle(.plain)
+        .frame(height: 52)
     }
 
     private func casualStepButton(systemName: String, action: @escaping () -> Void) -> some View {
@@ -876,6 +869,7 @@ struct ActiveRoundView: View {
                         .stroke(palette.flag, lineWidth: 1)
                 )
         }
+        .minimumHitTarget()
         .buttonStyle(.plain)
     }
 

@@ -142,4 +142,38 @@ final class AdaptiveLayoutTests: XCTestCase {
         let choice = LocationPreference.choose(watch: nil, phone: nil, at: Date())
         XCTAssertNil(YardageFixAdapter.current(choice: choice))
     }
+
+    // MARK: Control consistency
+
+    /// Manual logging is only the small "+ SHOT" secondary: no view may compose
+    /// a big Log/Mark shot button. Scans the app's view sources (the simulator
+    /// can read the host checkout through #filePath).
+    func testNoBigLogShotControlInViews() throws {
+        let views = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("GolfCaddie/Views")
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: views, includingPropertiesForKeys: nil))
+        let files = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty)
+        let banned = ["LogShotButton", "logShotCTA", "Text(\"Log\")", "\"Log shot\""]
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for term in banned {
+                XCTAssertFalse(text.contains(term), "\(file.lastPathComponent) contains \(term)")
+            }
+        }
+    }
+
+    func testSecondaryShotLabelIsShort() {
+        let actions = InRoundActions(
+            logShot: {}, markMissed: {}, putt: {}, undo: {}, finishHole: {}, selectClub: { _ in },
+            openBag: {}, openCard: {}, endRound: {}, stepHole: { _ in }, openHoleGrid: {},
+            linkCourse: {}, recenterMap: {})
+        let snapshot = InRoundSnapshot(
+            holeNumber: 1, par: 4, holeLengthText: nil, courseName: nil, scoreText: nil, pin: nil,
+            needsCourseLink: true, pinSourceText: nil, gpsText: "", gpsColor: .clear, clubs: [],
+            bagText: "", strokes: [], selectedClubShort: nil, shots: 0, penalties: 0,
+            isMarking: false, canUndo: false, errorText: nil, isFollowingMap: true, watchDetecting: false)
+        XCTAssertEqual(SecondaryActionRow(snapshot: snapshot, actions: actions).shotTitle, "+ SHOT")
+    }
 }

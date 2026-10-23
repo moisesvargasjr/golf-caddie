@@ -61,7 +61,7 @@ struct InRoundSnapshot {
 }
 
 struct InRoundActions {
-    /// Manual "+ SHOT HERE" — the existing mark-shot action.
+    /// Manual "+ SHOT" — the existing mark-shot action.
     let logShot: () -> Void
     /// "+ MISSED" — opens `MissingShotPinSheet`.
     let markMissed: () -> Void

@@ -22,6 +22,9 @@ struct EditableHoleMap: View {
     /// Called on anchor drop. nil = anchor capture disabled.
     var onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)? = nil
 
+    /// The hole's walked trail (dotted), from `HoleTrailSource`.
+    @State private var trail: [CLLocationCoordinate2D] = []
+
     var body: some View {
         EditableHoleMapKit(
             shots: shots,
@@ -29,8 +32,14 @@ struct EditableHoleMap: View {
             onShotMoved: onShotMoved,
             tee: tee,
             green: green,
-            onAnchorMoved: onAnchorMoved
+            onAnchorMoved: onAnchorMoved,
+            trail: trail
         )
+        // `onAppear`-style sync load (GRDB) keyed by hole, not `.task`, to
+        // stay off the async context (see ActiveRoundView's catalog load).
+        .onChange(of: holeID, initial: true) { _, id in
+            trail = HoleTrailSource.coordinates(forHoleID: id)
+        }
     }
 }
 
@@ -41,6 +50,7 @@ private struct EditableHoleMapKit: UIViewRepresentable {
     let tee: GeoPoint?
     let green: GeoPoint?
     let onAnchorMoved: ((LocalAnchorRepository.AnchorKind, CLLocationCoordinate2D) -> Void)?
+    let trail: [CLLocationCoordinate2D]
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onShotMoved: onShotMoved, onAnchorMoved: onAnchorMoved)
@@ -61,6 +71,7 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         context.coordinator.onAnchorMoved = onAnchorMoved
         syncShots(in: map, coordinator: context.coordinator)
         syncAnchors(in: map, coordinator: context.coordinator)
+        MapTrailStyle.sync(trail, in: map, lastKey: &context.coordinator.lastTrailKey)
 
         // Reframe when the hole changes OR anchors first appear/disappear
         // (entering anchor mode should pull tee/green into view). Never
@@ -194,6 +205,7 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         /// `tee`/`green`), so sync never churns it.
         var draggingID: String?
         var lastFramedKey: String?
+        var lastTrailKey: String?
 
         init(
             onShotMoved: @escaping (Shot, CLLocationCoordinate2D) -> Void,
@@ -201,6 +213,11 @@ private struct EditableHoleMapKit: UIViewRepresentable {
         ) {
             self.onShotMoved = onShotMoved
             self.onAnchorMoved = onAnchorMoved
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let trail = overlay as? TrailPolyline { return MapTrailStyle.renderer(for: trail) }
+            return MKOverlayRenderer(overlay: overlay)
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {

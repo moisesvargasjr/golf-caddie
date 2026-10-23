@@ -195,15 +195,9 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
         map.addOverlay(polyline)
     }
 
-    /// Dotted walked-GPS trail; replaced only when the breadcrumb set changes.
+    /// Dotted walked-GPS trail (shared style); replaced only when it changes.
     private func syncTrail(in map: MKMapView, coord: Coordinator) {
-        let last = trail.last.map { "\($0.latitude),\($0.longitude)" } ?? "-"
-        let key = "\(trail.count)|\(last)"
-        guard coord.lastTrailKey != key else { return }
-        coord.lastTrailKey = key
-        map.removeOverlays(map.overlays.filter { $0 is TrailPolyline })
-        guard trail.count >= 2 else { return }
-        map.addOverlay(TrailPolyline(coordinates: trail, count: trail.count))
+        MapTrailStyle.sync(trail, in: map, lastKey: &coord.lastTrailKey)
     }
 
     /// 200 / 150 / 100-yard rings centred on the green.
@@ -373,12 +367,7 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
                 return r
             }
             if let trail = overlay as? TrailPolyline {
-                let r = MKPolylineRenderer(polyline: trail)
-                r.strokeColor = UIColor.white.withAlphaComponent(0.85)
-                r.lineWidth = 2.5
-                r.lineCap = .round
-                r.lineDashPattern = [0.5, 6]
-                return r
+                return MapTrailStyle.renderer(for: trail)
             }
             if let ring = overlay as? YardageRing {
                 let r = MKCircleRenderer(circle: ring)
@@ -404,9 +393,6 @@ private struct ActiveRoundMapKit: UIViewRepresentable {
 /// Marker subclass so the renderer can tell the you → green target line apart
 /// from the shot-trail polyline (both are MKPolylines on the same map).
 private final class TargetLinePolyline: MKPolyline {}
-
-/// Walked GPS breadcrumbs (dotted).
-private final class TrailPolyline: MKPolyline {}
 
 /// A 200/150/100-yard ring around the green.
 private final class YardageRing: MKCircle {}

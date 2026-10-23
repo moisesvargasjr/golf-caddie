@@ -9,6 +9,26 @@ enum InRoundMetrics {
     static let minTouch: CGFloat = 44
 }
 
+/// Grows a small control's hit area to >= 44 pt tall without changing its
+/// drawn size or layout (compact stamps are ~22 pt tall). Mostly vertical, so
+/// neighbouring stamps in a row don't steal each other's taps.
+struct ExpandedHitShape: Shape {
+    var minHeight: CGFloat = InRoundMetrics.minTouch
+    var horizontal: CGFloat = 3
+
+    func path(in rect: CGRect) -> Path {
+        let dy = max(0, (minHeight - rect.height) / 2)
+        return Path(rect.insetBy(dx: -horizontal, dy: -dy))
+    }
+}
+
+extension View {
+    /// See `ExpandedHitShape`.
+    func minimumHitTarget() -> some View {
+        contentShape(ExpandedHitShape())
+    }
+}
+
 /// "Hole 7 · PAR 4 · 412 YD · COURSE · +2 THRU 6 · CARD · END"
 struct InRoundHeaderBar: View {
     let snapshot: InRoundSnapshot

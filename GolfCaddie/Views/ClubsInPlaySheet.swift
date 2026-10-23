@@ -55,16 +55,20 @@ struct ClubsInPlaySheet: View {
                     .font(AppFont.metadata)
                     .tracking(1.4)
                     .foregroundStyle(leftOut.isEmpty ? palette.ink3 : palette.ink)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .disabled(leftOut.isEmpty)
             Spacer()
             Button {
                 onDone()
             } label: {
-                Text("DONE")
+                Text("DONE ›")
                     .font(AppFont.metadata)
                     .tracking(1.4)
-                    .foregroundStyle(palette.ink)
+                    .foregroundStyle(palette.flag)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
         }
     }

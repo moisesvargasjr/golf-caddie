@@ -22,6 +22,8 @@ struct MissingShotPinSheet: View {
     let initialCenter: CLLocationCoordinate2D
     let onAdd: (CLLocationCoordinate2D, Club?) -> Void
     let onCancel: () -> Void
+    /// The hole's walked trail (dotted) — helps place the missed shot.
+    var trail: [CLLocationCoordinate2D] = []
 
     @Environment(\.palette) private var palette
 
@@ -33,9 +35,11 @@ struct MissingShotPinSheet: View {
         bag: [Club],
         initialCenter: CLLocationCoordinate2D,
         onAdd: @escaping (CLLocationCoordinate2D, Club?) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        trail: [CLLocationCoordinate2D] = []
     ) {
         self.bag = bag
+        self.trail = trail
         self.initialCenter = initialCenter
         self.onAdd = onAdd
         self.onCancel = onCancel
@@ -92,6 +96,8 @@ struct MissingShotPinSheet: View {
                     .font(AppFont.metadata)
                     .tracking(1.4)
                     .foregroundStyle(palette.ink)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             Spacer()
             Button {
@@ -101,6 +107,8 @@ struct MissingShotPinSheet: View {
                     .font(AppFont.metadata)
                     .tracking(1.4)
                     .foregroundStyle(palette.flag)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
         }
     }
@@ -119,7 +127,12 @@ struct MissingShotPinSheet: View {
         // Crosshair pinned to the center of the map regardless of pan/zoom.
         // `onMapCameraChange` tracks the actual center for the ADD action.
         ZStack {
-            Map(position: $cameraPosition, interactionModes: [.pan, .zoom])
+            Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
+                if trail.count >= 2 {
+                    MapPolyline(coordinates: trail)
+                        .stroke(MapTrailStyle.color, style: MapTrailStyle.strokeStyle)
+                }
+            }
                 .mapStyle(.imagery(elevation: .flat))
                 .onMapCameraChange(frequency: .continuous) { ctx in
                     currentCenter = ctx.camera.centerCoordinate
