@@ -10,7 +10,7 @@ read from the coursedata checkout next to this repo (or --catalog).
 
 Reports: fix cadence + accuracy, watch-vs-phone track gap, per-shot yardage
 agreement, first-shot distance to the tee point, putt distance to the green,
-battery. Stdlib only. Never commit the inputs — they're a GPS trail.
+shot location sources + watch-vs-phone disagreement (B35), battery. Stdlib only. Never commit the inputs — they're a GPS trail.
 """
 import argparse, bisect, csv, datetime as dt, json, math, os, sqlite3, statistics as st, sys, tempfile, zipfile
 
@@ -47,6 +47,29 @@ def load_telemetry(path):
             session = json.load(open(os.path.join(root, "session.json"))) if "session.json" in files else {}
             return fixes, session
     sys.exit(f"no fixes.csv under {path}")
+
+
+def report_location_sources(db: sqlite3.Connection, rid: str) -> None:
+    """B35: which device located each shot, and how far apart watch and phone were."""
+    cols = {r[1] for r in db.execute("pragma table_info(shot)")}
+    if "locationSource" not in cols:
+        print("\nShot location sources: n/a (database predates migration v8)")
+        return
+    rows = db.execute(
+        "select s.locationSource, s.locationDisagreementMeters from shot s join hole h on h.id = s.holeID "
+        "where h.roundID=? and s.excludedAt is null", (rid,)).fetchall()
+    counts: dict = {}
+    for src, _ in rows:
+        counts[src or "none"] = counts.get(src or "none", 0) + 1
+    print(f"\nShot location sources ({len(rows)} shots): "
+          + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
+    dis = [d for _, d in rows if d is not None]
+    if not dis:
+        print("Watch-vs-phone disagreement: no shot had both fixes usable")
+        return
+    print(f"Watch-vs-phone disagreement at {len(dis)} shots: median {st.median(dis):.1f} m, "
+          f"p90 {pct(dis, .9):.1f}, max {max(dis):.1f}; >25 m: {sum(d > 25 for d in dis)}/{len(dis)} "
+          f"(phone left behind)")
 
 
 def main():
@@ -137,6 +160,8 @@ def main():
               f"max {max(ydiff):.1f}   (pass: ≤ 3 yd)")
     if teed:
         print(f"First shot → tee point: median {st.median(teed):.1f} m, within 15 m: {sum(d <= 15 for d in teed)}/{len(teed)}")
+
+    report_location_sources(db, rid)
 
     # --- battery --------------------------------------------------------------
     bs, be = session.get("batteryStart"), session.get("batteryEnd")

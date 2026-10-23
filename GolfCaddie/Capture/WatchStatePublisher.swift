@@ -10,6 +10,8 @@ final class WatchStatePublisher {
     private weak var controller: RoundController?
     private weak var location: LocationManager?
     private var timer: Timer?
+    /// The watch's streamed fix (B35). A seam so tests need no WatchConnectivity.
+    var watchFixProvider: () -> WatchFix? = { WatchFixStore.shared.latest }
     private var lastSent: PhoneStateUpdate?
 
     // Phone-side club epoch: bumped above the watch's whenever the phone changes
@@ -95,10 +97,10 @@ final class WatchStatePublisher {
             return WatchScoreRow(hole: h.holeNumber, par: h.par, strokes: shots + penalties)
         }
 
-        let distance: Int? = {
-            guard let loc = location?.latestLocation, loc.horizontalAccuracy > 0 else { return nil }
-            return GlassesStateMapper.yardsToGreen(from: loc.coordinate, courseId: courseId, holeNumber: holeNumber)
-        }()
+        // Measured from the watch's fix when usable (the phone may be in the cart).
+        let distance = GlassesStateMapper.yardsToGreen(
+            watchFix: watchFixProvider(), phone: controller.phoneFix(),
+            courseId: courseId, holeNumber: holeNumber, at: Date())
 
         return PhoneStateUpdate(
             isActive: true,

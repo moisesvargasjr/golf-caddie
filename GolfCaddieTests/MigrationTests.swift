@@ -14,7 +14,7 @@ final class MigrationTests: XCTestCase {
             Database.migrator.migrations,
             ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
              "v4_shot_putt_confidence", "v5_custom_clubs", "v6_shot_excluded",
-             "v7_round_clubs_left_out"]
+             "v7_round_clubs_left_out", "v8_shot_location_source"]
         )
     }
 
@@ -186,6 +186,61 @@ final class MigrationTests: XCTestCase {
             }
             XCTAssertTrue(exists, "bag id '\(id)' has no club row after v5")
         }
+    }
+
+    // MARK: - v8
+
+    func test_v8_addsNullableLocationProvenanceColumns() throws {
+        let q = try TestDatabase.makeInMemory()
+        let columns = try q.read { db in try Row.fetchAll(db, sql: "PRAGMA table_info(shot)") }
+        let byName = Dictionary(uniqueKeysWithValues: columns.map { (($0["name"] as String), $0) })
+        XCTAssertEqual(byName["locationSource"]?["type"] as String?, "TEXT")
+        XCTAssertEqual(byName["locationSource"]?["notnull"] as Int?, 0)
+        XCTAssertEqual(byName["locationDisagreementMeters"]?["type"] as String?, "DOUBLE") // GRDB .double: REAL affinity
+        XCTAssertEqual(byName["locationDisagreementMeters"]?["notnull"] as Int?, 0)
+    }
+
+    /// A v7 database with shots already in it must upgrade with those shots
+    /// intact and their provenance nil (unknown, not mislabeled).
+    func test_v8_upgradeKeepsExistingShotsWithNilProvenance() throws {
+        let q = try TestDatabase.makeInMemory(upTo: "v7_round_clubs_left_out")
+        let holeID = UUID().uuidString
+        let roundID = UUID().uuidString
+        try q.write { db in
+            try db.execute(sql: "INSERT INTO round (id, startedAt) VALUES (?, ?)", arguments: [roundID, Date()])
+            try db.execute(sql: "INSERT INTO hole (id, roundID, holeNumber) VALUES (?, ?, 1)",
+                           arguments: [holeID, roundID])
+            try db.execute(
+                sql: """
+                INSERT INTO shot (id, holeID, sequenceNumber, timestamp, hadGPS, club, source)
+                VALUES (?, ?, 1, ?, 1, 'driver', 'watchAuto')
+                """,
+                arguments: [UUID().uuidString, holeID, Date()])
+        }
+
+        try Database.migrator.migrate(q)
+
+        let shots = try q.read { db in try Shot.filter(Column("holeID") == holeID).fetchAll(db) }
+        XCTAssertEqual(shots.count, 1)
+        XCTAssertEqual(shots.first?.club, "driver")
+        XCTAssertNil(shots.first?.locationSource)
+        XCTAssertNil(shots.first?.locationDisagreementMeters)
+    }
+
+    func test_v8_shotProvenanceRoundTrips() throws {
+        let q = try TestDatabase.makeInMemory()
+        TestDatabase.install(q)
+        defer { TestDatabase.restore() }
+        let round = try TestDatabase.seedRound()
+        let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1)
+        var shot = try TestDatabase.seedShot(holeID: hole.id, sequence: 1)
+        shot.locationSource = .watch
+        shot.locationDisagreementMeters = 42.5
+        try ShotRepository.update(shot)
+
+        let fetched = try XCTUnwrap(try ShotRepository.shotsForHole(hole.id).first)
+        XCTAssertEqual(fetched.locationSource, .watch)
+        XCTAssertEqual(try XCTUnwrap(fetched.locationDisagreementMeters), 42.5, accuracy: 0.001)
     }
 
     // MARK: - Idempotence

@@ -561,7 +561,9 @@ private struct ClubSelector: View {
     private func currentIndex(_ clubs: [WatchClub]) -> Int {
         let short = controller.effectiveClubShort ?? session.phoneState.currentClubShortName
         if let short, let i = clubs.firstIndex(where: { $0.short == short }) { return i }
-        return suggestedClubIndex(clubs, yards: session.phoneState.distanceToGreenYards ?? 0) ?? 0
+        // Same yardage the hero shows: the wrist's own, else the phone's.
+        let yards = YardageReadout(caddie: caddie, phone: session.phoneState).yards
+        return suggestedClubIndex(clubs, yards: yards ?? 0) ?? 0
     }
 }
 
@@ -1083,6 +1085,8 @@ private struct DetectCard: View {
         let club = controller.effectiveClubShort
             .flatMap { sh in session.phoneState.clubs.first { $0.short == sh } }
         let pct = remaining / Self.seconds
+        // Same yardage the hero shows: the wrist's own, else the phone's.
+        let fromYards = YardageReadout(caddie: controller.caddie, phone: session.phoneState).yards
 
         ZStack {
             Color.black.opacity(0.82).ignoresSafeArea()
@@ -1098,7 +1102,7 @@ private struct DetectCard: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(club?.name ?? "Stroke").font(WT.serif(WT.s(26))).foregroundStyle(WT.ink)
                                 .lineLimit(1).minimumScaleFactor(0.6)
-                            Text("\(club?.short ?? "—") · from \(session.phoneState.distanceToGreenYards.map(String.init) ?? "—") yd")
+                            Text("\(club?.short ?? "—") · from \(fromYards.map(String.init) ?? "—") yd")
                                 .font(WT.mono(11)).foregroundStyle(WT.ink2)
                             Text("↻ crown to change").font(WT.mono(9)).foregroundStyle(WT.ink3)
                         }

@@ -532,6 +532,8 @@ struct HoleReviewSheet: View {
         updated.longitude = coord.longitude
         updated.hadGPS = true
         updated.gpsAccuracy = nil
+        updated.locationSource = .manual // hand-placed pin (B35)
+        updated.locationDisagreementMeters = nil
         updated.confidence = 1.0 // user-placed = ground truth (also clears Path-B's amber flag)
         do {
             try ShotRepository.update(updated)

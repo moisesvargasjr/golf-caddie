@@ -289,14 +289,4 @@ final class WatchReplayOrderingTests: XCTestCase {
         XCTAssertEqual(putts[0].timestamp.timeIntervalSince1970, tapped.timeIntervalSince1970, accuracy: 1)
         XCTAssertNil(putts[1].latitude)
     }
-
-    func testUsableWatchFixGate() {
-        let t = Date()
-        XCTAssertNotNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t.addingTimeInterval(4)), at: t))
-        XCTAssertNotNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t, accuracy: 15), at: t))
-        XCTAssertNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t.addingTimeInterval(6)), at: t))
-        XCTAssertNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t, accuracy: 16), at: t))
-        XCTAssertNil(LiveShotCoordinator.usableWatchFix(watchFix(at: t, accuracy: -1), at: t))
-        XCTAssertNil(LiveShotCoordinator.usableWatchFix(nil, at: t))
-    }
 }

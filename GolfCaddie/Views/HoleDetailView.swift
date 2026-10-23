@@ -905,6 +905,8 @@ struct HoleDetailView: View {
         updated.longitude = coord.longitude
         updated.hadGPS = true
         updated.gpsAccuracy = nil
+        updated.locationSource = .manual // hand-placed pin (B35)
+        updated.locationDisagreementMeters = nil
         do {
             try ShotRepository.update(updated)
             loadHole()

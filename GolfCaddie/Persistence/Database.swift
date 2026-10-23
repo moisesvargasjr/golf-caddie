@@ -214,6 +214,17 @@ enum Database {
             }
         }
 
+        // Watch GPS first (B35): which device located each shot, and how far
+        // apart the watch and phone fixes were when both were usable. Both
+        // nullable: pre-v8 shots have unknown provenance, and no-GPS shots have
+        // none. locationSource is TEXT: watch / phone / manual / track.
+        migrator.registerMigration("v8_shot_location_source") { db in
+            try db.alter(table: "shot") { t in
+                t.add(column: "locationSource", .text)
+                t.add(column: "locationDisagreementMeters", .double)
+            }
+        }
+
         return migrator
     }
 }

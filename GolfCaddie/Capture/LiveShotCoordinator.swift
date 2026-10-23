@@ -62,21 +62,6 @@ final class LiveShotCoordinator {
     /// delivered late.
     static let liveWindow: TimeInterval = 30
 
-    /// A watch fix further than this from the swing/tap time is stale (the watch
-    /// GPS runs at 1 Hz, so a live fix is always within a second or two).
-    static let watchFixMaxAge: TimeInterval = 5
-    /// …and one coarser than this is no better than the phone's guess.
-    static let watchFixMaxAccuracy: Double = 15
-
-    /// The watch's own fix, if it's a trustworthy location for something that
-    /// happened at `time`. Preferred over the phone breadcrumb: the phone is
-    /// often in the cart, so its trail is the cart path (Native Oaks, 2026-10-17).
-    nonisolated static func usableWatchFix(_ fix: WatchFix?, at time: Date) -> (CLLocationCoordinate2D, Double)? {
-        guard let fix, fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= watchFixMaxAccuracy,
-              abs(fix.timestamp - time.timeIntervalSince1970) <= watchFixMaxAge else { return nil }
-        return (CLLocationCoordinate2D(latitude: fix.latitude, longitude: fix.longitude), fix.horizontalAccuracy)
-    }
-
     init(steps: StepCounting = PedometerStepCounter(), debounceInterval: TimeInterval = 3.0,
          now: @escaping () -> Date = Date.init) {
         reconciler = ShotReconciler(steps: steps)
@@ -139,12 +124,20 @@ final class LiveShotCoordinator {
     private var draining = false
 
     func ingest(_ message: WatchToPhoneMessage) {
+        // The position stream is state, not a round event: it needs no controller
+        // and must never be buffered or replayed.
+        if message.kind == .fix {
+            WatchFixStore.shared.update(message.watchFix)
+            return
+        }
         guard controller != nil else { bufferedBeforeAttach.append(message); return }
         switch message.kind {
         case .swing:
             guard let event = message.swing else { return }
             pending.append(event)
             restartDebounce()
+        case .fix:
+            return
         case .command:
             guard let identified = message.command else { return }
             // Apply at most once: ignore a command id we've already handled.
@@ -242,17 +235,15 @@ final class LiveShotCoordinator {
     /// late. Otherwise a tap older than `liveWindow` was delivered late (queued
     /// while the phone was away): stamp it with the watch's tap time and the
     /// breadcrumb from then, not "now" and wherever the phone is holes later.
-    /// nil = live with no watch fix → the phone's live fix, as before.
+    /// nil = live with no watch fix → the controller's live read, as before.
     private func watchTap(_ identified: IdentifiedCommand) -> RoundController.LateWatchTap? {
         guard let sentAt = identified.sentAt else { return nil }
         let tapped = Date(timeIntervalSince1970: sentAt)
         let late = now().timeIntervalSince(tapped) > Self.liveWindow
-        if case let (coordinate, accuracy)? = Self.usableWatchFix(identified.fix, at: tapped) {
-            return .init(timestamp: late ? tapped : now(), coordinate: coordinate, accuracy: accuracy)
-        }
-        guard late else { return nil }
-        let (coordinate, accuracy) = breadcrumb(near: tapped)
-        return .init(timestamp: tapped, coordinate: coordinate, accuracy: accuracy)
+        let phone = late ? breadcrumb(near: tapped) : controller?.phoneFix()
+        let choice = LocationPreference.choose(watch: identified.fix, phone: phone, at: tapped)
+        guard late || choice.source == .watch else { return nil }
+        return .init(timestamp: late ? tapped : now(), choice: choice)
     }
 
     private func restartDebounce() {
@@ -265,12 +256,14 @@ final class LiveShotCoordinator {
     private func commit(_ batch: [SwingEvent]) async {
         let kept = await reconciler.commit(batch)
         for event in kept {
-            let (coordinate, accuracy) = fuse(event)
+            let choice = fuse(event)
             _ = try? controller?.ingestAutoShot(
-                at: coordinate,
-                accuracy: accuracy,
+                at: choice.fix?.coordinate,
+                accuracy: choice.fix?.horizontalAccuracy,
                 club: event.club.flatMap { (try? ClubRepository.from(shortName: $0)) ?? nil },
-                timestamp: event.candidateTime
+                timestamp: event.candidateTime,
+                locationSource: ShotLocationSource(choice.source),
+                disagreementMeters: choice.disagreementMeters
             )
         }
     }
@@ -282,26 +275,25 @@ final class LiveShotCoordinator {
     /// fix — but only for a swing that just happened; for a late-delivered one
     /// the phone's current position is somewhere else entirely, so no-GPS is
     /// the honest answer.
-    private func fuse(_ event: SwingEvent) -> (CLLocationCoordinate2D?, Double?) {
+    private func fuse(_ event: SwingEvent) -> LocationChoice {
         let target = event.candidateTime
-        if case let (coordinate, accuracy)? = Self.usableWatchFix(event.fix, at: target) {
-            return (coordinate, accuracy)
-        }
-        let crumb = breadcrumb(near: target)
-        if crumb.0 != nil { return crumb }
-        if now().timeIntervalSince(target) <= Self.liveWindow,
-           let loc = location?.latestLocation, loc.horizontalAccuracy > 0 {
-            return (loc.coordinate, loc.horizontalAccuracy)
-        }
-        return (nil, nil)
+        let phone = breadcrumb(near: target) ?? liveFix(for: target)
+        return LocationPreference.choose(watch: event.fix, phone: phone, at: target)
     }
 
-    private func breadcrumb(near target: Date) -> (CLLocationCoordinate2D?, Double?) {
+    /// The phone's live fix, but only for a swing that just happened.
+    private func liveFix(for target: Date) -> GeoFix? {
+        guard now().timeIntervalSince(target) <= Self.liveWindow,
+              let loc = location?.latestLocation, loc.horizontalAccuracy > 0 else { return nil }
+        return GeoFix(loc)
+    }
+
+    private func breadcrumb(near target: Date) -> GeoFix? {
         guard let roundID = controller?.currentRound?.id,
               let breadcrumb = try? TracePointRepository.nearest(toTimestamp: target, inRound: roundID),
-              abs(breadcrumb.timestamp.timeIntervalSince(target)) <= 10 else { return (nil, nil) }
-        return (CLLocationCoordinate2D(latitude: breadcrumb.latitude, longitude: breadcrumb.longitude),
-                breadcrumb.accuracy)
+              abs(breadcrumb.timestamp.timeIntervalSince(target)) <= 10 else { return nil }
+        return GeoFix(latitude: breadcrumb.latitude, longitude: breadcrumb.longitude,
+                      horizontalAccuracy: breadcrumb.accuracy, timestamp: breadcrumb.timestamp.timeIntervalSince1970)
     }
 }
 
