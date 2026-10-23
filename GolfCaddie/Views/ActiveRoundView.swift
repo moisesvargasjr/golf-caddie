@@ -659,29 +659,41 @@ struct ActiveRoundView: View {
                 .padding(.bottom, 12)
 
             // Selected club row — penalty stamp on the right (small, secondary).
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("SELECTED")
+            // No club picked: one slim line instead of an empty "SELECTED —".
+            if let club = controller.currentClub {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SELECTED")
+                            .font(AppFont.stamp)
+                            .tracking(1.4)
+                            .foregroundStyle(palette.ink3)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(club.name)
+                                .font(.custom(AppFont.serifName, size: 22).italic().weight(.bold))
+                                .foregroundStyle(palette.ink)
+                            if let avg = ClubAverages.shared.average(for: club.id) {
+                                let f = units.format(yards: avg)
+                                Text("avg \(f.value) \(f.unit)")
+                                    .font(.custom(AppFont.monoName, size: 12).weight(.bold))
+                                    .foregroundStyle(palette.ink3)
+                            }
+                        }
+                    }
+                    Spacer()
+                    penaltyStampButton
+                }
+                .padding(.horizontal, 20)
+            } else {
+                HStack {
+                    Text("PICK A CLUB")
                         .font(AppFont.stamp)
                         .tracking(1.4)
                         .foregroundStyle(palette.ink3)
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(controller.currentClub?.name ?? "—")
-                            .font(.custom(AppFont.serifName, size: 22).italic().weight(.bold))
-                            .foregroundStyle(palette.ink)
-                        if let club = controller.currentClub,
-                           let avg = ClubAverages.shared.average(for: club.id) {
-                            let f = units.format(yards: avg)
-                            Text("avg \(f.value) \(f.unit)")
-                                .font(.custom(AppFont.monoName, size: 12).weight(.bold))
-                                .foregroundStyle(palette.ink3)
-                        }
-                    }
+                    Spacer()
+                    penaltyStampButton
                 }
-                Spacer()
-                penaltyStampButton
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 20)
 
             // Horizontal-scroll club row
             clubRow
@@ -886,8 +898,8 @@ struct ActiveRoundView: View {
                     stops: [
                         .init(color: .clear, location: 0),
                         .init(color: .black, location: 0.06),
-                        .init(color: .black, location: 0.94),
-                        .init(color: .clear, location: 1.0),
+                        .init(color: .black, location: 0.86),
+                        .init(color: .clear, location: 0.99),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing

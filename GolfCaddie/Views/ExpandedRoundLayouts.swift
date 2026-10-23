@@ -61,9 +61,9 @@ struct WideRoundLayout: View {
             .roundStageRole(.page)
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                YardageCard(snapshot: snapshot, actions: actions, heroSize: 64)
-                ClubGridSection(snapshot: snapshot, actions: actions, columns: 3)
+            VStack(alignment: .leading, spacing: 10) {
+                YardageCard(snapshot: snapshot, actions: actions, heroSize: 52)
+                ClubGridSection(snapshot: snapshot, actions: actions, columns: 4, compactCells: true)
                 StrokeListSection(snapshot: snapshot)
                 WatchDetectingLine(isDetecting: snapshot.watchDetecting)
                 InRoundErrorText(text: snapshot.errorText)

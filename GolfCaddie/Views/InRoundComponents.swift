@@ -198,6 +198,8 @@ struct ClubGridSection: View {
     let actions: InRoundActions
     var title = "Club"
     var columns = 4
+    /// Tight 44 pt cells with the average inline (narrow rails).
+    var compactCells = false
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -218,7 +220,7 @@ struct ClubGridSection: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columns),
                       spacing: 6) {
                 ForEach(snapshot.clubs) { chip in
-                    ClubGridCell(chip: chip) { actions.selectClub(chip.club) }
+                    ClubGridCell(chip: chip, compact: compactCells) { actions.selectClub(chip.club) }
                 }
             }
         }
@@ -227,18 +229,34 @@ struct ClubGridSection: View {
 
 private struct ClubGridCell: View {
     let chip: InRoundClubChip
+    var compact = false
     let action: () -> Void
     @Environment(\.palette) private var palette
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 1) {
-                Text(chip.club.shortName)
-                    .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
-                Text(chip.avgText.map { "avg \($0)" } ?? " ")
-                    .font(AppFont.micro)
-                    .opacity(0.75)
-                    .tabularNumerals()
+            Group {
+                if compact {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(chip.club.shortName)
+                            .font(.custom(AppFont.serifName, size: 15).italic().weight(.bold))
+                        if let avg = chip.avgText {
+                            Text(avg).font(.custom(AppFont.monoName, size: 8).weight(.bold))
+                                .opacity(0.75).tabularNumerals()
+                        }
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                } else {
+                    VStack(spacing: 1) {
+                        Text(chip.club.shortName)
+                            .font(.custom(AppFont.serifName, size: 17).italic().weight(.bold))
+                        Text(chip.avgText.map { "avg \($0)" } ?? " ")
+                            .font(AppFont.micro)
+                            .opacity(0.75)
+                            .tabularNumerals()
+                    }
+                }
             }
             .foregroundStyle(chip.isSelected ? palette.paper : palette.ink)
             .frame(maxWidth: .infinity, minHeight: InRoundMetrics.minTouch)
