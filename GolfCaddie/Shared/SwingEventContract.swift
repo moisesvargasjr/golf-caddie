@@ -30,8 +30,22 @@ enum ShotContract {
     static let catalogRequestKey = "catalogRequest"
 }
 
+/// The watch's own GPS fix at a swing / tap. The phone prefers it over its own
+/// breadcrumb when fresh and accurate — the phone is often left in the cart, so
+/// its trail is where the CART was, not where the ball was hit (Native Oaks,
+/// 2026-10-17). Optional everywhere it rides = additive, contract stays v1.
+struct WatchFix: Codable, Equatable {
+    var latitude: Double
+    var longitude: Double
+    /// Meters, CLLocation semantics (≤ 0 = invalid).
+    var horizontalAccuracy: Double
+    /// Unix epoch seconds, watch wall-clock, when the fix was taken.
+    var timestamp: Double
+}
+
 /// One auto-detected (or watch-manually-added) swing. Timestamped on the watch
-/// clock; the phone fuses it to a coordinate via the breadcrumb trail.
+/// clock; the phone locates it with the watch's own fix when that's usable,
+/// else fuses it to its breadcrumb trail.
 struct SwingEvent: Codable, Equatable {
     enum Source: String, Codable {
         case auto // detector fired
@@ -54,6 +68,8 @@ struct SwingEvent: Codable, Equatable {
     /// Diagnostics carried through for tuning/triage (not used by fusion).
     var impactPeakG: Double
     var arcGyro: Double
+    /// Watch GPS at detection. nil = old watch build or no fix yet.
+    var fix: WatchFix? = nil
 }
 
 /// Discrete user actions from the watch glance UI. Like swing events, these are
@@ -129,6 +145,8 @@ struct IdentifiedCommand: Codable, Equatable {
     /// moment it happened, not at delivery. Optional = additive (an old watch
     /// sends none → the phone treats it as live, as before).
     var sentAt: Double? = nil
+    /// Watch GPS at the tap (MARK / putt). nil = old watch build or no fix.
+    var fix: WatchFix? = nil
 }
 
 /// The single `transferUserInfo` payload type — a tagged union so one decode
@@ -148,11 +166,11 @@ struct WatchToPhoneMessage: Codable, Equatable {
     /// action = one id); pass an explicit `id` to reproduce a logical command on
     /// a resend (the same envelope re-sent keeps its id, so the phone dedups it).
     static func command(
-        _ command: WatchCommand, id: UUID = UUID(), sentAt: Date? = Date()
+        _ command: WatchCommand, id: UUID = UUID(), sentAt: Date? = Date(), fix: WatchFix? = nil
     ) -> WatchToPhoneMessage {
         WatchToPhoneMessage(kind: .command, swing: nil,
                             command: IdentifiedCommand(id: id, command: command,
-                                                       sentAt: sentAt?.timeIntervalSince1970))
+                                                       sentAt: sentAt?.timeIntervalSince1970, fix: fix))
     }
 
     func encoded() throws -> Data { try JSONEncoder().encode(self) }

@@ -510,11 +510,12 @@ final class RoundController {
                            club: currentClub, timestamp: at.timestamp, source: .watchManual)
     }
 
-    /// When + where a watch MARK/putt tap happened, for a tap delivered late
-    /// (queued while the phone was unreachable): the watch's tap time and the
-    /// breadcrumb fused to it — NOT the delivery time and the phone's position
-    /// holes later. `coordinate` nil = no breadcrumb near that time (honest
-    /// no-GPS beats a wrong location).
+    /// When + where a watch MARK/putt tap happened, overriding "now at the
+    /// phone's live fix": the watch's own GPS at the tap (live or late), or, for
+    /// a tap delivered late (queued while the phone was unreachable), the
+    /// watch's tap time and the breadcrumb fused to it — NOT the delivery time
+    /// and the phone's position holes later. `coordinate` nil = no fix near that
+    /// time (honest no-GPS beats a wrong location).
     struct LateWatchTap {
         let timestamp: Date
         let coordinate: CLLocationCoordinate2D?

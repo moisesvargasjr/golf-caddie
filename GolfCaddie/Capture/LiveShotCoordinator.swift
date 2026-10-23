@@ -62,6 +62,21 @@ final class LiveShotCoordinator {
     /// delivered late.
     static let liveWindow: TimeInterval = 30
 
+    /// A watch fix further than this from the swing/tap time is stale (the watch
+    /// GPS runs at 1 Hz, so a live fix is always within a second or two).
+    static let watchFixMaxAge: TimeInterval = 5
+    /// …and one coarser than this is no better than the phone's guess.
+    static let watchFixMaxAccuracy: Double = 15
+
+    /// The watch's own fix, if it's a trustworthy location for something that
+    /// happened at `time`. Preferred over the phone breadcrumb: the phone is
+    /// often in the cart, so its trail is the cart path (Native Oaks, 2026-10-17).
+    nonisolated static func usableWatchFix(_ fix: WatchFix?, at time: Date) -> (CLLocationCoordinate2D, Double)? {
+        guard let fix, fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= watchFixMaxAccuracy,
+              abs(fix.timestamp - time.timeIntervalSince1970) <= watchFixMaxAge else { return nil }
+        return (CLLocationCoordinate2D(latitude: fix.latitude, longitude: fix.longitude), fix.horizontalAccuracy)
+    }
+
     init(steps: StepCounting = PedometerStepCounter(), debounceInterval: TimeInterval = 3.0,
          now: @escaping () -> Date = Date.init) {
         reconciler = ShotReconciler(steps: steps)
@@ -182,7 +197,7 @@ final class LiveShotCoordinator {
                let club = (try? ClubRepository.from(shortName: short)) ?? nil {
                 controller?.setCurrentClub(club)
             }
-            try? controller?.addShotFromWatch(late: lateTap(identified))
+            try? controller?.addShotFromWatch(late: watchTap(identified))
         case let .removeStroke(id):
             if let id, let uuid = UUID(uuidString: id) {
                 try? controller?.removeShot(id: uuid)
@@ -200,7 +215,7 @@ final class LiveShotCoordinator {
                 try? controller?.updateShotClub(id: uuid, club: nil)
             }
         case .puttPlusOne:
-            try? controller?.addPuttFromWatch(late: lateTap(identified))
+            try? controller?.addPuttFromWatch(late: watchTap(identified))
         case let .clubChange(shortName, epoch):
             lastWatchClubEpoch = max(lastWatchClubEpoch, epoch)
             try? controller?.setCurrentClubFromGlasses(shortName: shortName)
@@ -223,13 +238,19 @@ final class LiveShotCoordinator {
         }
     }
 
-    /// A MARK/putt tap older than this was delivered late (queued while the phone
-    /// was away): stamp it with the watch's tap time and the breadcrumb from
-    /// then, not "now" and wherever the phone is holes later. nil = live.
-    private func lateTap(_ identified: IdentifiedCommand) -> RoundController.LateWatchTap? {
+    /// Where + when a MARK/putt tap happened. A usable watch fix wins, live or
+    /// late. Otherwise a tap older than `liveWindow` was delivered late (queued
+    /// while the phone was away): stamp it with the watch's tap time and the
+    /// breadcrumb from then, not "now" and wherever the phone is holes later.
+    /// nil = live with no watch fix → the phone's live fix, as before.
+    private func watchTap(_ identified: IdentifiedCommand) -> RoundController.LateWatchTap? {
         guard let sentAt = identified.sentAt else { return nil }
         let tapped = Date(timeIntervalSince1970: sentAt)
-        guard now().timeIntervalSince(tapped) > Self.liveWindow else { return nil }
+        let late = now().timeIntervalSince(tapped) > Self.liveWindow
+        if case let (coordinate, accuracy)? = Self.usableWatchFix(identified.fix, at: tapped) {
+            return .init(timestamp: late ? tapped : now(), coordinate: coordinate, accuracy: accuracy)
+        }
+        guard late else { return nil }
         let (coordinate, accuracy) = breadcrumb(near: tapped)
         return .init(timestamp: tapped, coordinate: coordinate, accuracy: accuracy)
     }
@@ -254,13 +275,18 @@ final class LiveShotCoordinator {
         }
     }
 
-    /// Match the swing's timestamp to the nearest breadcrumb (the user is
-    /// stationary at address, so this is the strike location even with seconds
-    /// of clock drift). Fall back to the latest live fix — but only for a swing
-    /// that just happened; for a late-delivered one the phone's current position
-    /// is somewhere else entirely, so no-GPS is the honest answer.
+    /// The watch's own fix when fresh + accurate (it's on the golfer; the phone
+    /// may be in the cart). Else match the swing's timestamp to the nearest
+    /// breadcrumb (the user is stationary at address, so this is the strike
+    /// location even with seconds of clock drift). Fall back to the latest live
+    /// fix — but only for a swing that just happened; for a late-delivered one
+    /// the phone's current position is somewhere else entirely, so no-GPS is
+    /// the honest answer.
     private func fuse(_ event: SwingEvent) -> (CLLocationCoordinate2D?, Double?) {
         let target = event.candidateTime
+        if case let (coordinate, accuracy)? = Self.usableWatchFix(event.fix, at: target) {
+            return (coordinate, accuracy)
+        }
         let crumb = breadcrumb(near: target)
         if crumb.0 != nil { return crumb }
         if now().timeIntervalSince(target) <= Self.liveWindow,
