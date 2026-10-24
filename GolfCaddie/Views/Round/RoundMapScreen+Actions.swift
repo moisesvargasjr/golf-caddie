@@ -261,9 +261,12 @@ extension RoundMapScreen {
     }
 
     /// Runs a write; a failure shows as a red toast.
+    /// Runs a write; on success the round's totals re-read straight away (the
+    /// scoring observation also catches it, a moment later).
     func perform(_ what: String, _ body: () throws -> Void) {
         do {
             try body()
+            refreshRoundScore()
         } catch {
             toast = RoundToast(text: "Couldn't \(what): \(error.localizedDescription)", kind: .error)
         }

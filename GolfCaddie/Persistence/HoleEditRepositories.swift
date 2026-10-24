@@ -120,3 +120,52 @@ extension ShotPlacement {
         return moved
     }
 }
+
+// MARK: - Par after a course re-link
+
+/// Moving a round from one curated course to another (a wrong auto-detect
+/// corrected, in the round or after it): every hole whose par still equals
+/// the old course's par was auto-filled, so it takes the new course's par —
+/// or none after an unlink. A par typed in by hand differs from the old
+/// course and stays. Shared by `RoundController` and the finished round's ···.
+enum CourseRelinkPars {
+    /// What a hole's par becomes: nil = leave it; `.some(par)` = set it
+    /// (`.some(nil)` clears it).
+    static func parAfterRelink(current: Int?, previousCoursePar: Int?, newCoursePar: Int?) -> Int?? {
+        guard let current, current == previousCoursePar, current != newCoursePar else { return nil }
+        return .some(newCoursePar)
+    }
+
+    /// The (hole, new par) writes for `roundID` moving from `previousCourseId`
+    /// to `newCourseId`. Reads only; the caller writes (the live round goes
+    /// through `RoundController.setPar` so its in-memory hole follows).
+    static func changes(roundID: UUID, from previousCourseId: String?,
+                        to newCourseId: String?) throws -> [(holeID: UUID, par: Int?)] {
+        guard let previousCourseId, previousCourseId != newCourseId,
+              let previous = try CourseDataRepository.course(byId: previousCourseId) else { return [] }
+        let next = try newCourseId.flatMap { try CourseDataRepository.course(byId: $0) }
+        return try HoleRepository.holesForRound(roundID).compactMap { hole in
+            let oldPar = previous.holes.first(where: { $0.number == hole.holeNumber })?.par
+            let newPar = next?.holes.first(where: { $0.number == hole.holeNumber })?.par
+            guard let replacement = parAfterRelink(current: hole.par, previousCoursePar: oldPar,
+                                                   newCoursePar: newPar) else { return nil }
+            return (hole.id, replacement)
+        }
+    }
+}
+
+// MARK: - Scoring changes
+
+/// One element whenever any writer — the phone, the watch, the glasses —
+/// commits a change to the scoring tables (holes, shots, penalties), plus one
+/// at the start. Screens that show scores keep a snapshot and reload on it, so
+/// a CARD left open while the watch finishes a hole stays current.
+enum ScoringChanges {
+    static func values() -> AsyncValueObservation<Int> {
+        ValueObservation
+            .tracking(regions: [Table("hole"), Table("shot"), Table("penalty")]) { db in
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM hole") ?? 0
+            }
+            .values(in: Database.shared)
+    }
+}

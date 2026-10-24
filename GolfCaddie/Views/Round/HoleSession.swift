@@ -35,7 +35,10 @@ final class HoleSession {
 
     private let live: LiveHoleEditing?
     private let store: HoleStore
-    private let anchors: HolePathAnchors
+    /// Orders hold-to-add shots along the hole. Replaced when the round's
+    /// course link changes, so a correction applies without rebuilding the
+    /// session (and losing the selection or an open question).
+    var anchors: HolePathAnchors
     @ObservationIgnored private var registeredHoleID: UUID? = nil
 
     /// `store` nil = the GRDB-backed `RepositoryHoleStore` (built here, not as a

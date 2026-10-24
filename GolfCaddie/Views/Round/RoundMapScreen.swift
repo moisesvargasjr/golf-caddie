@@ -116,13 +116,23 @@ struct RoundMapScreen: View {
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if DebugPostureSwitch.shared.controlsEnabled {
-                DebugRoundProbe(holeNumber: holeNumber, roundID: roundID, stage: layout)
+                DebugRoundProbe(holeNumber: holeNumber, roundID: roundID, stage: layout,
+                                selectedShotID: selectedShotID, question: question,
+                                puttsChoice: puttsChoice, pauseReasons: desiredPauseReasons)
             }
         }
         #endif
         .onAppear(perform: setUp)
         .onDisappear { session?.close() }
         .onChange(of: sessionKey) { _, _ in syncSession() }
+        .onChange(of: curatedCourseId) { _, _ in courseLinkChanged() }
+        // Any writer (this screen, the card, the watch): totals and the hole
+        // on screen re-read. The first value arrives on subscribe.
+        .task {
+            do {
+                for try await _ in ScoringChanges.values() { scoringDataChanged() }
+            } catch {}
+        }
         .onChange(of: display) { _, next in autoHide?.update(display: next) }
         .onChange(of: desiredPauseReasons) { _, reasons in applyPauseReasons(reasons) }
         .onChange(of: live?.mostRecentlyConfirmedHoleFromGlasses?.id) { _, id in
@@ -294,6 +304,21 @@ struct RoundMapScreen: View {
             guard session?.hole?.id == holeID else { return } // a late result for a hole we left
             trail = coords
         }
+    }
+
+    /// A course re-link on the same hole: the hole keeps its session (so a
+    /// selection or an open question survives) but orders new shots by the
+    /// new course's tee and green; pars may have changed with it.
+    func courseLinkChanged() {
+        session?.anchors = .resolve(courseId: curatedCourseId, holeNumber: holeNumber)
+        session?.reload()
+        refreshRoundScore()
+    }
+
+    /// The scoring tables changed somewhere.
+    func scoringDataChanged() {
+        session?.reload()
+        refreshRoundScore()
     }
 
     /// "+1 · 2 SCORED" and the casual round so far, from the stored holes:
