@@ -134,6 +134,7 @@ struct HomePanel<Content: View>: View {
             .padding(padding)
             .background(palette.paper.opacity(backgroundOpacity))
             .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+            .compositingGroup()
             .shadow(color: palette.cardShadow.color, radius: 0, x: shadowOffset, y: shadowOffset)
     }
 }

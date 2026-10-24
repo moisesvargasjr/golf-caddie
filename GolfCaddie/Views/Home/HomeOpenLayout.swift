@@ -114,6 +114,7 @@ struct HomeOpenLayout: View {
         .background(palette.paper.opacity(0.98))
         .clipShape(Rectangle())
         .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+        .compositingGroup()
         .shadow(color: palette.cardShadow.color, radius: 0, x: 4, y: 4)
         .frame(maxHeight: .infinity)
         .accessibilityElement(children: .contain)
