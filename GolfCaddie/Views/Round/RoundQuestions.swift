@@ -63,6 +63,7 @@ struct PuttsQuestion: View {
         .buttonStyle(.plain)
         .accessibilityLabel(putts >= (PuttsQuestionModel.options.last ?? 4) ? "Four or more putts" : "\(putts) putts")
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(InRoundAccessibilityID.puttsOption(putts))
     }
 }
 
