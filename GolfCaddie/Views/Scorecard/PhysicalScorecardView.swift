@@ -252,15 +252,15 @@ struct PhysicalScorecardView: View {
                 ScorecardModel.HoleInput(
                     hole: hole,
                     shots: (try? ShotRepository.shotsForHole(hole.id)) ?? [],
-                    penaltyStrokes: ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? [])
-                        .reduce(0) { $0 + $1.strokeCount })
+                    penaltyStrokes: ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []).totalStrokes)
             }
             let course = curatedCourseId.flatMap { try? CourseDataRepository.course(byId: $0) }
             let anchors = curatedCourseId.flatMap { try? LocalAnchorRepository.anchorsForCourse($0) } ?? []
             courseName = course?.name
             model = ScorecardModel.build(
                 holes: inputs, course: course,
-                localAnchors: Dictionary(anchors.map { ($0.holeNumber, $0) }, uniquingKeysWith: { a, _ in a }))
+                localAnchors: Dictionary(anchors.map { ($0.holeNumber, $0) }, uniquingKeysWith: { a, _ in a }),
+                startingHole: round.startingHole)
             loadError = nil
         } catch {
             loadError = "Couldn't load the card: \(error.localizedDescription)"

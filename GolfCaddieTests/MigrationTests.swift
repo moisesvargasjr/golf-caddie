@@ -14,7 +14,8 @@ final class MigrationTests: XCTestCase {
             Database.migrator.migrations,
             ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
              "v4_shot_putt_confidence", "v5_custom_clubs", "v6_shot_excluded",
-             "v7_round_clubs_left_out", "v8_shot_location_source", "v9_trace_point_source"]
+             "v7_round_clubs_left_out", "v8_shot_location_source", "v9_trace_point_source",
+             "v10_hole_score_source"]
         )
     }
 
@@ -241,6 +242,69 @@ final class MigrationTests: XCTestCase {
         let fetched = try XCTUnwrap(try ShotRepository.shotsForHole(hole.id).first)
         XCTAssertEqual(fetched.locationSource, .watch)
         XCTAssertEqual(try XCTUnwrap(fetched.locationDisagreementMeters), 42.5, accuracy: 0.001)
+    }
+
+    // MARK: - v10
+
+    func test_v10_addsScoreSourceColumns_existingRowsAreNull() throws {
+        let q = try TestDatabase.makeInMemory(upTo: "v9_trace_point_source")
+        let roundID = UUID().uuidString
+        let holeID = UUID().uuidString
+        try q.write { db in
+            try db.execute(
+                sql: "INSERT INTO round (id, startedAt, courseName) VALUES (?, ?, 'The Oaks')",
+                arguments: [roundID, Date()])
+            try db.execute(
+                sql: "INSERT INTO hole (id, roundID, holeNumber, par) VALUES (?, ?, 4, 5)",
+                arguments: [holeID, roundID])
+        }
+
+        try Database.migrator.migrate(q, upTo: "v10_hole_score_source")
+
+        let holeColumns = try q.read { db in try db.columns(in: "hole").map(\.name) }
+        for name in ["scoreSource", "handStrokes", "handPutts"] {
+            XCTAssertTrue(holeColumns.contains(name), "v10 missing hole.\(name)")
+        }
+        let roundColumns = try q.read { db in try db.columns(in: "round").map(\.name) }
+        XCTAssertTrue(roundColumns.contains("mode"))
+        XCTAssertTrue(roundColumns.contains("startingHole"))
+
+        let hole = try XCTUnwrap(try q.read { db in try Hole.fetchOne(db, key: holeID) })
+        XCTAssertEqual(hole.par, 5)
+        XCTAssertNil(hole.scoreSource)
+        XCTAssertNil(hole.handStrokes)
+        XCTAssertNil(hole.handPutts)
+        XCTAssertEqual(hole.effectiveScoreSource, .tracked, "legacy rows read as tracked")
+        let round = try XCTUnwrap(try q.read { db in try Round.fetchOne(db, key: roundID) })
+        XCTAssertEqual(round.courseName, "The Oaks")
+        XCTAssertNil(round.mode)
+        XCTAssertNil(round.startingHole)
+    }
+
+    func test_v10_handScoreAndModeRoundTrip() throws {
+        let q = try TestDatabase.makeInMemory()
+        TestDatabase.install(q)
+        defer { TestDatabase.restore() }
+        var round = try TestDatabase.seedRound()
+        round.mode = .casual
+        round.startingHole = 4
+        try RoundRepository.update(round)
+        var hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2)
+        hole.scoreSource = .hand
+        hole.handStrokes = 6
+        hole.handPutts = 2
+        try HoleRepository.update(hole)
+
+        XCTAssertEqual(try RoundRepository.round(id: round.id)?.mode, .casual)
+        XCTAssertEqual(try RoundRepository.round(id: round.id)?.startingHole, 4)
+        let fetched = try XCTUnwrap(try HoleRepository.hole(byID: hole.id))
+        XCTAssertEqual(fetched.scoreSource, .hand)
+        XCTAssertEqual(fetched.handStrokes, 6)
+        XCTAssertEqual(fetched.handPutts, 2)
+        let raw = try q.read { db in
+            try String.fetchOne(db, sql: "SELECT scoreSource FROM hole WHERE id = ?", arguments: [hole.id])
+        }
+        XCTAssertEqual(raw, "hand", "stored as the text the plan specifies")
     }
 
     // MARK: - Idempotence
