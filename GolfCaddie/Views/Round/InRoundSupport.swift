@@ -15,6 +15,7 @@ enum InRoundAccessibilityID {
     static let nextHole = "round.nextHole"
     static let previousHole = "round.previousHole"
     static let map = "round.map"
+    static func puttsOption(_ putts: Int) -> String { "round.putts.\(putts)" }
     static let panel = "round.panel"
     static let yardage = "round.yardage"
     static let shotList = "round.shotList"
