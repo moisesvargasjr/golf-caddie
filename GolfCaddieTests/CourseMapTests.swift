@@ -251,7 +251,9 @@ final class CourseMapLoaderParTests: XCTestCase {
 
     func testAHandScoreOnAHoleWithoutAParCountsAgainstTheCoursePar() throws {
         _ = try TestDatabase.seedCuratedCourse(id: "vineyard", name: "The Vineyard",
-                                               holes: [CuratedHole(number: 1, par: 4)])
+                                               holes: [CuratedHole(number: 1, par: 4,
+                                                                   teeAnchor: GeoPoint(lat: 33.0, lng: -117.0),
+                                                                   greenAnchor: GeoPoint(lat: 33.003, lng: -117.0))])
         let round = try TestDatabase.seedRound(endedAt: Date(), courseName: "The Vineyard",
                                                curatedCourseId: "vineyard")
         // ADD on a late start: the row has no par.
