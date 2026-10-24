@@ -1,3 +1,4 @@
+import GRDB
 import SwiftUI
 import XCTest
 @testable import GolfCaddie
@@ -216,5 +217,58 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(WatchLinkStatus.unavailable.label(style: .folded), "NO WATCH")
         XCTAssertTrue(WatchLinkStatus.ready.isLive)
         XCTAssertFalse(WatchLinkStatus.asleep.isLive)
+    }
+}
+
+/// What Home reads from the database scores the way the card does (#30 review):
+/// hand-entered scores count, and a hole without a par takes its course's.
+@MainActor
+final class HomeDataScoringTests: XCTestCase {
+    private var queue: DatabaseQueue!
+
+    override func setUpWithError() throws {
+        queue = try TestDatabase.makeInMemory()
+        TestDatabase.install(queue)
+        _ = try TestDatabase.seedCuratedCourse(
+            id: "vineyard", name: "The Vineyard",
+            holes: [4, 5, 3].enumerated().map { CuratedHole(number: $0.offset + 1, par: $0.element) })
+    }
+
+    override func tearDownWithError() throws {
+        TestDatabase.restore()
+        queue = nil
+    }
+
+    func testAFinishedCasualRoundOfHandScoresCountsOnHome() throws {
+        let start = Date(timeIntervalSince1970: 1_792_000_000)
+        let round = try TestDatabase.seedRound(startedAt: start, endedAt: start.addingTimeInterval(3600),
+                                               courseName: "The Vineyard", curatedCourseId: "vineyard")
+        for number in 1...3 {
+            _ = try HoleRepository.setHandScore(roundID: round.id, holeNumber: number, strokes: 4, putts: 2)
+        }
+        let entry = try HomeData.entry(for: round)
+        XCTAssertEqual(entry.score, 12)
+        XCTAssertEqual(entry.par, 12, "pars come from the course: 4 + 5 + 3")
+        XCTAssertEqual(entry.deltaText, "E")
+        XCTAssertEqual(entry.cells.map(\.score), [4, 4, 4])
+        XCTAssertEqual(entry.cells.map(\.shape), [.plain, .circle, .square])
+    }
+
+    func testATrackingRoundKeepsAHandScoreFromBeforeItsStart() throws {
+        let start = Date(timeIntervalSince1970: 1_792_000_000)
+        let round = try TestDatabase.seedRound(startedAt: start, endedAt: start.addingTimeInterval(3600),
+                                               courseName: "The Vineyard", curatedCourseId: "vineyard")
+        // Hole 1 typed in after a late start on 2; hole 2 tracked: 5 shots + 1 penalty.
+        _ = try HoleRepository.setHandScore(roundID: round.id, holeNumber: 1, strokes: 5, putts: 2)
+        let two = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2, par: 5, confirmedAt: start)
+        for n in 1...5 { _ = try TestDatabase.seedShot(holeID: two.id, sequence: n) }
+        try PenaltyRepository.insert(Penalty.make(holeID: two.id, type: .water))
+
+        let entry = try HomeData.entry(for: round)
+        XCTAssertEqual(entry.cells.map(\.number), [1, 2])
+        XCTAssertEqual(entry.cells.map(\.score), [5, 6])
+        XCTAssertEqual(entry.score, 11)
+        XCTAssertEqual(entry.par, 9)
+        XCTAssertEqual(entry.deltaText, "+2")
     }
 }

@@ -107,9 +107,19 @@ struct HomeStartState: Equatable, Sendable {
 struct HomeHoleInput: Equatable, Sendable {
     let number: Int
     let par: Int?
-    /// Shots + penalty strokes.
+    /// The hole's score (`HoleScoring.score`); 0 when it has none.
     let strokes: Int
     let confirmed: Bool
+
+    /// One stored hole, scored like the card: the hand score for a
+    /// hand-entered hole, else shots + penalty strokes; finished when
+    /// confirmed or hand-scored; the course's par when the row has none.
+    static func make(hole: Hole, shots: [Shot], penaltyStrokes: Int, coursePar: Int?) -> HomeHoleInput {
+        let score = HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: penaltyStrokes) ?? 0
+        let handScored = hole.isHandScored && hole.handStrokes != nil
+        return HomeHoleInput(number: hole.holeNumber, par: hole.par ?? coursePar, strokes: score,
+                             confirmed: hole.confirmedAt != nil || handScored)
+    }
 }
 
 /// A cell in the last entry's score strip.

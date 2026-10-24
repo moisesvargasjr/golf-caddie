@@ -28,13 +28,17 @@ enum HomeData {
         return (courses, names)
     }
 
-    private static func entry(for round: Round) throws -> HomeRoundEntry {
+    /// The round as Home shows it, scored by the same rules as the card:
+    /// `HoleScoring` (a hand score wins over logged shots), a hand-scored
+    /// hole counts as finished, and a hole without a par takes its course's.
+    static func entry(for round: Round) throws -> HomeRoundEntry {
+        let course = round.curatedCourseId.flatMap { try? CourseDataRepository.course(byId: $0) }
         let holes = try HoleRepository.holesForRound(round.id).map { hole in
-            let shots = (try? ShotRepository.shotsForHole(hole.id).count) ?? 0
-            let penalties = ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? [])
-                .reduce(0) { $0 + $1.strokeCount }
-            return HomeHoleInput(number: hole.holeNumber, par: hole.par,
-                                 strokes: shots + penalties, confirmed: hole.confirmedAt != nil)
+            HomeHoleInput.make(hole: hole,
+                               shots: (try? ShotRepository.shotsForHole(hole.id)) ?? [],
+                               penaltyStrokes: ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? [])
+                                   .totalStrokes,
+                               coursePar: course?.holes.first(where: { $0.number == hole.holeNumber })?.par)
         }
         return HomeRoundEntry.make(round: round, holes: holes)
     }
