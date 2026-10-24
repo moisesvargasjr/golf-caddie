@@ -162,7 +162,7 @@ struct PhysicalScorecardGrid: View {
                                      ruleColor: Color = CardInk.ink.opacity(0.2),
                                      @ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: height, maxHeight: height)
             .background(wash(slot))
             .overlay(alignment: .leading) { Rectangle().fill(ruleColor).frame(width: 1) }
             .contentShape(Rectangle())
