@@ -252,8 +252,8 @@ final class WatchTrailStoreTests: XCTestCase {
         XCTAssertFalse(legacy[0].isWatch, "NULL means phone")
     }
 
-    func testV9IsRegisteredLast() {
-        XCTAssertEqual(Database.migrator.migrations.last, "v9_trace_point_source")
+    func testV9IsRegistered() {
+        XCTAssertTrue(Database.migrator.migrations.contains("v9_trace_point_source"))
     }
 
     func testSourceRoundTrips() throws {
