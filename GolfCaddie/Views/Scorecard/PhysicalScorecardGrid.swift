@@ -71,7 +71,7 @@ struct PhysicalScorecardGrid: View {
                 }
             }
         }
-        .background(ink)
+        .background(ink, ignoresSafeAreaEdges: [])
         .accessibilityHidden(true)
     }
 
@@ -82,7 +82,7 @@ struct PhysicalScorecardGrid: View {
                 scoreCell(slot)
             }
         }
-        .background(CardInk.scoreRow)
+        .background(CardInk.scoreRow, ignoresSafeAreaEdges: [])
         .overlay(alignment: .bottom) { rule(.hair) }
     }
 
@@ -163,7 +163,7 @@ struct PhysicalScorecardGrid: View {
                                      @ViewBuilder _ content: () -> Content) -> some View {
         content()
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: height, maxHeight: height)
-            .background(wash(slot))
+            .background(wash(slot), ignoresSafeAreaEdges: [])
             .overlay(alignment: .leading) { Rectangle().fill(ruleColor).frame(width: 1) }
             .contentShape(Rectangle())
             .onTapGesture { if case let .hole(n) = slot { onSelect(n) } }

@@ -44,7 +44,7 @@ struct PhysicalScorecardView: View {
         .padding(.vertical, 13)
         .padding(.horizontal, 15)
         .frame(maxHeight: stretch ? .infinity : nil, alignment: .top)
-        .background(CardInk.innerCard)
+        .background(CardInk.innerCard, ignoresSafeAreaEdges: [])
         // CSS `3px double`: two 1 pt rules with a 1 pt gap.
         .overlay(Rectangle().strokeBorder(ink, lineWidth: 1))
         .overlay(Rectangle().strokeBorder(ink, lineWidth: 1).padding(2))
@@ -141,7 +141,7 @@ struct PhysicalScorecardView: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, minHeight: 110, maxHeight: .infinity, alignment: .topLeading)
-        .background(CardInk.palette.paper)
+        .background(CardInk.palette.paper, ignoresSafeAreaEdges: [])
         .overlay(Rectangle().strokeBorder(ink, lineWidth: 1.5))
     }
 
