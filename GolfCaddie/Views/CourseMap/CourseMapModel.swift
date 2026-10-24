@@ -21,15 +21,17 @@ enum CourseOutlineBuilder {
     /// The round's hole rows → course-map holes, sorted by number. A hole
     /// counts once it was confirmed or scored by hand (the same rule as the
     /// round score on the map screen); unplaced shots score but aren't drawn.
-    static func holes(from rows: [Hole], shots: [UUID: [Shot]],
-                      penaltyStrokes: [UUID: Int]) -> [CourseMapHole] {
+    /// A row without a par (a late-start hole scored with ADD) takes
+    /// `coursePar`, so the badge, the outline and the caption all agree.
+    static func holes(from rows: [Hole], shots: [UUID: [Shot]], penaltyStrokes: [UUID: Int],
+                      coursePar: (Int) -> Int? = { _ in nil }) -> [CourseMapHole] {
         rows.sorted { $0.holeNumber < $1.holeNumber }.map { hole in
             let holeShots = (shots[hole.id] ?? []).sorted { $0.sequenceNumber < $1.sequenceNumber }
             let counts = hole.confirmedAt != nil || (hole.isHandScored && hole.handStrokes != nil)
             let score = counts
                 ? HoleScoring.score(hole: hole, shots: holeShots, penaltyStrokes: penaltyStrokes[hole.id] ?? 0)
                 : nil
-            return CourseMapHole(number: hole.holeNumber, par: hole.par, score: score,
+            return CourseMapHole(number: hole.holeNumber, par: hole.par ?? coursePar(hole.holeNumber), score: score,
                                  shots: holeShots.compactMap(coordinate(of:)))
         }
     }

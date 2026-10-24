@@ -15,8 +15,9 @@ enum CourseMapLoader {
             shots[hole.id] = (try? ShotRepository.shotsForHole(hole.id)) ?? []
             penalties[hole.id] = ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []).totalStrokes
         }
-        let holes = CourseOutlineBuilder.holes(from: rows, shots: shots, penaltyStrokes: penalties)
         let anchors = anchorTable(courseId: round.curatedCourseId)
+        let holes = CourseOutlineBuilder.holes(from: rows, shots: shots, penaltyStrokes: penalties,
+                                               coursePar: { anchors.pars[$0] })
         let outlines = CourseOutlineBuilder.outlines(holes,
                                                      anchors: { anchors.byHole[$0] ?? HolePathAnchors.none },
                                                      curatedPar: { anchors.pars[$0] })

@@ -1,3 +1,4 @@
+import GRDB
 import CoreLocation
 import XCTest
 @testable import GolfCaddie
@@ -229,5 +230,36 @@ final class CourseMapTests: XCTestCase {
         }
         XCTAssertEqual(visited, [16, 17, 18] + Array(1...15), "every hole once, wrapping for a later start")
         XCTAssertEqual(route, .card, "Back to card › after the round's last hole")
+    }
+}
+
+/// The course map's caption scores a late-start ADD hole against its course's
+/// par, like its badge and the card (#36 review).
+@MainActor
+final class CourseMapLoaderParTests: XCTestCase {
+    private var queue: DatabaseQueue!
+
+    override func setUpWithError() throws {
+        queue = try TestDatabase.makeInMemory()
+        TestDatabase.install(queue)
+    }
+
+    override func tearDownWithError() throws {
+        TestDatabase.restore()
+        queue = nil
+    }
+
+    func testAHandScoreOnAHoleWithoutAParCountsAgainstTheCoursePar() throws {
+        _ = try TestDatabase.seedCuratedCourse(id: "vineyard", name: "The Vineyard",
+                                               holes: [CuratedHole(number: 1, par: 4)])
+        let round = try TestDatabase.seedRound(endedAt: Date(), courseName: "The Vineyard",
+                                               curatedCourseId: "vineyard")
+        // ADD on a late start: the row has no par.
+        let hole = try HoleRepository.setHandScore(roundID: round.id, holeNumber: 1, strokes: 5, putts: 2)
+        XCTAssertNil(hole.par)
+
+        let content = CourseMapLoader.load(round: round, courseName: "The Vineyard")
+        XCTAssertTrue(content.caption.contains("5 (+1)"), content.caption)
+        XCTAssertEqual(content.outlines.first { $0.number == 1 }?.isOverPar, true)
     }
 }
