@@ -26,8 +26,18 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     private var lastSizeKey: String?
     private var hasFramed = false
     private var lastFrameUserCoord: CLLocationCoordinate2D?
-    /// Camera distance ÷ metres-per-point, measured on this map at this size.
-    private var calibration: (size: CGSize, factor: Double)?
+    /// The frame an animated reframe is gliding to; checked (and snapped
+    /// if MapKit ended a few points off) when the animation ends.
+    private var animatingTo: HoleFrame?
+    /// Measured on this map at this size: camera distance ÷ metres-per-point,
+    /// and where the camera centre is drawn relative to the view's centre.
+    private var calibration: Calibration?
+
+    private struct Calibration {
+        let size: CGSize
+        let factor: Double
+        let centreOffset: CGVector
+    }
 
     private weak var tapRecognizer: UITapGestureRecognizer?
     private weak var pressRecognizer: UILongPressGestureRecognizer?
@@ -130,10 +140,54 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     func reframe(_ map: MKMapView, animated: Bool, resettingHeading: Bool = false) {
         let fallback = resettingHeading ? 0 : map.camera.heading
         guard let frame = currentFrame(map, fallbackHeading: fallback),
-              let factor = distanceFactor(map, near: frame) else { return }
+              var measured = calibration(map, near: frame) else { return }
         if parent.mode == .live { lastFrameUserCoord = userCoordinate(map) }
         hasFramed = true
-        map.setCamera(frame.camera(distanceFactor: factor), animated: animated)
+        let size = map.bounds.size
+        map.setCamera(camera(for: frame, measured, size: size), animated: animated)
+        guard !animated else {
+            animatingTo = frame
+            logFrame(frame, map: map, animated: true)
+            return
+        }
+        animatingTo = nil
+        // Check the jump landed (the first measurement can come from a camera
+        // MapKit hadn't applied yet); re-measure and correct once.
+        for _ in 0..<2 {
+            guard !landed(frame, on: map), let again = recalibrate(map) else { break }
+            measured = again
+            map.setCamera(camera(for: frame, measured, size: size), animated: false)
+        }
+        logFrame(frame, map: map)
+    }
+
+    private func camera(for frame: HoleFrame, _ measured: Calibration, size: CGSize) -> MKMapCamera {
+        frame.recentered(forCameraCentreOffset: measured.centreOffset, windowSize: size)
+            .camera(distanceFactor: measured.factor)
+    }
+
+    /// Whether the map now shows `frame`: its centre at the view's centre and
+    /// the expected scale (within a couple of points / percent).
+    private func landed(_ frame: HoleFrame, on map: MKMapView) -> Bool {
+        let mid = CGPoint(x: map.bounds.midX, y: map.bounds.midY)
+        let centre = map.convert(frame.center, toPointTo: map)
+        guard abs(centre.x - mid.x) <= 2, abs(centre.y - mid.y) <= 2,
+              let mpp = metersPerPoint(map) else { return false }
+        return abs(mpp / frame.metersPerPoint - 1) <= 0.02
+    }
+
+    private func logFrame(_ frame: HoleFrame, map: MKMapView, animated: Bool = false) {
+        #if DEBUG
+        guard UserDefaults.standard.bool(forKey: "DebugMapFraming") else { return }
+        let rect = unobstructedRectInMap(map)
+        let tee = parent.tee.map { map.convert($0, toPointTo: map) }
+        let green = parent.green.map { map.convert($0, toPointTo: map) }
+        let message = "[HoleMap] animated=\(animated) bounds=\(map.bounds) rect=\(rect) mpp=\(frame.metersPerPoint) "
+              + "measured=\(metersPerPoint(map) ?? -1) dist=\(map.camera.centerCoordinateDistance) "
+              + "tee=\(tee.map { "\($0)" } ?? "-") green=\(green.map { "\($0)" } ?? "-") "
+              + "offset=\(calibration?.centreOffset ?? .zero)"
+        NSLog("%@", message)
+        #endif
     }
 
     private func currentFrame(_ map: MKMapView, fallbackHeading: CLLocationDirection) -> HoleFrame? {
@@ -163,7 +217,10 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             guard let hole = selectedOutline() else { return 0 }
             return hole.holeUpHeading ?? 0
         case .live, .hole:
-            return HoleFraming.holeUpHeading(tee: parent.tee, green: parent.green, shots: shotCoordinates)
+            guard let holeUp = HoleFraming.holeUpHeading(tee: parent.tee, green: parent.green,
+                                                         shots: shotCoordinates) else { return nil }
+            guard let map = mapView else { return holeUp }
+            return HoleFraming.screenHeading(holeUp: holeUp, freeRect: unobstructedRectInMap(map).size)
         }
     }
 
@@ -180,22 +237,21 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         Task { @MainActor in controller.mapDidUpdateHoleUp(holeUp) }
     }
 
-    /// The unobstructed rect (window coordinates) in the map's own space.
+    /// The unobstructed rect, already in the map's own coordinates (no
+    /// UIWindow conversion: under DEBUG `-DebugWindowSize` the SwiftUI tree is
+    /// scaled, so window coordinates don't match the map's bounds).
     private func unobstructedRectInMap(_ map: MKMapView) -> CGRect {
-        let bounds = map.bounds
-        let local = CGRect(origin: .zero, size: bounds.size)
-        guard let rect = parent.unobstructedRect, rect.width > 0, rect.height > 0 else { return local }
-        let converted = map.window == nil ? rect : map.convert(rect, from: nil)
-        let clipped = converted.intersection(bounds)
-        guard !clipped.isNull, clipped.width >= 1, clipped.height >= 1 else { return local }
-        return clipped.offsetBy(dx: -bounds.minX, dy: -bounds.minY)
+        let size = map.bounds.size
+        guard let rect = parent.unobstructedRect else { return CGRect(origin: .zero, size: size) }
+        return HoleFraming.usableRect(rect, in: size)
     }
 
-    /// Camera distance per metre-per-point. Depends on the view's height, so
-    /// it is cached per size; measured on a close camera because the default
-    /// whole-country camera is too curved to measure.
-    private func distanceFactor(_ map: MKMapView, near frame: HoleFrame) -> Double? {
-        if let calibration, calibration.size == map.bounds.size { return calibration.factor }
+    /// Camera distance per metre-per-point (and the camera-centre offset).
+    /// Depends on the view's size, so it is cached per size; measured on a
+    /// close camera because the default whole-country camera is too curved
+    /// to measure.
+    private func calibration(_ map: MKMapView, near frame: HoleFrame) -> Calibration? {
+        if let calibration, calibration.size == map.bounds.size { return calibration }
         if map.camera.centerCoordinateDistance > Self.calibrationMaxDistance {
             let probe = MKMapCamera(lookingAtCenter: frame.center, fromDistance: Self.calibrationProbeDistance,
                                     pitch: 0, heading: frame.heading)
@@ -205,7 +261,26 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     }
 
     @discardableResult
-    private func recalibrate(_ map: MKMapView) -> Double? {
+    private func recalibrate(_ map: MKMapView) -> Calibration? {
+        let size = map.bounds.size
+        guard let metersPerPoint = metersPerPoint(map) else { return nil }
+        let distance = map.camera.centerCoordinateDistance
+        guard distance > 0, distance.isFinite else { return nil }
+        let mid = CGPoint(x: map.bounds.midX, y: map.bounds.midY)
+        let drawn = map.convert(map.camera.centerCoordinate, toPointTo: map)
+        var offset = CGVector(dx: drawn.x - mid.x, dy: drawn.y - mid.y)
+        if !offset.dx.isFinite || !offset.dy.isFinite || abs(offset.dx) > size.width / 2
+            || abs(offset.dy) > size.height / 2 {
+            offset = .zero
+        }
+        let measured = Calibration(size: size, factor: distance / metersPerPoint, centreOffset: offset)
+        calibration = measured
+        return measured
+    }
+
+    /// Metres per point at the view's centre, horizontally (nil before the
+    /// map can convert).
+    private func metersPerPoint(_ map: MKMapView) -> Double? {
         let size = map.bounds.size
         let step = min(100, size.width / 4)
         guard step >= 1, size.height >= 1 else { return nil }
@@ -213,12 +288,8 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         let a = map.convert(mid, toCoordinateFrom: map)
         let b = map.convert(CGPoint(x: mid.x + step, y: mid.y), toCoordinateFrom: map)
         guard CLLocationCoordinate2DIsValid(a), CLLocationCoordinate2DIsValid(b) else { return nil }
-        let metersPerPoint = Distance.meters(from: a, to: b) / Double(step)
-        let distance = map.camera.centerCoordinateDistance
-        guard metersPerPoint > 0, distance > 0, distance.isFinite else { return nil }
-        let factor = distance / metersPerPoint
-        calibration = (size, factor)
-        return factor
+        let value = Distance.meters(from: a, to: b) / Double(step)
+        return value > 0 && value.isFinite ? value : nil
     }
 
     // MARK: HoleMapDriving
@@ -283,7 +354,10 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     // MARK: MKMapViewDelegate — camera
 
     func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
-        if isUserGesture(mapView) { parent.controller.mapDidStopAutoFraming() }
+        if isUserGesture(mapView) {
+            animatingTo = nil
+            parent.controller.mapDidStopAutoFraming()
+        }
     }
 
     func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
@@ -293,6 +367,18 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         parent.controller.mapDidRotate(to: mapView.camera.heading)
         if mapView.camera.centerCoordinateDistance <= Self.calibrationMaxDistance { recalibrate(mapView) }
+        settleAnimatedFrame(mapView)
+    }
+
+    /// An animated glide can end a few points off (MapKit eases the camera
+    /// centre and the safe-area offset together): snap it onto the target.
+    private func settleAnimatedFrame(_ map: MKMapView) {
+        guard let target = animatingTo else { return }
+        animatingTo = nil
+        guard parent.controller.isAutoFraming, draggingShotID == nil, !isUserGesture(map),
+              !landed(target, on: map), let measured = recalibrate(map) else { return }
+        map.setCamera(camera(for: target, measured, size: map.bounds.size), animated: false)
+        logFrame(target, map: map)
     }
 
     func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {

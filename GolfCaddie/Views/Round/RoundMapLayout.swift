@@ -40,8 +40,10 @@ enum RoundMapLayout: String, Equatable, Sendable, CaseIterable {
     /// across the bottom instead of inside a side panel.
     var asksInBottomSheet: Bool { self == .folded || self == .phonePortrait }
 
-    /// + PENALTY lives in the ··· menu (folded) instead of the panel.
-    var penaltyInOverflow: Bool { self == .folded }
+    /// + PENALTY lives in the ··· menu instead of the panel. Never on the
+    /// live hole: folded shows it beside + SHOT (canvas Folded); the folded
+    /// ··· keeps it only where that row isn't shown (past / casual holes).
+    var penaltyInOverflow: Bool { false }
 
     /// The Duo's inner screen (rule: nothing on the hinge).
     var isOpenDuo: Bool { self == .openWide || self == .openPortrait || self == .book }

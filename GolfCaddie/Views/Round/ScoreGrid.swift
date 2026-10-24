@@ -153,6 +153,7 @@ struct ScoreGrid: View {
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, minHeight: max(metrics.buttonHeight, RoundChromeMetrics.minTap))
                 .background(ready ? palette.ink : palette.ink.opacity(0.15))
+                .compositingGroup()
                 .shadow(color: ready ? palette.cardShadow.color : .clear, radius: 0,
                         x: RoundChromeMetrics.shadow, y: RoundChromeMetrics.shadow)
                 .contentShape(Rectangle())

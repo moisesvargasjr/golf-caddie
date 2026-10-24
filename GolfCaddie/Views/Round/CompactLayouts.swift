@@ -6,11 +6,11 @@ import SwiftUI
 // on folded and iPhone portrait.
 
 /// Duo folded: title across the top; yardage card bottom-left; two stacked
-/// boxes on the right — Finish / + SHOT / ··· CARD hide on top, the club
-/// list below. + PENALTY is in ···. Casual (canvas Folded-Casual): Finish
-/// fills the top box; the lower box is the round's scores as squares.
-/// Review (Review-Folded): Next hole ›, PUTTS − n +, then ‹ CARD · + PEN ·
-/// ··· on top; the result card bottom-left.
+/// boxes on the right — Finish / + SHOT + PENALTY / ··· CARD hide on top,
+/// the club list below. + PENALTY moves into ··· when the row isn't shown.
+/// Casual (canvas Folded-Casual): Finish fills the top box; the lower box is
+/// the round's scores as squares. Review (Review-Folded): Next hole ›,
+/// PUTTS − n +, then ‹ CARD · + PEN · ··· on top; the result card bottom-left.
 struct FoldedLayout: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -90,10 +90,16 @@ struct FoldedLayout: View {
                     .frame(maxHeight: .infinity)
                     .accessibilityIdentifier(InRoundAccessibilityID.finishHole)
                 if model.mode.tracksShots {
-                    OutlineActionButton(title: InRoundLabels.shot, isBusy: model.isMarking, action: actions.addShot)
-                        .disabled(model.isMarking)
-                        .accessibilityLabel("Log a shot here")
-                        .accessibilityIdentifier(InRoundAccessibilityID.addShot)
+                    HStack(spacing: 5) {
+                        OutlineActionButton(title: InRoundLabels.shot, isBusy: model.isMarking,
+                                            action: actions.addShot)
+                            .disabled(model.isMarking)
+                            .accessibilityLabel("Log a shot here")
+                            .accessibilityIdentifier(InRoundAccessibilityID.addShot)
+                        OutlineActionButton(title: InRoundLabels.penalty, isAlert: true, action: actions.askPenalty)
+                            .accessibilityLabel("Add a penalty")
+                            .accessibilityIdentifier(InRoundAccessibilityID.addPenalty)
+                    }
                 }
             } else if let next = model.reviewNext {
                 ReviewNextButton(next: next, actions: actions, fontSize: 16, minHeight: 44)
@@ -111,7 +117,8 @@ struct FoldedLayout: View {
                 reviewRow
             } else {
                 HStack(spacing: 5) {
-                    RoundOverflowMenu(model: model, actions: actions, frame: .outline, includesPenalty: true)
+                    RoundOverflowMenu(model: model, actions: actions, frame: .outline,
+                                      includesPenalty: !(model.isLiveHole && model.mode.tracksShots))
                         .frame(maxWidth: .infinity)
                     CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
                         .frame(maxWidth: .infinity)
@@ -165,7 +172,7 @@ struct PhonePortraitLayout: View {
                     if model.state == .entry, !model.viewingLive, !model.showsRoundSoFar {
                         NotTrackedTag(text: model.notTrackedText)
                     } else if model.mode.allowsHoldToAdd {
-                        StampLabel(text: "DRAG PINS · HOLD TO ADD")
+                        MapHintTag(text: "DRAG PINS · HOLD TO ADD")
                     }
                     Spacer(minLength: 0)
                 }
@@ -263,15 +270,16 @@ struct CompactHiddenChrome: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
     let insets: EdgeInsets
-    @Environment(\.palette) private var palette
 
     var body: some View {
         ZStack {
-            StampLabel(text: "\(model.shortCaption) · TAP MAP FOR CONTROLS", size: 11, color: palette.ink2)
+            MapHintTag(text: "\(model.shortCaption) · TAP MAP FOR CONTROLS", size: 11)
                 .fixedSize()
+                .reportsChromeFrame("hiddenCaption")
                 .pinned(.topLeading, insets: insets)
             ShowControlsPill(model: model, actions: actions)
                 .fixedSize()
+                .reportsChromeFrame("hiddenPill")
                 .pinned(.bottomLeading, insets: insets)
         }
     }
@@ -284,6 +292,21 @@ struct NotTrackedTag: View {
 
     var body: some View {
         StampLabel(text: text, size: 10, color: palette.red)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(palette.paper.opacity(0.9))
+    }
+}
+
+/// A hint stamped on the map on a paper tag, so it reads over satellite
+/// imagery (canvas iPhone-Round: "DRAG PINS · HOLD TO ADD").
+struct MapHintTag: View {
+    let text: String
+    var size: CGFloat = 9
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        StampLabel(text: text, size: size, color: palette.ink2)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(palette.paper.opacity(0.9))
@@ -319,6 +342,7 @@ struct BottomQuestionSheet: View {
             Rectangle().fill(model.question == .penalty ? palette.red : palette.ink)
                 .frame(height: RoundChromeMetrics.rule)
         }
+        .compositingGroup()
         .shadow(color: palette.cardShadow.color.opacity(0.7), radius: 0, x: 0, y: -4)
     }
 }
