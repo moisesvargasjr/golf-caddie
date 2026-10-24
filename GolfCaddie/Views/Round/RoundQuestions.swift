@@ -56,7 +56,7 @@ struct PuttsQuestion: View {
                 .font(RoundFont.mono(sheet ? 24 : 17))
                 .foregroundStyle(selected ? palette.paper : palette.ink)
                 .frame(maxWidth: .infinity, minHeight: sheet ? 64 : 48)
-                .background(selected ? palette.ink : Color.clear)
+                .background(selected ? palette.ink : Color.clear, ignoresSafeAreaEdges: [])
                 .overlay { if !selected { Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule) } }
                 .contentShape(Rectangle())
         }
@@ -203,13 +203,19 @@ struct SelectedShotCard: View {
         let title = model.selectedShotTitle ?? ""
         Group {
             if compact {
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        StampLabel(text: title, size: 10, color: palette.flag)
-                        Text("Drag it, or pick its club.").font(RoundFont.serifItalic(12)).foregroundStyle(palette.ink)
+                // Side by side when the words fit on one line; the folded
+                // bottom-left card (~180 pt) puts the buttons underneath
+                // instead of squeezing the text to a letter per line.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        compactText.fixedSize()
+                        Spacer(minLength: 0)
+                        buttons(width: 60)
                     }
-                    Spacer(minLength: 0)
-                    buttons(width: 60)
+                    VStack(alignment: .leading, spacing: 8) {
+                        compactText
+                        HStack(spacing: 6) { buttons(width: nil) }
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -225,10 +231,17 @@ struct SelectedShotCard: View {
                 .padding(10)
             }
         }
-        .background(floating ? palette.paper.opacity(0.97) : Color.clear)
+        .background(floating ? palette.paper.opacity(0.97) : Color.clear, ignoresSafeAreaEdges: [])
         .overlay(Rectangle().strokeBorder(palette.flag, lineWidth: RoundChromeMetrics.rule))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(InRoundAccessibilityID.selectedShot)
+    }
+
+    private var compactText: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            StampLabel(text: model.selectedShotTitle ?? "", size: 10, color: palette.flag)
+            Text("Drag it, or pick its club.").font(RoundFont.serifItalic(12)).foregroundStyle(palette.ink)
+        }
     }
 
     @ViewBuilder
