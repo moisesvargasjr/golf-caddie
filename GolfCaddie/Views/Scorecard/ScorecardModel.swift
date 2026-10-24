@@ -85,12 +85,15 @@ struct ScorecardModel: Equatable {
         }
         // A par total with an unknown hole would be wrong, so show "—" (nil).
         let parTotal = cols.allSatisfy { $0.par != nil } ? sum(cols.map(\.par)) : nil
+        // ADD holes stay out of every scoring total until they're entered
+        // (Decision 2) — including any stray penalty rows on them.
+        let scored = cols.filter { !$0.needsEntry }
         return ScorecardTotals(
             yards: sum(cols.map(\.yards)),
             par: parTotal,
-            score: sum(cols.map(\.score)),
-            putts: sum(cols.map(\.putts)),
-            penalties: sum(cols.map(\.penalties))
+            score: sum(scored.map(\.score)),
+            putts: sum(scored.map(\.putts)),
+            penalties: sum(scored.map(\.penalties))
         )
     }
 
