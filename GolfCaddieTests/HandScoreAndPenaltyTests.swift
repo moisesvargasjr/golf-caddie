@@ -243,3 +243,19 @@ extension HandScoreAndPenaltyTests {
         XCTAssertTrue(try CourseRelinkPars.changes(roundID: round.id, from: "A", to: "A").isEmpty)
     }
 }
+
+extension HandScoreAndPenaltyTests {
+    /// The open CARD reloads on `ScoringChanges`: a hole finished elsewhere
+    /// (the watch's Finish Hole goes through the same repositories) must emit.
+    func testScoringChangesEmitsWhenAHoleIsFinishedElsewhere() async throws {
+        let round = try TestDatabase.seedRound()
+        let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: 4)
+        var iterator = ScoringChanges.values().makeAsyncIterator()
+        _ = try await iterator.next() // the value on subscribe
+        var finished = hole
+        finished.confirmedAt = Date()
+        try HoleRepository.update(finished)
+        let next = try await iterator.next()
+        XCTAssertNotNil(next)
+    }
+}
