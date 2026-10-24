@@ -25,7 +25,7 @@ final class ScreenshotTourUITests: XCTestCase {
     }
 
     /// Time for the map tiles and the first layout pass to settle.
-    private static let settle: TimeInterval = 4
+    private static let settle: TimeInterval = 7
 
     @MainActor
     func testScreenshotTour() throws {
