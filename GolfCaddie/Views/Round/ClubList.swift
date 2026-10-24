@@ -39,7 +39,7 @@ struct ClubList: View {
                         .foregroundStyle(model.clubListHighlighted ? palette.paper : palette.ink2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
-                        .background(model.clubListHighlighted ? palette.flag : Color.clear)
+                        .background(model.clubListHighlighted ? palette.flag : Color.clear, ignoresSafeAreaEdges: [])
                         .fixedSize()
                     ScrollView(.horizontal) {
                         LazyHStack(spacing: 4) {
@@ -83,7 +83,7 @@ struct ClubList: View {
             }
         }
         .foregroundStyle(highlighted ? palette.paper : palette.ink2)
-        .background(highlighted ? palette.flag : Color.clear)
+        .background(highlighted ? palette.flag : Color.clear, ignoresSafeAreaEdges: [])
         .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
     }
 
@@ -109,7 +109,7 @@ struct ClubList: View {
             }
             .foregroundStyle(chip.isActive ? palette.paper : palette.ink)
             .frame(maxWidth: .infinity, minHeight: max(rowStyle ? 44 : cellHeight, RoundChromeMetrics.minTap))
-            .background(chip.isActive ? fill : Color.clear)
+            .background(chip.isActive ? fill : Color.clear, ignoresSafeAreaEdges: [])
             .overlay {
                 if !chip.isActive {
                     Rectangle().strokeBorder(palette.ruleStrong, lineWidth: RoundChromeMetrics.rule)

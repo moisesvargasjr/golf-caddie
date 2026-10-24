@@ -54,7 +54,7 @@ struct ShotList: View {
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .frame(maxWidth: .infinity, minHeight: max(rowHeight, RoundChromeMetrics.minTap))
-            .background(row.isSelected ? palette.flag.opacity(0.14) : Color.clear)
+            .background(row.isSelected ? palette.flag.opacity(0.14) : Color.clear, ignoresSafeAreaEdges: [])
             .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
             .contentShape(Rectangle())
         }
