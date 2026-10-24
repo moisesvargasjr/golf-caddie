@@ -4,7 +4,7 @@
 # branch under <tag>/, pushes, and prints a markdown table (shot | mockup | image).
 # mockup-map lines: shot-name<TAB>canvas board name
 set -eu
-S=${0:A:h}; TAG=$1; MAP=${2:-}
+S=${0:A:h}; TAG=$1; MAP=${2:+${2:A}}
 RES=${RESULTS:-$S/results}; SRC=$RES/$TAG/shots-duo
 WT=${SHOTS_WT:-$(cd ${0:A:h}/.. && pwd)}
 mkdir -p $WT/$TAG
