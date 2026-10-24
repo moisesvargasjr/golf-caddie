@@ -67,7 +67,8 @@ struct RoundMapScreen: View {
     @State var toast: RoundToast?
     @State var trail: [CLLocationCoordinate2D] = []
     @State var chromeFrames: [String: CGRect] = [:]
-    /// The map's frame in `ChromeFrames.space` (anchors `chromeFrames`).
+    /// The map's frame in `ChromeFrames.space` (anchors `chromeFrames`);
+    /// `ChromeFrames.mapFrame` of the screen's size and safe area.
     @State var mapFrame: CGRect = .zero
     /// The safe area in `ChromeFrames.space` (the screen's own frame).
     @State var safeRect: CGRect?
@@ -90,7 +91,6 @@ struct RoundMapScreen: View {
             ZStack(alignment: .topLeading) {
                 holeMap
                     .ignoresSafeArea()
-                    .reportsMapFrame()
                 chrome(layout: layout, model: model, actions: actions, insets: insets)
                     .ignoresSafeArea()
                 if let toast {
@@ -102,8 +102,9 @@ struct RoundMapScreen: View {
                 }
             }
             .coordinateSpace(.named(ChromeFrames.space))
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-                safeRect = CGRect(origin: .zero, size: size)
+            .onChange(of: ScreenGeometry(size: proxy.size, safeArea: proxy.safeAreaInsets), initial: true) { _, screen in
+                safeRect = CGRect(origin: .zero, size: screen.size)
+                mapFrame = ChromeFrames.mapFrame(size: screen.size, safeArea: screen.safeArea)
             }
         }
         .environment(\.chromeFrameSink, ChromeFrameSink { id, frame in noteChromeFrame(id, frame) })
@@ -201,11 +202,6 @@ struct RoundMapScreen: View {
     }
 
     private func noteChromeFrame(_ id: String, _ frame: CGRect?) {
-        if id == ChromeFrames.mapID {
-            let next = frame ?? .zero
-            if mapFrame != next { mapFrame = next }
-            return
-        }
         guard chromeFrames[id] != frame else { return }
         var next = chromeFrames
         next[id] = frame
@@ -312,4 +308,10 @@ struct RoundMapScreen: View {
         roundSoFar = RoundSoFar.build(scores: inputs, startingHole: session?.startingHole,
                                       onScreen: holeNumber, live: liveHoleNumber)
     }
+}
+
+/// The round screen's size and safe area, which place the full-bleed map.
+private struct ScreenGeometry: Equatable {
+    let size: CGSize
+    let safeArea: EdgeInsets
 }
