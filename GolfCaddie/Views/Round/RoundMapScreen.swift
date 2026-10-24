@@ -270,7 +270,6 @@ struct RoundMapScreen: View {
         }
     }
 
-    /// "+1 · 2 SCORED" from the stored holes: finished and hand-scored holes.
     /// A course re-link on the same hole: the hole keeps its session (so a
     /// selection or an open question survives) but orders new shots by the
     /// new course's tee and green; pars may have changed with it.
@@ -286,6 +285,7 @@ struct RoundMapScreen: View {
         refreshRoundScore()
     }
 
+    /// "+1 · 2 SCORED" from the stored holes: finished and hand-scored holes.
     func refreshRoundScore() {
         guard let holes = try? HoleRepository.holesForRound(roundID) else {
             roundScoreText = nil
