@@ -823,7 +823,7 @@ struct HoleDetailView: View {
         guard let hole else { return }
         do {
             shots = try ShotRepository.shotsForHole(hole.id)
-            penaltyCount = try PenaltyRepository.penaltiesForHole(hole.id).count
+            penaltyCount = try PenaltyRepository.penaltiesForHole(hole.id).totalStrokes // strokes, not rows
             if let p = hole.par {
                 par = p
                 hasPar = true

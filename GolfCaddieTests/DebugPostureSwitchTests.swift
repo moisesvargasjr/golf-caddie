@@ -187,9 +187,9 @@ final class DebugPostureSwitchTests: XCTestCase {
 
     func testRoundProbeValue() {
         let id = UUID()
-        let value = DebugRoundProbe.value(holeNumber: 4, roundID: id, stage: .wide, display: live)
-        XCTAssertEqual(value, "hole=4;round=\(id.uuidString);stage=wide;layout=expanded;posture=open")
-        let none = DebugRoundProbe.value(holeNumber: 1, roundID: nil, stage: .overlay,
+        let value = DebugRoundProbe.value(holeNumber: 4, roundID: id, stage: .openWide, display: live)
+        XCTAssertEqual(value, "hole=4;round=\(id.uuidString);stage=openWide;layout=expanded;posture=open")
+        let none = DebugRoundProbe.value(holeNumber: 1, roundID: nil, stage: .folded,
                                          display: DebugPostureSwitch(defaults: defaults).apply(to: live))
         XCTAssertTrue(none.contains("round=none"))
     }

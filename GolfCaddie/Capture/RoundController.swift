@@ -33,12 +33,10 @@ final class RoundController {
     private(set) var mostRecentlyEndedRound: Round?
 
     /// The just-confirmed hole when an advance came in via the glasses
-    /// (`advanceHoleFromGlasses`), so the phone can pop up a retro hole-
-    /// summary `HoleReviewSheet` — restoring the per-hole summary the
-    /// player got via the phone Next button (field-test 2026-05-22). The
-    /// phone-confirm path does NOT set this (the player already saw the
-    /// pre-confirm sheet). Cleared via
-    /// `clearMostRecentlyConfirmedHoleFromGlasses` after dismiss / save.
+    /// (`advanceHoleFromGlasses`), so the phone can tell the player the hole
+    /// was finished there (the round map shows a note; ‹ opens the hole). The
+    /// phone-confirm path does NOT set this. Cleared via
+    /// `clearMostRecentlyConfirmedHoleFromGlasses` once shown.
     private(set) var mostRecentlyConfirmedHoleFromGlasses: Hole?
 
     /// Curated course resolved for the active round (proximity, name as
@@ -190,7 +188,8 @@ final class RoundController {
             try HoleRepository.insert(hole)
         }
         state = .active(round: round, hole: hole)
-        isCasualMode = UserDefaults.standard.bool(forKey: Self.casualCurrentKey)
+        isCasualMode = round.mode.map { $0 == .casual }
+            ?? UserDefaults.standard.bool(forKey: Self.casualCurrentKey)
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
         currentHolePenalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
         // Hydrate the curated link from the persisted round (no re-match)
@@ -205,20 +204,31 @@ final class RoundController {
 
     static func activeHoleKey(_ roundID: UUID) -> String { "activeHole.\(roundID.uuidString)" }
 
-    func startRound(startingHole: Int = 1, clubsLeftOut: [String] = []) throws {
+    /// Begin a round on `startingHole` in `mode` (chosen at Begin, Duo v2).
+    /// Only the starting hole gets a row: earlier holes stay row-less until the
+    /// golfer enters a score for them (`HoleRepository.setHandScore`).
+    /// `mode == nil` keeps the old behaviour of adopting the Settings casual
+    /// default — that default is superseded by the Begin choice in a later PR
+    /// (Home, PR 9), after which every caller passes a mode.
+    func startRound(startingHole: Int = 1, mode: RoundMode? = nil, clubsLeftOut: [String] = []) throws {
         guard case .idle = state else { return }
+        let firstHole = max(1, min(Self.holesPerRound, startingHole))
+        let resolvedMode: RoundMode = mode
+            ?? (UserDefaults.standard.bool(forKey: Self.casualDefaultKey) ? RoundMode.casual : RoundMode.tracking)
         let round = Round(
             id: UUID(),
             startedAt: Date(),
             endedAt: nil,
             courseName: nil,
             notes: nil,
-            clubsLeftOut: clubsLeftOut.isEmpty ? nil : clubsLeftOut
+            clubsLeftOut: clubsLeftOut.isEmpty ? nil : clubsLeftOut,
+            mode: resolvedMode,
+            startingHole: firstHole
         )
         let hole = Hole(
             id: UUID(),
             roundID: round.id,
-            holeNumber: max(1, min(Self.holesPerRound, startingHole)),
+            holeNumber: firstHole,
             par: nil,
             confirmedAt: nil
         )
@@ -233,8 +243,9 @@ final class RoundController {
         lastMarkResult = nil
         curatedCourseId = nil
         lastBreadcrumb = nil
-        // Adopt the global default mode, and persist it as the round's current.
-        isCasualMode = UserDefaults.standard.bool(forKey: Self.casualDefaultKey)
+        // The round's mode (persisted on the round, v10) and the legacy
+        // current-mode key, which older code paths still read on restore.
+        isCasualMode = resolvedMode == .casual
         UserDefaults.standard.set(isCasualMode, forKey: Self.casualCurrentKey)
         location.requestAlways()
         location.startTracking()
@@ -427,9 +438,9 @@ final class RoundController {
     /// `hadGPS = true` because we DO have a coordinate (just not a live
     /// fix); accuracy is left nil to distinguish from real fixes. The shot
     /// is appended at the END of the hole (sequenceNumber = count + 1);
-    /// inserting at an arbitrary position is the post-round
-    /// `HoleDetailView` flow (the in-round common case is "I missed the
-    /// last shot," so end-insert covers it).
+    /// `insertShot(at:club:anchors:)` is the general form (numbered by
+    /// position along the hole), which holding the map uses; this
+    /// end-append remains for older callers.
     func insertMissingShot(at coord: CLLocationCoordinate2D, club: Club?) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
@@ -648,8 +659,8 @@ final class RoundController {
     /// Strokes-page edit sheet, B25), re-deriving `isPutt` from the new club
     /// (B31). Mutates `currentHoleShots` in place so the WatchStatePublisher's
     /// next tick carries the edit back to the watch. No-op if the shot isn't
-    /// on the active hole. (Past-hole edits stay in HoleDetailView /
-    /// HoleReviewSheet — they don't touch the live list.)
+    /// on the active hole. (Past-hole edits go through `HoleSession` /
+    /// HoleDetailView — they don't touch the live list.)
     func updateShotClub(id: UUID, club: Club?) throws {
         guard case .active = state else { return }
         guard let idx = currentHoleShots.firstIndex(where: { $0.id == id }) else { return }
@@ -660,27 +671,69 @@ final class RoundController {
         currentHoleShots[idx] = shot
     }
 
-    /// Add a 1-stroke penalty to the active hole from the phone Penalty
-    /// sheet. Routes the insert through the controller so the in-memory
+    /// Add a penalty to the active hole (the round map's penalty question,
+    /// via `HoleSession`). Routes the insert through the controller so the in-memory
     /// `currentHolePenalties` refreshes — without that, the @Observable
-    /// consumers (the lie stamp, the Undo button enable state) wouldn't see
-    /// the new penalty until something else rebuilt them. Multi-stroke
-    /// penalties aren't exposed in the UI yet (1 covers OB / lateral / water
-    /// / unplayable — the only options in `PenaltySheet`).
+    /// consumers (the shot list, the score) wouldn't see the new penalty
+    /// until something else rebuilt them.
     func addPenaltyToCurrentHole(type: PenaltyType, at timestamp: Date = Date()) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
         }
-        let penalty = Penalty(
-            id: UUID(),
-            holeID: hole.id,
-            type: type,
-            strokeCount: 1,
-            timestamp: timestamp, // a late-delivered watch penalty keeps its tap time
-            notes: nil
-        )
+        // Strokes come from the type (wrong ball = 2). A late-delivered watch
+        // penalty keeps its tap time.
+        let penalty = Penalty.make(holeID: hole.id, type: type, at: timestamp)
         try PenaltyRepository.insert(penalty)
         currentHolePenalties.append(penalty)
+    }
+
+    // MARK: - Live-hole editing (HoleSession routes here for the live hole)
+
+    /// Remove one penalty from the active hole by id. No-op if it isn't there.
+    func removePenaltyFromCurrentHole(id: UUID) throws {
+        guard case .active = state,
+              let penalty = currentHolePenalties.first(where: { $0.id == id }) else { return }
+        try PenaltyRepository.delete(penalty)
+        currentHolePenalties = currentHolePenalties.filter { $0.id != id }
+    }
+
+    /// A pin dragged on the live hole: snapped within 8 m of the walking path
+    /// and saved `.manual` (so the trail re-placement never moves it).
+    func moveShotOnCurrentHole(id: UUID, to coordinate: CLLocationCoordinate2D) throws {
+        guard case .active = state,
+              let shot = currentHoleShots.first(where: { $0.id == id }) else { return }
+        let moved = ShotPlacement.dragged(shot, to: coordinate)
+        try ShotRepository.update(moved)
+        currentHoleShots = currentHoleShots.map { $0.id == id ? moved : $0 }
+    }
+
+    /// Hold-the-map add on the live hole: the general form of
+    /// `insertMissingShot` — the shot is numbered by its position along the
+    /// hole (`ShotInsertOrdering`) instead of always going last.
+    @discardableResult
+    func insertShot(at coordinate: CLLocationCoordinate2D, club: Club?,
+                    anchors: HolePathAnchors = .none) throws -> Shot {
+        guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
+        let shot = try ShotRepository.insertShot(at: coordinate, holeID: hole.id, club: club,
+                                                 anchors: anchors, now: Date())
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+        return shot
+    }
+
+    /// Set the live hole's putt count (tracked holes): trims or appends putts.
+    func setPuttsOnCurrentHole(_ putts: Int) throws {
+        guard case let .active(_, hole) = state else { throw GlassesError.noActiveHole }
+        try ShotRepository.setPuttCount(putts, holeID: hole.id, putterID: resolvedPutter()?.id)
+        currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+    }
+
+    /// Hand score on the live hole (casual Finish). Updates `state` so the
+    /// in-memory hole matches the row and a later confirm doesn't clobber it.
+    func setHandScoreOnCurrentHole(strokes: Int, putts: Int?) throws {
+        guard case let .active(round, hole) = state else { throw GlassesError.noActiveHole }
+        let updated = try HoleRepository.setHandScore(
+            roundID: round.id, holeNumber: hole.holeNumber, strokes: strokes, putts: putts)
+        state = .active(round: round, hole: updated)
     }
 
     /// Undo the most recent action on the active hole — whichever of {newest
@@ -734,6 +787,7 @@ final class RoundController {
             try HoleRepository.insert(hole)
         }
         state = .active(round: resumed, hole: hole)
+        if let mode = resumed.mode { isCasualMode = mode == .casual }
         currentHoleShots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
         currentHolePenalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
         mostRecentlyEndedRound = nil
@@ -801,7 +855,9 @@ final class RoundController {
 
     func confirmHoleAndAdvance(par: Int?) throws {
         guard case let .active(round, currentHole) = state else { return }
-        var updated = currentHole
+        // Start from the stored row so columns edited elsewhere (a hand score
+        // from HoleSession) survive the confirm.
+        var updated = (try? HoleRepository.hole(byID: currentHole.id)) ?? currentHole
         updated.par = par
         updated.confirmedAt = Date()
         try HoleRepository.update(updated)
@@ -1130,6 +1186,11 @@ final class RoundController {
     func setCasualMode(_ on: Bool) {
         isCasualMode = on
         UserDefaults.standard.set(on, forKey: Self.casualCurrentKey)
+        guard case let .active(round, hole) = state else { return }
+        var updated = round
+        updated.mode = on ? .casual : .tracking
+        guard updated != round, (try? RoundRepository.update(updated)) != nil else { return }
+        state = .active(round: updated, hole: hole)
     }
 
     /// Casual "+1 stroke" — a detail-less manual stroke (no club). Hole score is

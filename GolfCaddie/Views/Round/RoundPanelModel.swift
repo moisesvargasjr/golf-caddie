@@ -1,0 +1,168 @@
+import SwiftUI
+
+// What every layout draws, as plain values. `RoundMapScreen` builds one
+// `RoundPanelModel` per render from the hole session and the round; the
+// layouts only arrange the shared components and call `RoundPanelActions`,
+// so a layout can be redrawn without touching round logic.
+
+struct RoundYardage: Equatable {
+    /// Middle of the green, display units.
+    let middle: Int
+    let front: Int
+    let back: Int
+    let unit: String
+    /// "WATCH GPS" / "PHONE GPS".
+    let sourceText: String?
+}
+
+struct ShotRowModel: Identifiable, Equatable {
+    let id: UUID
+    let number: Int
+    /// "Dr", or "?" until a held-in shot gets its club.
+    let clubText: String
+    /// "251 YD" to the next shot (or the green on a finished hole).
+    let distanceText: String?
+    let isSelected: Bool
+    let needsClub: Bool
+
+    var leftText: String { "\(number) · \(clubText)" }
+}
+
+struct PenaltyRowModel: Identifiable, Equatable {
+    let id: UUID
+    let title: String
+    let strokes: Int
+}
+
+struct ClubChipModel: Identifiable, Equatable {
+    let club: Club
+    /// Carry in display units ("148").
+    let carryText: String?
+    let isActive: Bool
+    var id: String { club.id }
+}
+
+struct RoundToast: Equatable {
+    enum Kind: Equatable { case info, tip, error }
+    let text: String
+    var kind: Kind = .info
+}
+
+struct RoundPanelModel {
+    var mode: RoundMapMode
+    var layout: RoundMapLayout
+
+    // Hole
+    var holeNumber: Int
+    var liveHoleNumber: Int?
+    var par: Int?
+    /// "PAR 4 · 398 YD"
+    var holeCaption: String
+    /// "PAR 4 · 398 · +1"
+    var compactCaption: String
+    /// "H8 · P4" (hidden-controls label)
+    var shortCaption: String
+    var canGoPrevious: Bool
+    var canGoNext: Bool
+    var state: HolePanelState
+    /// The live round's current hole is on screen (in any mode).
+    var viewingLive: Bool
+
+    // Round
+    /// "+1 · 2 SCORED"
+    var roundScoreText: String?
+    var courseName: String?
+    var needsCourseLink: Bool
+
+    // Live hole
+    var yardage: RoundYardage?
+    var watchDetecting: Bool
+    var isMarking: Bool
+
+    // Past hole
+    /// "5 (+1) · 2 putts"
+    var resultText: String
+
+    // Shots
+    var shotRows: [ShotRowModel]
+    var penaltyRows: [PenaltyRowModel]
+    /// "2 · 8i · NEXT" on the live hole.
+    var nextShotText: String?
+    var selectedShotTitle: String?
+    var hasSelection: Bool { selectedShotTitle != nil }
+
+    // Clubs
+    var clubs: [ClubChipModel]
+    /// "NEXT SHOT", "SHOT 2", "TAP A SHOT".
+    var clubListTitle: String
+    var clubListHighlighted: Bool
+    var clubsEnabled: Bool
+
+    // Questions
+    var question: RoundMapQuestion?
+    var puttsChoice: Int
+    var puttsSummary: String
+    var finishConfirmTitle: String
+
+    // Entry
+    var entry: HandScoreDraft
+    var entryTitle: String
+    var entrySummary: String
+    var entrySaveTitle: String
+    var notTrackedText: String
+    var entryShowsBackToLive: Bool
+
+    // Chrome
+    var controlsVisible: Bool
+    var compassRotation: Double
+    var toast: RoundToast?
+
+    var showsClubList: Bool { state != .entry && mode.tracksShots }
+    var isLiveHole: Bool { state == .live }
+    var backToLiveTitle: String { "Back to hole \(liveHoleNumber ?? holeNumber) ›" }
+    /// Short version for narrow buttons.
+    var backToLiveShortTitle: String { "BACK TO HOLE \(liveHoleNumber ?? holeNumber)" }
+    var hintText: String {
+        watchDetecting ? "WATCH IS DETECTING SWINGS · HOLD THE MAP TO ADD A SHOT"
+            : "DRAG A PIN TO MOVE IT · HOLD THE MAP TO ADD ONE"
+    }
+}
+
+struct RoundPanelActions {
+    var previousHole: () -> Void = {}
+    var nextHole: () -> Void = {}
+    var openHoleGrid: () -> Void = {}
+    var backToLive: () -> Void = {}
+
+    var addShot: () -> Void = {}
+    var askPenalty: () -> Void = {}
+    var finishHole: () -> Void = {}
+
+    var pickPutts: (Int) -> Void = { _ in }
+    var confirmFinish: () -> Void = {}
+    var pickPenalty: (PenaltyType) -> Void = { _ in }
+    var cancelQuestion: () -> Void = {}
+
+    var selectShot: (UUID) -> Void = { _ in }
+    var removePenalty: (UUID) -> Void = { _ in }
+    var pickClub: (Club) -> Void = { _ in }
+    var deleteSelectedShot: () -> Void = {}
+    var doneSelection: () -> Void = {}
+
+    var stepEntryStrokes: (Int) -> Void = { _ in }
+    var stepEntryPutts: (Int) -> Void = { _ in }
+    var saveEntry: () -> Void = {}
+
+    var hideControls: () -> Void = {}
+    var showControls: () -> Void = {}
+    var resetCompass: () -> Void = {}
+    /// Any touch on the controls (restarts the auto-hide countdown).
+    var noteInteraction: () -> Void = {}
+
+    var openCard: () -> Void = {}
+    var openBag: () -> Void = {}
+    var linkCourse: () -> Void = {}
+    var unlinkCourse: () -> Void = {}
+    var toggleCasual: () -> Void = {}
+    var endRound: () -> Void = {}
+}

@@ -19,6 +19,29 @@ enum AutoHidePolicy: Equatable, Sendable {
         // Regular iPhone (or the cover before the hinge reports).
         return display.isLandscape ? .manual : .automatic
     }
+
+    /// Launch-argument key for the DEBUG override (`-DebugAutoHide off`).
+    static let debugOverrideKey = "DebugAutoHide"
+
+    /// Parses an override name: `off` / `manual` → `.manual`,
+    /// `on` / `automatic` → `.automatic`; anything else → nil (no override).
+    static func forced(named name: String?) -> AutoHidePolicy? {
+        switch name?.lowercased() {
+        case "off", "manual": return .manual
+        case "on", "automatic": return .automatic
+        default: return nil
+        }
+    }
+
+    /// The DEBUG launch override, if any (always nil in release builds), so
+    /// screenshots and UI tests see the controls on the auto-hide poses.
+    static var launchOverride: AutoHidePolicy? {
+        #if DEBUG
+        return forced(named: UserDefaults.standard.string(forKey: debugOverrideKey))
+        #else
+        return nil
+        #endif
+    }
 }
 
 /// Something open on screen that must keep the controls from auto-hiding.
@@ -95,14 +118,18 @@ final class AutoHideController {
 
     private let delay: TimeInterval
     private let scheduler: any AutoHideScheduler
+    /// Pins the policy regardless of the display (DEBUG `-DebugAutoHide`).
+    private let policyOverride: AutoHidePolicy?
     @ObservationIgnored private var timer: AutoHideTimerHandle?
 
     init(display: DisplayContext,
          delay: TimeInterval = AutoHideController.defaultDelay,
-         scheduler: any AutoHideScheduler = TaskAutoHideScheduler()) {
-        self.policy = AutoHidePolicy.resolve(display)
+         scheduler: any AutoHideScheduler = TaskAutoHideScheduler(),
+         policyOverride: AutoHidePolicy? = nil) {
+        self.policy = policyOverride ?? AutoHidePolicy.resolve(display)
         self.delay = delay
         self.scheduler = scheduler
+        self.policyOverride = policyOverride
         restartCountdown()
     }
 
@@ -112,7 +139,7 @@ final class AutoHideController {
 
     /// Re-resolve the policy for a new display (call on every context change).
     func update(display: DisplayContext) {
-        let next = AutoHidePolicy.resolve(display)
+        let next = policyOverride ?? AutoHidePolicy.resolve(display)
         guard next != policy else { return }
         policy = next
         isHidden = false
