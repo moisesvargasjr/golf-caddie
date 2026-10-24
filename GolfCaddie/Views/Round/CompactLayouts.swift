@@ -139,10 +139,13 @@ struct FoldedLayout: View {
     }
 
     /// Review with the score sheet up (an unscored hole): the sheet hides
-    /// the boxes, so ‹ CARD and ··· stay here — otherwise the hole is a
+    /// the boxes, so COURSE MAP, ‹ CARD and ··· stay here — otherwise the hole is a
     /// dead end on folded (‹ › only move between holes).
     private var reviewExits: some View {
         HStack(spacing: 5) {
+            if model.offersCourseMap {
+                CourseMapButton(actions: actions, frame: .outline, compact: true)
+            }
             CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
             RoundOverflowMenu(model: model, actions: actions, frame: .outline)
         }

@@ -40,13 +40,15 @@ struct CourseMapChrome: View {
             case .bottomStrip:
                 compactTitle
                     .padding(.top, insets.top)
-                    .padding(.horizontal, insets.leading)
+                    .padding(.leading, insets.leading)
+                    .padding(.trailing, insets.trailing)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 CourseHoleStrip(content: content, axis: .horizontal, onOpenHole: onOpenHole)
                     .reportsChromeFrame("courseStrip")
                     .padding(.bottom, insets.bottom)
-                    .padding(.horizontal, insets.leading)
+                    .padding(.leading, insets.leading)
+                    .padding(.trailing, insets.trailing)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             case .sideStrip:
                 compactTitle
@@ -184,6 +186,9 @@ struct CourseHoleStrip: View {
                     VStack(spacing: 4) { chips }
                 }
             }
+            // A scroll view draws its content on into an adjacent safe area;
+            // keep the chips inside the box.
+            .clipped()
         }
         .padding(6)
         .chromeBox()
