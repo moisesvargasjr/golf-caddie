@@ -173,6 +173,35 @@ final class RoundMapLayoutTests: XCTestCase {
         XCTAssertEqual(free, CGRect(x: 0, y: 40, width: 400, height: 618))
     }
 
+    func testTheMapFrameRunsPastTheSafeArea() {
+        // iPhone 17 Pro: 402×874 window, 62 pt top / 34 pt bottom insets;
+        // the screen's space starts at the safe-area corner.
+        let screen = CGSize(width: 402, height: 778)
+        let safe = EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
+        XCTAssertEqual(ChromeFrames.mapFrame(size: screen, safeArea: safe),
+                       CGRect(x: 0, y: -62, width: 402, height: 874))
+    }
+
+    func testIPhoneChromeLandsWhereItDrawsOnTheMap() throws {
+        // The 17 Pro framing bug: title, compass row and panel measured in
+        // the screen's space must sit at their window positions in the map,
+        // so the free rect is below the compass row and above the panel.
+        let phone = display(402, 874, .compact, .unknown)
+        let mapFrame = ChromeFrames.mapFrame(size: CGSize(width: 402, height: 778),
+                                             safeArea: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0))
+        let frames: [String: CGRect] = [
+            "title": CGRect(x: 24, y: 0, width: 354, height: 51),           // window 62–113
+            "compass": CGRect(x: 24, y: 62, width: 44, height: 44),         // window 124–168
+            "hint": CGRect(x: 76, y: 74, width: 156, height: 22),
+            "panel": CGRect(x: 24, y: 547, width: 354, height: 231),        // window 609–840
+        ]
+        let free = try XCTUnwrap(ChromeFrames.unobstructedRect(
+            display: phone, frames: frames, mapFrame: mapFrame,
+            safeRect: CGRect(x: 0, y: 0, width: 402, height: 778)))
+        XCTAssertEqual(free.minY, 168)
+        XCTAssertEqual(free.maxY, 609)
+    }
+
     func testEmptyMapFrameNoFraming() {
         let folded = display(466, 678, .compact, .closed)
         XCTAssertNil(ChromeFrames.unobstructedRect(display: folded, frames: [:], mapFrame: .zero))
