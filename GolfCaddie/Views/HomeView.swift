@@ -26,6 +26,7 @@ struct HomeView: View {
     #if DEBUG
     @State private var debugShowLogbook = false
     @State private var debugShowSettings = false
+    @State private var debugRoundCard: Round?
     #endif
 
     var body: some View {
@@ -99,6 +100,7 @@ struct HomeView: View {
             case "logbook": debugShowLogbook = true
             case "settings": debugShowSettings = true
             case "bag": showClubsInPlay = true
+            case "roundcard": debugRoundCard = DebugScorecardSeed.finishedRound()
             default: break
             }
             #endif
@@ -106,6 +108,15 @@ struct HomeView: View {
         #if DEBUG
         .navigationDestination(isPresented: $debugShowLogbook) { RoundListView(bag: bag) }
         .navigationDestination(isPresented: $debugShowSettings) { SettingsView(bag: $bag) }
+        // A finished round's card (PR 7 routes Logbook → card for real).
+        .fullScreenCover(item: $debugRoundCard) { round in
+            AdaptiveScorecardPresentation(
+                round: round,
+                currentHoleNumber: nil,
+                curatedCourseId: round.curatedCourseId,
+                onDismiss: { debugRoundCard = nil }
+            )
+        }
         #endif
     }
 
