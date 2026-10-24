@@ -188,23 +188,15 @@ private struct HingeObserver: UIViewRepresentable {
 #if DEBUG
 /// `-DebugLayoutClass compact|expanded` and `-DebugPosture halfOpen|open|closed`
 /// force the resolved context — for screenshots when the simulator's hinge
-/// can't be driven from the command line.
+/// can't be driven from the command line. Backed by the observable
+/// `DebugPostureSwitch.shared` (seeded from those launch args), so a runtime
+/// switch re-renders every root that reads it.
 enum DebugLayoutOverride {
+    /// Called from view bodies, which always run on the main thread.
     static func apply(to context: DisplayContext) -> DisplayContext {
-        var context = context
-        let defaults = UserDefaults.standard
-        switch defaults.string(forKey: "DebugLayoutClass") {
-        case "expanded": context.layoutClass = .expanded
-        case "compact": context.layoutClass = .compact
-        default: break
+        MainActor.assumeIsolated {
+            DebugPostureSwitch.shared.apply(to: context)
         }
-        switch defaults.string(forKey: "DebugPosture") {
-        case "halfOpen": context.posture = .halfOpen
-        case "open": context.posture = .open
-        case "closed": context.posture = .closed
-        default: break
-        }
-        return context
     }
 }
 #endif
