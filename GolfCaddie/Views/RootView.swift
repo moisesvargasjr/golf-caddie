@@ -17,6 +17,12 @@ struct RootView: View {
         .themedRoot()
         .adaptiveLayoutRoot()
         .task {
+            #if DEBUG
+            // Before loadConfig: a fresh simulator would otherwise stop on Bag
+            // Setup even with -DebugSeedBag / -DebugStartRound.
+            DebugHarness.seedBagIfRequested()
+            DebugPostureSwitch.shared.startFromLaunchArguments()
+            #endif
             location.requestWhenInUse()
             loadConfig()
             // Fire-and-forget curated course-data refresh. Never blocks
