@@ -29,6 +29,8 @@ struct HomeView: View {
     /// `-DebugOpen roundcard` (the card) / `review-round` (a hole's review).
     @State private var debugRound: Round?
     @State private var debugReviewHole: Int?
+    /// `-DebugOpen course-map`: the round opens on its course map (PR 8).
+    @State private var debugOpensCourseMap = false
     #endif
 
     var body: some View {
@@ -104,6 +106,7 @@ struct HomeView: View {
             case "bag": showClubsInPlay = true
             case "roundcard": debugRound = DebugScorecardSeed.finishedRound()
             case "review-round": openDebugReview()
+            case "course-map": openDebugCourseMap()
             default: break
             }
             #endif
@@ -115,7 +118,7 @@ struct HomeView: View {
         .navigationDestination(isPresented: debugRoundShown) {
             if let round = debugRound {
                 FinishedRoundScreen(round: round, bag: bag, initialHole: debugReviewHole,
-                                    onDeleted: { refresh() })
+                                    opensCourseMap: debugOpensCourseMap, onDeleted: { refresh() })
             }
         }
         #endif
@@ -134,6 +137,14 @@ struct HomeView: View {
         let requested = UserDefaults.standard.integer(forKey: "DebugReviewHole")
         debugReviewHole = HoleScoring.holeRange.contains(requested)
             ? requested : ReviewNavigation.firstHole(startingHole: round.startingHole)
+        debugRound = round
+    }
+
+    /// `-DebugOpen course-map`: a finished round with every shot placed,
+    /// opened on its course map (`DebugCourseMapSeed`).
+    private func openDebugCourseMap() {
+        guard let round = DebugCourseMapSeed.round() else { return }
+        debugOpensCourseMap = true
         debugRound = round
     }
     #endif

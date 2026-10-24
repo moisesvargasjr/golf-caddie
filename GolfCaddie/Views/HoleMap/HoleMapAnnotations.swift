@@ -237,5 +237,6 @@ final class HoleMapBadgeView: MKAnnotationView {
         numberLabel.frame = CGRect(x: (width - 24) / 2, y: 10, width: 24, height: 24)
         scoreLabel.frame = CGRect(x: numberLabel.frame.maxX + 2, y: 10, width: max(0, scoreWidth - 2), height: 24)
         accessibilityLabel = HoleMapAccessibility.holeBadgeLabel(number: badge.holeNumber, score: badge.score)
+        accessibilityIdentifier = CourseMapAccessibilityID.badge(badge.holeNumber)
     }
 }

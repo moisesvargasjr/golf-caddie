@@ -127,6 +127,9 @@ struct FoldedLayout: View {
     /// Review (Review-Folded): ‹ CARD · + PEN · ··· (round actions).
     private var reviewRow: some View {
         HStack(spacing: 5) {
+            if model.offersCourseMap {
+                CourseMapButton(actions: actions, frame: .outline, compact: true)
+            }
             CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
                 .frame(maxWidth: .infinity)
             if model.state == .pastTracked {
@@ -155,6 +158,9 @@ struct PhonePortraitLayout: View {
                 HoleTitleBar(model: model, actions: actions, style: .stacked(size: 20),
                              caption: model.compactCaption,
                              trailing: AnyView(HStack(spacing: 0) {
+                                 if model.offersCourseMap {
+                                     CourseMapButton(actions: actions, frame: .plain, compact: true)
+                                 }
                                  CardButton(actions: actions, title: model.cardTitle, frame: .plain)
                                  RoundOverflowMenu(model: model, actions: actions, frame: .plain)
                              }))
@@ -235,6 +241,9 @@ struct PhoneLandscapeLayout: View {
             HStack(spacing: 6) {
                 CompassChromeButton(model: model, actions: actions)
                 HideControlsButton(actions: actions)
+                if model.offersCourseMap {
+                    CourseMapButton(actions: actions, compact: true)
+                }
                 CardButton(actions: actions, title: model.cardTitle)
                 RoundOverflowMenu(model: model, actions: actions)
             }

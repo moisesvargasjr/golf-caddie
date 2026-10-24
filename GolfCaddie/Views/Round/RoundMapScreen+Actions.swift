@@ -42,7 +42,8 @@ extension RoundMapScreen {
             unlinkCourse: host.unlinkCourse,
             toggleCasual: host.toggleCasual,
             endRound: host.endRound,
-            roundActions: host.roundActionHandlers
+            roundActions: host.roundActionHandlers,
+            openCourseMap: glideOutToCourse
         )
     }
 

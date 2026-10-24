@@ -138,6 +138,9 @@ struct RoundPanelModel {
     var roundActions: RoundActionsAvailability? = nil
     /// The ··· section header ("NATIVE OAKS · OCT 23 · 79 (+7)").
     var roundActionsTitle: String = "THIS ROUND"
+    /// COURSE MAP beside ‹ CARD: a finished round's hole opened on the
+    /// course map's screen (PR 8). Glides the same map back out.
+    var offersCourseMap: Bool = false
 
     var showsClubList: Bool { state != .entry && mode.tracksShots }
     /// The round so far takes the shot list's / club list's place (casual).
@@ -227,4 +230,6 @@ struct RoundPanelActions {
     var endRound: () -> Void = {}
     /// ··· for a finished round (review).
     var roundActions = RoundActionHandlers()
+    /// COURSE MAP (review on a finished round's course map).
+    var openCourseMap: () -> Void = {}
 }
