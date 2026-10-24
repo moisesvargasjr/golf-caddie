@@ -20,6 +20,11 @@ struct ScorecardTabsView: View {
     private var subtotalHeight: CGFloat { ScorecardTabsMetrics.subtotalHeight(windowHeight: windowHeight) }
 
     var body: some View {
+        // Inside the safe area, so the folded Duo's camera island (a
+        // trailing inset) keeps the header clear: `proxy.safeAreaInsets` of a
+        // reader that ignores the safe area came back zero there, and the
+        // card's ··· sat under the camera. Each side keeps max(edge, inset)
+        // from the window edge.
         GeometryReader { proxy in
             let insets = proxy.safeAreaInsets
             VStack(alignment: .leading, spacing: 10) {
@@ -32,12 +37,11 @@ struct ScorecardTabsView: View {
                 Spacer(minLength: 8)
                 bottom
             }
-            .padding(.top, max(Self.edge, insets.top))
-            .padding(.bottom, max(Self.edge, insets.bottom))
-            .padding(.leading, max(Self.edge, insets.leading))
-            .padding(.trailing, max(Self.edge, insets.trailing))
+            .padding(.top, max(0, Self.edge - insets.top))
+            .padding(.bottom, max(0, Self.edge - insets.bottom))
+            .padding(.leading, max(0, Self.edge - insets.leading))
+            .padding(.trailing, max(0, Self.edge - insets.trailing))
         }
-        .ignoresSafeArea()
     }
 
     // MARK: Header and tabs
@@ -97,7 +101,7 @@ struct ScorecardTabsView: View {
                         .font(CardInk.mono(11)).tracking(0.6)
                         .foregroundStyle(isOn ? CardInk.palette.paper : ink)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(isOn ? ink : Color.clear)
+                        .background(isOn ? ink : Color.clear, ignoresSafeAreaEdges: [])
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -120,7 +124,7 @@ struct ScorecardTabsView: View {
                 headCell("PUTTS")
             }
             .frame(height: 28)
-            .background(ink)
+            .background(ink, ignoresSafeAreaEdges: [])
             .accessibilityHidden(true)
             ForEach(Array(shownNine.holes), id: \.self) { n in
                 row(n)
@@ -171,7 +175,7 @@ struct ScorecardTabsView: View {
             mono(ScorecardText.number(totals.putts), size: 12, color: CardInk.ink2)
         }
         .frame(height: subtotalHeight)
-        .background(ink.opacity(0.08))
+        .background(ink.opacity(0.08), ignoresSafeAreaEdges: [])
         .overlay(alignment: .top) { Rectangle().fill(ink).frame(height: 1.5) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ScorecardText.totalAccessibilityLabel(shownNine == .front ? "Out" : "In", totals))
