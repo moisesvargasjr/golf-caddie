@@ -21,9 +21,8 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
-// Shared hole-editing UI, used by both `HoleReviewSheet` (active-round hole
-// confirm) and `HoleDetailView` (previous-hole editor). Extracted verbatim
-// from HoleReviewSheet so the two screens cannot drift apart.
+// Hole-editing UI for `HoleDetailView` (the finished-round hole editor,
+// removed in PR 7 when review moves onto the round map).
 
 struct ShotReviewRow: View {
     let shot: Shot

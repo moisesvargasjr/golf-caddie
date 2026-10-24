@@ -23,8 +23,10 @@ struct SafeChrome: Equatable, Sendable {
     static let cornerInset: CGFloat = 36
     /// Apple HIG minimum tap target (same as `InRoundMetrics.minTouch`).
     static let minTapTarget: CGFloat = InRoundMetrics.minTouch
-    /// Hinge keep-out band: the existing gutter on each side of the hinge line.
-    static let hingeBandWidth: CGFloat = RoundStageGeometry.hingeGutter * 2
+    /// Keep-out gutter on each side of the hinge line.
+    static let hingeGutter: CGFloat = 16
+    /// Hinge keep-out band: the gutter on each side of the hinge line.
+    static let hingeBandWidth: CGFloat = hingeGutter * 2
 
     let display: DisplayContext
 

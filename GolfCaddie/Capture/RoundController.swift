@@ -33,12 +33,10 @@ final class RoundController {
     private(set) var mostRecentlyEndedRound: Round?
 
     /// The just-confirmed hole when an advance came in via the glasses
-    /// (`advanceHoleFromGlasses`), so the phone can pop up a retro hole-
-    /// summary `HoleReviewSheet` — restoring the per-hole summary the
-    /// player got via the phone Next button (field-test 2026-05-22). The
-    /// phone-confirm path does NOT set this (the player already saw the
-    /// pre-confirm sheet). Cleared via
-    /// `clearMostRecentlyConfirmedHoleFromGlasses` after dismiss / save.
+    /// (`advanceHoleFromGlasses`), so the phone can tell the player the hole
+    /// was finished there (the round map shows a note; ‹ opens the hole). The
+    /// phone-confirm path does NOT set this. Cleared via
+    /// `clearMostRecentlyConfirmedHoleFromGlasses` once shown.
     private(set) var mostRecentlyConfirmedHoleFromGlasses: Hole?
 
     /// Curated course resolved for the active round (proximity, name as
@@ -441,8 +439,8 @@ final class RoundController {
     /// fix); accuracy is left nil to distinguish from real fixes. The shot
     /// is appended at the END of the hole (sequenceNumber = count + 1);
     /// `insertShot(at:club:anchors:)` is the general form (numbered by
-    /// position along the hole); this end-append stays for
-    /// `MissingShotPinSheet` until PR 4 replaces it with holding the map.
+    /// position along the hole), which holding the map uses; this
+    /// end-append remains for older callers.
     func insertMissingShot(at coord: CLLocationCoordinate2D, club: Club?) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole
@@ -661,8 +659,8 @@ final class RoundController {
     /// Strokes-page edit sheet, B25), re-deriving `isPutt` from the new club
     /// (B31). Mutates `currentHoleShots` in place so the WatchStatePublisher's
     /// next tick carries the edit back to the watch. No-op if the shot isn't
-    /// on the active hole. (Past-hole edits stay in HoleDetailView /
-    /// HoleReviewSheet — they don't touch the live list.)
+    /// on the active hole. (Past-hole edits go through `HoleSession` /
+    /// HoleDetailView — they don't touch the live list.)
     func updateShotClub(id: UUID, club: Club?) throws {
         guard case .active = state else { return }
         guard let idx = currentHoleShots.firstIndex(where: { $0.id == id }) else { return }
@@ -673,13 +671,11 @@ final class RoundController {
         currentHoleShots[idx] = shot
     }
 
-    /// Add a 1-stroke penalty to the active hole from the phone Penalty
-    /// sheet. Routes the insert through the controller so the in-memory
+    /// Add a penalty to the active hole (the round map's penalty question,
+    /// via `HoleSession`). Routes the insert through the controller so the in-memory
     /// `currentHolePenalties` refreshes — without that, the @Observable
-    /// consumers (the lie stamp, the Undo button enable state) wouldn't see
-    /// the new penalty until something else rebuilt them. Multi-stroke
-    /// penalties aren't exposed in the UI yet (1 covers OB / lateral / water
-    /// / unplayable — the only options in `PenaltySheet`).
+    /// consumers (the shot list, the score) wouldn't see the new penalty
+    /// until something else rebuilt them.
     func addPenaltyToCurrentHole(type: PenaltyType, at timestamp: Date = Date()) throws {
         guard case let .active(_, hole) = state else {
             throw GlassesError.noActiveHole

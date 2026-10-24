@@ -2,11 +2,11 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// The one round map (Duo v2, Architecture A): merges `ActiveRoundMap` (live,
-/// follows "you", aim line) and `EditableHoleMap` (draggable pins, fixed
-/// camera) and adds the course overview. Put ONE of these in the screen's
-/// `.roundStageRole(.map)` slot of `AdaptiveRoundLayout`; the layout moves the
-/// same `MKMapView` between postures, never rebuilds it.
+/// The one round map (Duo v2, Architecture A): replaces the old live map
+/// (follows "you", aim line) and `EditableHoleMap` (draggable pins, fixed
+/// camera) and adds the course overview. `RoundMapScreen` keeps ONE of these
+/// full-bleed behind every layout, so a posture change never rebuilds the
+/// `MKMapView`.
 ///
 /// The map never writes to the database. It reports:
 /// - `onMoveShot(id, coordinate)` when a pin is dropped — already snapped to
