@@ -196,19 +196,50 @@ final class HandScoreAndPenaltyTests: XCTestCase {
 extension HandScoreAndPenaltyTests {
     func testAnAutoFilledParFollowsTheNewCourse() {
         // Linked The Fountains by mistake (hole 1 par 3), then The Vineyard (par 4).
-        XCTAssertEqual(RoundController.parAfterRelink(current: 3, previousCoursePar: 3, newCoursePar: 4), .some(4))
+        XCTAssertEqual(CourseRelinkPars.parAfterRelink(current: 3, previousCoursePar: 3, newCoursePar: 4), .some(4))
     }
 
     func testAHandTypedParStays() {
-        XCTAssertNil(RoundController.parAfterRelink(current: 5, previousCoursePar: 3, newCoursePar: 4))
+        XCTAssertNil(CourseRelinkPars.parAfterRelink(current: 5, previousCoursePar: 3, newCoursePar: 4))
     }
 
     func testUnlinkingClearsAnAutoFilledPar() {
-        XCTAssertEqual(RoundController.parAfterRelink(current: 3, previousCoursePar: 3, newCoursePar: nil), .some(nil))
+        XCTAssertEqual(CourseRelinkPars.parAfterRelink(current: 3, previousCoursePar: 3, newCoursePar: nil), .some(nil))
     }
 
     func testNoParOrTheSameParIsLeftAlone() {
-        XCTAssertNil(RoundController.parAfterRelink(current: nil, previousCoursePar: 3, newCoursePar: 4))
-        XCTAssertNil(RoundController.parAfterRelink(current: 4, previousCoursePar: 4, newCoursePar: 4))
+        XCTAssertNil(CourseRelinkPars.parAfterRelink(current: nil, previousCoursePar: 3, newCoursePar: 4))
+        XCTAssertNil(CourseRelinkPars.parAfterRelink(current: 4, previousCoursePar: 4, newCoursePar: 4))
+    }
+}
+
+extension HandScoreAndPenaltyTests {
+    /// A → B correction where the courses' pars differ: auto-filled pars move,
+    /// a hand-typed par stays, and an unlink clears what A filled.
+    func testRelinkChangesFollowTheNewCourseAndKeepHandPars() throws {
+        func course(_ id: String, pars: [Int]) -> CuratedCourse {
+            CuratedCourse(id: id, name: id, aliases: [], location: GeoPoint(lat: 0, lng: 0),
+                          holes: pars.enumerated().map { CuratedHole(number: $0.offset + 1, par: $0.element) })
+        }
+        try CourseDataRepository.replaceAll(with: [course("A", pars: [3, 4, 5]), course("B", pars: [4, 4, 4])],
+                                            fetchedAt: Date())
+        let round = try TestDatabase.seedRound()
+        let one = try HoleRepository.setHandScore(roundID: round.id, holeNumber: 1, strokes: 4, putts: 2)
+        let two = try HoleRepository.setHandScore(roundID: round.id, holeNumber: 2, strokes: 4, putts: 2)
+        let three = try HoleRepository.setHandScore(roundID: round.id, holeNumber: 3, strokes: 4, putts: 2)
+        try HoleRepository.setPar(holeID: one.id, par: 3)    // A's par, auto-filled
+        try HoleRepository.setPar(holeID: two.id, par: 4)    // the same on both courses
+        try HoleRepository.setPar(holeID: three.id, par: 6)  // typed by hand
+
+        let toB = try CourseRelinkPars.changes(roundID: round.id, from: "A", to: "B")
+        XCTAssertEqual(toB.map(\.holeID), [one.id])
+        XCTAssertEqual(toB.map(\.par), [4])
+
+        let unlink = try CourseRelinkPars.changes(roundID: round.id, from: "A", to: nil)
+        XCTAssertEqual(unlink.map(\.holeID), [one.id, two.id])
+        XCTAssertEqual(unlink.map(\.par), [nil, nil])
+
+        XCTAssertTrue(try CourseRelinkPars.changes(roundID: round.id, from: nil, to: "B").isEmpty)
+        XCTAssertTrue(try CourseRelinkPars.changes(roundID: round.id, from: "A", to: "A").isEmpty)
     }
 }
