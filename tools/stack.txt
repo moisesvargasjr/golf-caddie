@@ -1,5 +1,10 @@
-# second pass after the safe-area framing fix (PR 4) merged forward
+# third pass: fixes from the tap checks (PR 2, 4, 6, 7, 8) merged forward
+pr2 pr2 duo+pro
 pr4 pr4 duo+pro tour-pr4.tsv
 pr5 pr5 duo+pro tour-pr5.tsv
+pr6 pr6 duo+pro
+merge-pr1 pr6
+pr6 pr6m none tour-card.tsv
+unmerge pr6
 pr7 pr7 duo+pro tour-pr7.tsv
 pr8 pr8 duo+pro tour-pr8.tsv

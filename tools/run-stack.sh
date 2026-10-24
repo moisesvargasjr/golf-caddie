@@ -22,7 +22,14 @@ for line in "${(@f)$(cat $S/stack.txt)}"; do
   [[ -z $line || $line == \#* ]] && continue
   args=(${=line})
   if [[ ${args[1]} == merge-pr1 ]]; then
-    git -C $W/${args[2]} merge --no-commit --no-ff -q feat/duo-v2-layout-foundations && log "merged PR 1 into ${args[2]} (uncommitted, shots only)"
+    wt=$W/${args[2]}; F=GolfCaddie.xcodeproj/project.pbxproj
+    git -C $wt merge --no-commit --no-ff -q feat/duo-v2-layout-foundations >/dev/null 2>&1
+    if git -C $wt diff --name-only --diff-filter=U | grep -q pbxproj; then
+      # both sides only add files: keep both
+      git -C $wt show :1:$F > $S/results/.b; git -C $wt show :2:$F > $S/results/.o; git -C $wt show :3:$F > $S/results/.t
+      git merge-file --union -p $S/results/.o $S/results/.b $S/results/.t > $wt/$F
+    fi
+    log "merged PR 1 into ${args[2]} (uncommitted, shots only; conflicts: $(git -C $wt diff --name-only --diff-filter=U | tr '\n' ' '))"
   elif [[ ${args[1]} == unmerge ]]; then
     git -C $W/${args[2]} merge --abort && log "aborted the temporary merge in ${args[2]}"
   else

@@ -7,3 +7,4 @@ course	course-folded|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugLayout
 course	course-iphone-portrait|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugWindowSize 402x874 -DebugLayoutClass compact -DebugAutoHide off
 course	course-iphone-landscape|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugWindowSize 874x402 -DebugLayoutClass compact -DebugAutoHide off
 course	course-hole-open-wide|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugReviewHole 12 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+review	review-unscored-folded|portrait|-DebugSeedBag 1 -DebugOpen review-round -DebugReviewHole 2 -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off

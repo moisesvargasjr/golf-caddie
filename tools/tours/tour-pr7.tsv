@@ -7,3 +7,4 @@ review	review-iphone-portrait|portrait|-DebugSeedBag 1 -DebugOpen review-round -
 review	review-open-portrait|portrait|-DebugSeedBag 1 -DebugOpen review-round -DebugReviewHole 5 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
 review	roundcard-open-wide|portrait|-DebugSeedBag 1 -DebugOpen roundcard -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
 review	roundcard-folded|portrait|-DebugSeedBag 1 -DebugOpen roundcard -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off
+review	review-unscored-folded|portrait|-DebugSeedBag 1 -DebugOpen review-round -DebugReviewHole 2 -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off
