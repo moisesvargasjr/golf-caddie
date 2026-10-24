@@ -83,6 +83,7 @@
 		5FCC058F5D19BE5D1BF40506 /* ActiveRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D378A1B035D31197677B6907 /* ActiveRoundView.swift */; };
 		6019B5EA8C6B91F8BB6728A7 /* TraceIngest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FF186CB2A3B9B53E2556419 /* TraceIngest.swift */; };
 		607DA573E6C1A22EBF495EBB /* TeeSnapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CBB0245E8C197064FD1D424 /* TeeSnapTests.swift */; };
+		622DA27E996E8A109DDC158B /* ScreenshotTourUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0D2E1053412AC2714670F3 /* ScreenshotTourUITests.swift */; };
 		63FC2C6E4606E4ECB82C5E2E /* ClubConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D022ED10FCFF616D8B4F7B /* ClubConfiguration.swift */; };
 		6671E6DCD9159C766A5E9328 /* TrackSegmenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1605D89D0BC1BC04C4959583 /* TrackSegmenterTests.swift */; };
 		6692E9C57FAA295FFF00D809 /* CourseDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6C5585634E087EC01A5E2B /* CourseDetector.swift */; };
@@ -253,6 +254,7 @@
 		2A3B9A55AF8B0E6E38607DC6 /* ShotReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShotReconcilerTests.swift; sourceTree = "<group>"; };
 		2BDB736FA47E930506C4C4B9 /* GolfState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfState.swift; sourceTree = "<group>"; };
 		2D2B5E6DEB2E65AB3E9B4FF6 /* BagSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BagSetupView.swift; sourceTree = "<group>"; };
+		2E0D2E1053412AC2714670F3 /* ScreenshotTourUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTourUITests.swift; sourceTree = "<group>"; };
 		2E1C02694948AAB843ABC39F /* TrailMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailMerge.swift; sourceTree = "<group>"; };
 		2E475F6959737E6990AB467F /* MotionRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionRecorder.swift; sourceTree = "<group>"; };
 		3060BD727058056FCC94E4B4 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -623,6 +625,7 @@
 			isa = PBXGroup;
 			children = (
 				05FFB723E71FE46DC7310499 /* PostureSwitchUITests.swift */,
+				2E0D2E1053412AC2714670F3 /* ScreenshotTourUITests.swift */,
 			);
 			path = GolfCaddieUITests;
 			sourceTree = "<group>";
@@ -908,6 +911,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0D5BB0B55D6E729492D0C8D8 /* PostureSwitchUITests.swift in Sources */,
+				622DA27E996E8A109DDC158B /* ScreenshotTourUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
