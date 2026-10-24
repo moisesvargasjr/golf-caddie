@@ -34,6 +34,11 @@ struct FoldedLayout: View {
                                 .reportsChromeFrame("hint")
                                 .padding(.top, 10)
                         }
+                        if showsSheet, model.reviewNext != nil {
+                            reviewExits
+                                .reportsChromeFrame("reviewExits")
+                                .padding(.top, 10)
+                        }
                         Spacer(minLength: 0)
                         if !showsSheet { bottomLeftCard }
                     }
@@ -130,6 +135,19 @@ struct FoldedLayout: View {
             }
         }
         .padding(6)
+        .chromeBox()
+    }
+
+    /// Review with the score sheet up (an unscored hole): the sheet hides
+    /// the boxes, so ‹ CARD and ··· stay here — otherwise the hole is a
+    /// dead end on folded (‹ › only move between holes).
+    private var reviewExits: some View {
+        HStack(spacing: 5) {
+            CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
+            RoundOverflowMenu(model: model, actions: actions, frame: .outline)
+        }
+        .fixedSize()
+        .padding(5)
         .chromeBox()
     }
 
