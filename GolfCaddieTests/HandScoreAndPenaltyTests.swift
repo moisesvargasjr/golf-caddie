@@ -190,3 +190,25 @@ final class HandScoreAndPenaltyTests: XCTestCase {
         XCTAssertThrowsError(try ShotRepository.setPuttCount(-1, holeID: hole.id, putterID: nil))
     }
 }
+
+// MARK: - Par after a course re-link
+
+extension HandScoreAndPenaltyTests {
+    func testAnAutoFilledParFollowsTheNewCourse() {
+        // Linked The Fountains by mistake (hole 1 par 3), then The Vineyard (par 4).
+        XCTAssertEqual(RoundController.parAfterRelink(current: 3, previousCoursePar: 3, newCoursePar: 4), .some(4))
+    }
+
+    func testAHandTypedParStays() {
+        XCTAssertNil(RoundController.parAfterRelink(current: 5, previousCoursePar: 3, newCoursePar: 4))
+    }
+
+    func testUnlinkingClearsAnAutoFilledPar() {
+        XCTAssertEqual(RoundController.parAfterRelink(current: 3, previousCoursePar: 3, newCoursePar: nil), .some(nil))
+    }
+
+    func testNoParOrTheSameParIsLeftAlone() {
+        XCTAssertNil(RoundController.parAfterRelink(current: nil, previousCoursePar: 3, newCoursePar: 4))
+        XCTAssertNil(RoundController.parAfterRelink(current: 4, previousCoursePar: 4, newCoursePar: 4))
+    }
+}
