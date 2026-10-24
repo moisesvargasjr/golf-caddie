@@ -7,10 +7,16 @@ import Foundation
 enum FinishedRoundActions {
     /// Links (or, with nil, unlinks) the round's curated course. A link also
     /// adopts the course's name as the round's label — the same as the
-    /// in-round link — so a wrong auto-detected name gets replaced. Returns
-    /// the updated round; the passed one is not changed.
+    /// in-round link — so a wrong auto-detected name gets replaced, and the
+    /// pars the old course filled in follow the new one (`CourseRelinkPars`,
+    /// the live round's rule). Returns the updated round; the passed one is
+    /// not changed.
     static func settingCourse(_ id: String?, on round: Round, courses: [CuratedCourse]) throws -> Round {
+        let parChanges = try CourseRelinkPars.changes(roundID: round.id, from: round.curatedCourseId, to: id)
         try RoundRepository.setCuratedCourseId(roundID: round.id, id: id)
+        for change in parChanges {
+            try HoleRepository.setPar(holeID: change.holeID, par: change.par)
+        }
         var updated = round
         updated.curatedCourseId = id
         if let id, let name = courses.first(where: { $0.id == id })?.name {

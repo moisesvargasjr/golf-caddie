@@ -1,3 +1,4 @@
+import GRDB
 import XCTest
 @testable import GolfCaddie
 
@@ -249,5 +250,43 @@ final class RoundReviewTests: XCTestCase {
         XCTAssertEqual(onSeven.applying(.backToCard), .card)
         XCTAssertEqual(onSeven.backToCard(), .card)
         XCTAssertEqual(onSeven.openingHole(3).reviewHole, 3, "‹ › move within the review")
+    }
+}
+
+/// The finished round's ··· course correction moves auto-filled pars to the
+/// new course, like the live round does (#35 review).
+@MainActor
+final class FinishedRoundCourseTests: XCTestCase {
+    private var queue: DatabaseQueue!
+
+    override func setUpWithError() throws {
+        queue = try TestDatabase.makeInMemory()
+        TestDatabase.install(queue)
+    }
+
+    override func tearDownWithError() throws {
+        TestDatabase.restore()
+        queue = nil
+    }
+
+    func testCorrectingTheCourseAfterTheRoundMovesItsPars() throws {
+        func course(_ id: String, pars: [Int]) -> CuratedCourse {
+            CuratedCourse(id: id, name: id == "A" ? "The Fountains" : "The Vineyard", aliases: [],
+                          location: GeoPoint(lat: 0, lng: 0),
+                          holes: pars.enumerated().map { CuratedHole(number: $0.offset + 1, par: $0.element) })
+        }
+        let courses = [course("A", pars: [3, 4]), course("B", pars: [4, 4])]
+        try CourseDataRepository.replaceAll(with: courses, fetchedAt: Date())
+        let round = try TestDatabase.seedRound(endedAt: Date(), courseName: "The Fountains", curatedCourseId: "A")
+        let one = try TestDatabase.seedHole(roundID: round.id, holeNumber: 1, par: 3, confirmedAt: Date())
+        let two = try TestDatabase.seedHole(roundID: round.id, holeNumber: 2, par: 5, confirmedAt: Date())
+
+        let updated = try FinishedRoundActions.settingCourse("B", on: round, courses: courses)
+        XCTAssertEqual(updated.curatedCourseId, "B")
+        XCTAssertEqual(updated.courseName, "The Vineyard")
+        let pars = try HoleRepository.holesForRound(round.id).sorted { $0.holeNumber < $1.holeNumber }.map(\.par)
+        XCTAssertEqual(pars, [4, 5], "hole 1 was A's auto-filled par 3; hole 2's 5 was typed by hand")
+        XCTAssertEqual(try HoleRepository.holesForRound(round.id).first { $0.id == one.id }?.par, 4)
+        XCTAssertEqual(try HoleRepository.holesForRound(round.id).first { $0.id == two.id }?.par, 5)
     }
 }
