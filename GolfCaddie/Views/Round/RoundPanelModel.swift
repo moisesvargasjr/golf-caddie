@@ -123,6 +123,22 @@ struct RoundPanelModel {
     var compassRotation: Double
     var toast: RoundToast?
 
+    // Review (a finished round; PR 7)
+    /// Next hole › / Back to card ›; nil outside review.
+    var reviewNext: ReviewNavigation.Next? = nil
+    /// "RESULT · 3 SHOTS + 2 PUTTS".
+    var reviewResultLabel: String = ""
+    /// The hole's score (nil before one is entered).
+    var reviewScore: Int? = nil
+    /// "+1 · BOGEY".
+    var reviewToParLabel: String = ""
+    /// The hole's putts (the result card's stepper).
+    var putts: Int? = nil
+    /// ··· items for a finished round; nil in the live round.
+    var roundActions: RoundActionsAvailability? = nil
+    /// The ··· section header ("NATIVE OAKS · OCT 23 · 79 (+7)").
+    var roundActionsTitle: String = "THIS ROUND"
+
     var showsClubList: Bool { state != .entry && mode.tracksShots }
     /// The round so far takes the shot list's / club list's place (casual).
     var showsRoundSoFar: Bool { mode.showsRoundSoFar }
@@ -139,8 +155,25 @@ struct RoundPanelModel {
     /// Short version for narrow buttons.
     var backToLiveShortTitle: String { "BACK TO HOLE \(liveHoleNumber ?? holeNumber)" }
     var hintText: String {
-        watchDetecting ? "WATCH IS DETECTING SWINGS · HOLD THE MAP TO ADD A SHOT"
+        if reviewNext != nil { return ReviewText.reviewHint }
+        return watchDetecting ? "WATCH IS DETECTING SWINGS · HOLD THE MAP TO ADD A SHOT"
             : "DRAG A PIN TO MOVE IT · HOLD THE MAP TO ADD ONE"
+    }
+    /// The hint line over the actions: the live tracked hole, or a finished
+    /// tracked hole in review.
+    var showsPanelHint: Bool {
+        (isLiveHole && mode.tracksShots) || (reviewNext != nil && state == .pastTracked)
+    }
+    /// The result card's PUTTS stepper (review, a tracked hole; a hand-scored
+    /// hole edits its putts in the score entry).
+    var showsPuttsStepper: Bool { mode.editsPuttsInResult && state == .pastTracked }
+    var cardTitle: String { mode.cardButtonTitle }
+    /// "5", or "—" before a score.
+    var reviewScoreText: String { reviewScore.map { String($0) } ?? "—" }
+    /// Review shows the hole's result card: a finished tracked hole, or a
+    /// hole already scored by hand (one still to enter shows NOT TRACKED).
+    var showsReviewResult: Bool {
+        reviewNext != nil && (state == .pastTracked || (state == .entry && reviewScore != nil))
     }
 }
 
@@ -172,6 +205,10 @@ struct RoundPanelActions {
     /// A hole in the round-so-far list: open it to edit its score.
     var openRoundHole: (Int) -> Void = { _ in }
 
+    /// Review: Next hole › (or Back to card ›), and the result card's putts.
+    var reviewNext: () -> Void = {}
+    var stepPutts: (Int) -> Void = { _ in }
+
     var stepEntryStrokes: (Int) -> Void = { _ in }
     var stepEntryPutts: (Int) -> Void = { _ in }
     var saveEntry: () -> Void = {}
@@ -188,4 +225,6 @@ struct RoundPanelActions {
     var unlinkCourse: () -> Void = {}
     var toggleCasual: () -> Void = {}
     var endRound: () -> Void = {}
+    /// ··· for a finished round (review).
+    var roundActions = RoundActionHandlers()
 }

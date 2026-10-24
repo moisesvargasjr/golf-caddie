@@ -17,11 +17,13 @@ struct ScorecardScreen: View {
     /// through it. nil for finished rounds.
     let live: LiveHoleEditing?
     let onDismiss: () -> Void
-    /// Open hole n: in the live round, jump to it; PR 7 routes finished rounds
-    /// to the hole's review on the map. nil = the CTA hides.
+    /// Open hole n: in the live round, go to it on the map; a finished round
+    /// opens the hole's review (`FinishedRoundScreen`). nil = the CTA hides.
     let onOpenHole: ((Int) -> Void)?
     /// The card's MAP button (PR 8: the whole-course map). nil = hidden.
     let onOpenCourseMap: (() -> Void)?
+    /// ··· beside the header buttons (a finished round's round actions).
+    let roundMenu: AnyView?
 
     @Environment(\.displayContext) private var display
     @State private var snapshot = ScorecardSnapshot(model: ScorecardModel(columns: [], hasStrokeIndex: false),
@@ -32,7 +34,8 @@ struct ScorecardScreen: View {
 
     init(round: Round, currentHoleNumber: Int?, curatedCourseId: String?,
          live: LiveHoleEditing? = nil, onDismiss: @escaping () -> Void,
-         onOpenHole: ((Int) -> Void)? = nil, onOpenCourseMap: (() -> Void)? = nil) {
+         onOpenHole: ((Int) -> Void)? = nil, onOpenCourseMap: (() -> Void)? = nil,
+         roundMenu: AnyView? = nil) {
         self.round = round
         self.currentHoleNumber = currentHoleNumber
         self.curatedCourseId = curatedCourseId
@@ -40,6 +43,7 @@ struct ScorecardScreen: View {
         self.onDismiss = onDismiss
         self.onOpenHole = onOpenHole
         self.onOpenCourseMap = onOpenCourseMap
+        self.roundMenu = roundMenu
     }
 
     private var variant: ScorecardVariant { .resolve(display) }
@@ -85,7 +89,8 @@ struct ScorecardScreen: View {
             courseName: snapshot.courseName ?? round.courseName ?? "Golf course",
             currentHole: currentHoleNumber, variant: variant,
             canOpenHole: onOpenHole != nil, loadError: loadError,
-            onDismiss: onDismiss, onOpenCourseMap: onOpenCourseMap, onPick: perform)
+            onDismiss: onDismiss, onOpenCourseMap: onOpenCourseMap, onPick: perform,
+            roundMenu: roundMenu)
     }
 
     private var loadingOrError: some View {
@@ -152,6 +157,8 @@ struct ScorecardContent {
     let onDismiss: () -> Void
     let onOpenCourseMap: (() -> Void)?
     let onPick: (ScorecardPick) -> Void
+    /// ··· with the round actions (finished rounds); nil = none.
+    var roundMenu: AnyView? = nil
 
     var isFinished: Bool { round.endedAt != nil || currentHole == nil }
     var dismissTitle: String { ScorecardText.dismissTitle(variant: variant, currentHole: currentHole) }

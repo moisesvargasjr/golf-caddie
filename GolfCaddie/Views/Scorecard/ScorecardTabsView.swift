@@ -49,6 +49,9 @@ struct ScorecardTabsView: View {
             if let openMap = content.onOpenCourseMap {
                 ScorecardCourseMapButton(action: openMap)
             }
+            if let menu = content.roundMenu {
+                menu
+            }
             ScorecardOutlinedButton(title: content.dismissTitle, action: content.onDismiss)
                 .accessibilityIdentifier("scorecard.dismiss")
         }

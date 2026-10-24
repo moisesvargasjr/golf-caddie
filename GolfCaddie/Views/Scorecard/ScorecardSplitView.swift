@@ -83,6 +83,9 @@ struct ScorecardSplitView: View {
             if let openMap = content.onOpenCourseMap {
                 ScorecardCourseMapButton(action: openMap)
             }
+            if let menu = content.roundMenu {
+                menu
+            }
             ScorecardOutlinedButton(title: content.dismissTitle, action: content.onDismiss)
                 .accessibilityIdentifier("scorecard.dismiss")
         }
@@ -163,6 +166,9 @@ struct ScorecardLandscapeCard: View {
             }
             if let openMap = content.onOpenCourseMap {
                 ScorecardCourseMapButton(action: openMap)
+            }
+            if let menu = content.roundMenu {
+                menu
             }
             ScorecardOutlinedButton(title: content.dismissTitle, action: content.onDismiss)
                 .accessibilityIdentifier("scorecard.dismiss")

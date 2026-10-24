@@ -9,6 +9,8 @@ import SwiftUI
 /// boxes on the right — Finish / + SHOT / ··· CARD hide on top, the club
 /// list below. + PENALTY is in ···. Casual (canvas Folded-Casual): Finish
 /// fills the top box; the lower box is the round's scores as squares.
+/// Review (Review-Folded): Next hole ›, PUTTS − n +, then ‹ CARD · + PEN ·
+/// ··· on top; the result card bottom-left.
 struct FoldedLayout: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -72,7 +74,8 @@ struct FoldedLayout: View {
                 .reportsChromeFrame("card")
         } else {
             ResultOrYardageCard(model: model, style: .inline(hero: 50), floating: true,
-                                linkCourse: actions.linkCourse)
+                                linkCourse: actions.linkCourse,
+                                reviewActions: actions)
                 .frame(maxWidth: Self.cardWidth)
                 .reportsChromeFrame("card")
         }
@@ -92,23 +95,48 @@ struct FoldedLayout: View {
                         .accessibilityLabel("Log a shot here")
                         .accessibilityIdentifier(InRoundAccessibilityID.addShot)
                 }
+            } else if let next = model.reviewNext {
+                ReviewNextButton(next: next, actions: actions, fontSize: 16, minHeight: 44)
+                    .frame(maxHeight: .infinity)
+                if model.showsPuttsStepper {
+                    ReviewPuttsStepper(model: model, actions: actions, compact: true)
+                }
             } else {
                 PrimaryActionButton(title: model.backToLiveTitle, fontSize: 15, minHeight: 44,
                                     action: actions.backToLive)
                     .frame(maxHeight: .infinity)
                     .accessibilityIdentifier(InRoundAccessibilityID.backToLive)
             }
-            HStack(spacing: 5) {
-                RoundOverflowMenu(model: model, actions: actions, frame: .outline, includesPenalty: true)
-                    .frame(maxWidth: .infinity)
-                CardButton(actions: actions, frame: .outline, fontSize: 9)
-                    .frame(maxWidth: .infinity)
-                HideControlsButton(actions: actions, frame: .outline)
-                    .frame(maxWidth: .infinity)
+            if model.reviewNext != nil {
+                reviewRow
+            } else {
+                HStack(spacing: 5) {
+                    RoundOverflowMenu(model: model, actions: actions, frame: .outline, includesPenalty: true)
+                        .frame(maxWidth: .infinity)
+                    CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
+                        .frame(maxWidth: .infinity)
+                    HideControlsButton(actions: actions, frame: .outline)
+                        .frame(maxWidth: .infinity)
+                }
             }
         }
         .padding(6)
         .chromeBox()
+    }
+
+    /// Review (Review-Folded): ‹ CARD · + PEN · ··· (round actions).
+    private var reviewRow: some View {
+        HStack(spacing: 5) {
+            CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
+                .frame(maxWidth: .infinity)
+            if model.state == .pastTracked {
+                OutlineActionButton(title: "+ PEN", isAlert: true, fontSize: 9, action: actions.askPenalty)
+                    .accessibilityLabel("Add a penalty")
+                    .accessibilityIdentifier(InRoundAccessibilityID.addPenalty)
+            }
+            RoundOverflowMenu(model: model, actions: actions, frame: .outline)
+                .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -127,7 +155,7 @@ struct PhonePortraitLayout: View {
                 HoleTitleBar(model: model, actions: actions, style: .stacked(size: 20),
                              caption: model.compactCaption,
                              trailing: AnyView(HStack(spacing: 0) {
-                                 CardButton(actions: actions, frame: .plain)
+                                 CardButton(actions: actions, title: model.cardTitle, frame: .plain)
                                  RoundOverflowMenu(model: model, actions: actions, frame: .plain)
                              }))
                     .reportsChromeFrame("title")
@@ -162,7 +190,8 @@ struct PhonePortraitLayout: View {
 
     private var panel: some View {
         VStack(spacing: 8) {
-            ResultOrYardageCard(model: model, style: .inline(hero: 52), linkCourse: actions.linkCourse) {
+            ResultOrYardageCard(model: model, style: .inline(hero: 52), linkCourse: actions.linkCourse,
+                                reviewActions: actions) {
                 HideControlsButton(actions: actions, frame: .outline)
             }
             if model.showsClubList {
@@ -206,7 +235,7 @@ struct PhoneLandscapeLayout: View {
             HStack(spacing: 6) {
                 CompassChromeButton(model: model, actions: actions)
                 HideControlsButton(actions: actions)
-                CardButton(actions: actions)
+                CardButton(actions: actions, title: model.cardTitle)
                 RoundOverflowMenu(model: model, actions: actions)
             }
             .fixedSize()

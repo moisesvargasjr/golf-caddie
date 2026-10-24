@@ -27,6 +27,8 @@ extension RoundMapScreen {
             pickScorePutts: { scoreDraft = scoreDraft.picking(putts: $0) },
             saveScore: saveScore,
             openRoundHole: openRoundHole,
+            reviewNext: goToReviewNext,
+            stepPutts: stepPutts,
             stepEntryStrokes: { entryDraft = entryDraft.steppingStrokes(by: $0) },
             stepEntryPutts: { entryDraft = entryDraft.steppingPutts(by: $0) },
             saveEntry: saveEntry,
@@ -39,8 +41,32 @@ extension RoundMapScreen {
             linkCourse: host.linkCourse,
             unlinkCourse: host.unlinkCourse,
             toggleCasual: host.toggleCasual,
-            endRound: host.endRound
+            endRound: host.endRound,
+            roundActions: host.roundActionHandlers
         )
+    }
+
+    // MARK: Review
+
+    /// Next hole › in play order; on the round's last hole, back to the card.
+    private func goToReviewNext() {
+        question = nil
+        switch ReviewNavigation.next(after: holeNumber, startingHole: session?.startingHole) {
+        case let .hole(number): viewedHole = number
+        case .backToCard: host.openCard()
+        }
+    }
+
+    /// The result card's PUTTS − n +: trims or appends putt strokes on a
+    /// tracked hole (`HoleSession.setPutts`).
+    private func stepPutts(_ delta: Int) {
+        guard let session else { return }
+        let putts = ReviewPutts.stepped(session.putts, by: delta)
+        guard putts != session.putts else { return }
+        perform("change the putts") {
+            try session.setPutts(putts)
+            refreshRoundScore()
+        }
     }
 
     // MARK: Navigation

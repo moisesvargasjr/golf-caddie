@@ -78,6 +78,9 @@ struct PhysicalScorecardView: View {
             if let openMap = content.onOpenCourseMap {
                 ScorecardCourseMapButton(action: openMap)
             }
+            if let menu = content.roundMenu {
+                menu
+            }
         }
     }
 

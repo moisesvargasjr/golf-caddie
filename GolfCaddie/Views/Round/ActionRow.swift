@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// + SHOT (small: the watch logs most shots), + PENALTY, and the primary
-/// Finish hole ›. On a finished hole: + PENALTY and Back to hole N ›.
+/// Finish hole ›. On a finished hole: + PENALTY and Back to hole N ›; in a
+/// finished round's review: + PENALTY and Next hole › (Back to card ›).
 struct ActionRow: View {
     enum Style: Equatable {
         /// Small buttons over a full-width primary (side panels).
@@ -68,6 +69,8 @@ struct ActionRow: View {
             PrimaryActionButton(title: InRoundLabels.finish, fontSize: font, minHeight: height,
                                 action: actions.finishHole)
                 .accessibilityIdentifier(InRoundAccessibilityID.finishHole)
+        } else if let next = model.reviewNext {
+            ReviewNextButton(next: next, actions: actions, fontSize: font - 1, minHeight: height)
         } else {
             PrimaryActionButton(title: model.backToLiveTitle, fontSize: font - 2, minHeight: height,
                                 action: actions.backToLive)

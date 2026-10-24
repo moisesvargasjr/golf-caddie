@@ -3,7 +3,7 @@ import SwiftUI
 /// Home / landing screen — "The Fairway Logbook" masthead.
 ///
 /// Shown when no round is active. Hosts the last-completed-round summary
-/// (tap → push Summary), the Begin-new-round CTA, and navigation to the
+/// (tap → the round's card), the Begin-new-round CTA, and navigation to the
 /// Logbook (rounds list) and Settings.
 struct HomeView: View {
     @Binding var bag: [Club]
@@ -26,7 +26,9 @@ struct HomeView: View {
     #if DEBUG
     @State private var debugShowLogbook = false
     @State private var debugShowSettings = false
-    @State private var debugRoundCard: Round?
+    /// `-DebugOpen roundcard` (the card) / `review-round` (a hole's review).
+    @State private var debugRound: Round?
+    @State private var debugReviewHole: Int?
     #endif
 
     var body: some View {
@@ -100,7 +102,8 @@ struct HomeView: View {
             case "logbook": debugShowLogbook = true
             case "settings": debugShowSettings = true
             case "bag": showClubsInPlay = true
-            case "roundcard": debugRoundCard = DebugScorecardSeed.finishedRound()
+            case "roundcard": debugRound = DebugScorecardSeed.finishedRound()
+            case "review-round": openDebugReview()
             default: break
             }
             #endif
@@ -108,17 +111,32 @@ struct HomeView: View {
         #if DEBUG
         .navigationDestination(isPresented: $debugShowLogbook) { RoundListView(bag: bag) }
         .navigationDestination(isPresented: $debugShowSettings) { SettingsView(bag: $bag) }
-        // A finished round's card (PR 7 routes Logbook → card for real).
-        .fullScreenCover(item: $debugRoundCard) { round in
-            AdaptiveScorecardPresentation(
-                round: round,
-                currentHoleNumber: nil,
-                curatedCourseId: round.curatedCourseId,
-                onDismiss: { debugRoundCard = nil }
-            )
+        // A finished round: its card, or straight into a hole's review.
+        .navigationDestination(isPresented: debugRoundShown) {
+            if let round = debugRound {
+                FinishedRoundScreen(round: round, bag: bag, initialHole: debugReviewHole,
+                                    onDeleted: { refresh() })
+            }
         }
         #endif
     }
+
+    #if DEBUG
+    private var debugRoundShown: Binding<Bool> {
+        Binding(get: { debugRound != nil }, set: { if !$0 { debugRound = nil } })
+    }
+
+    /// `-DebugOpen review-round [-DebugReviewHole N]`: a finished round's
+    /// review on hole N (default: the round's first hole). Seeds a finished
+    /// round when there is none (`DebugScorecardSeed`).
+    private func openDebugReview() {
+        guard let round = DebugScorecardSeed.finishedRound() else { return }
+        let requested = UserDefaults.standard.integer(forKey: "DebugReviewHole")
+        debugReviewHole = HoleScoring.holeRange.contains(requested)
+            ? requested : ReviewNavigation.firstHole(startingHole: round.startingHole)
+        debugRound = round
+    }
+    #endif
 
     // MARK: - Top bar
 
@@ -174,13 +192,7 @@ struct HomeView: View {
 
     private func lastEntryBlock(summary: LastRoundSummary) -> some View {
         NavigationLink {
-            RoundReviewView(
-                round: summary.round,
-                bag: bag,
-                onResume: nil,
-                onDismiss: nil,
-                onDeleted: { refresh() }
-            )
+            FinishedRoundScreen(round: summary.round, bag: bag, onDeleted: { refresh() })
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 Text("LAST ENTRY · TAP TO REVIEW")

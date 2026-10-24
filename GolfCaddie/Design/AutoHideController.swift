@@ -29,6 +29,8 @@ enum AutoHidePauseReason: Hashable, Sendable, CaseIterable {
     case selection
     /// A pin is being dragged.
     case drag
+    /// The screen's mode has auto-hide off (a finished round's review).
+    case modeOff
 }
 
 /// Cancels one scheduled auto-hide.

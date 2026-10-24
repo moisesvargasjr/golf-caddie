@@ -117,16 +117,17 @@ struct HideControlsButton: View {
     }
 }
 
-/// CARD — the existing scorecard sheet (PR 6 replaces the card itself).
+/// CARD — the round's scorecard; "‹ CARD" in review goes back to it.
 struct CardButton: View {
     let actions: RoundPanelActions
+    var title = "CARD"
     var frame: ChromeFrame = .box
     var fontSize: CGFloat = 10
     @Environment(\.palette) private var palette
 
     var body: some View {
         Button(action: actions.openCard) {
-            Text("CARD")
+            Text(title)
                 .font(RoundFont.mono(fontSize))
                 .tracking(0.8)
                 .foregroundStyle(palette.ink)
@@ -136,13 +137,14 @@ struct CardButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open scorecard")
+        .accessibilityLabel(title == "CARD" ? "Open scorecard" : "Back to the scorecard")
         .accessibilityIdentifier(InRoundAccessibilityID.card)
     }
 }
 
-/// ··· — round actions: penalty (folded), clubs in play, course link,
-/// tracking ⇄ casual, end round.
+/// ··· — the live round: penalty (folded), clubs in play, course link,
+/// tracking ⇄ casual, end round. A finished round (review): the round
+/// actions — share, resume, course, delete (`RoundActionsMenu`).
 struct RoundOverflowMenu: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -152,20 +154,13 @@ struct RoundOverflowMenu: View {
 
     var body: some View {
         Menu {
-            if includesPenalty, model.state != .entry, model.mode.tracksShots {
-                Button("Add a penalty…", action: actions.askPenalty)
-            }
-            Button("Clubs in play…", action: actions.openBag)
-            if model.needsCourseLink {
-                Button("Link course…", action: actions.linkCourse)
+            if let availability = model.roundActions {
+                RoundActionsMenu(availability: availability, title: model.roundActionsTitle,
+                                 handlers: actions.roundActions,
+                                 addPenalty: offersPenalty ? actions.askPenalty : nil)
             } else {
-                Section(model.courseName ?? "Course linked") {
-                    Button("Change course…", action: actions.linkCourse)
-                    Button("Unlink course", role: .destructive, action: actions.unlinkCourse)
-                }
+                liveItems
             }
-            Button(model.mode == .casual ? "Switch to tracking" : "Switch to casual", action: actions.toggleCasual)
-            Button("End round", role: .destructive, action: actions.endRound)
         } label: {
             Text("···")
                 .font(.system(size: 16, weight: .bold))
@@ -175,9 +170,36 @@ struct RoundOverflowMenu: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(includesPenalty ? "More: penalty, end round, settings" : "More: end round, settings")
+        .accessibilityLabel(accessibilityText)
         .accessibilityIdentifier(InRoundAccessibilityID.more)
         .simultaneousGesture(TapGesture().onEnded { actions.noteInteraction() })
+    }
+
+    private var offersPenalty: Bool {
+        includesPenalty && model.state != .entry && model.mode.tracksShots
+    }
+
+    private var accessibilityText: String {
+        if model.roundActions != nil { return "Round options: share, resume, course, delete" }
+        return includesPenalty ? "More: penalty, end round, settings" : "More: end round, settings"
+    }
+
+    @ViewBuilder
+    private var liveItems: some View {
+        if offersPenalty {
+            Button("Add a penalty…", action: actions.askPenalty)
+        }
+        Button("Clubs in play…", action: actions.openBag)
+        if model.needsCourseLink {
+            Button("Link course…", action: actions.linkCourse)
+        } else {
+            Section(model.courseName ?? "Course linked") {
+                Button("Change course…", action: actions.linkCourse)
+                Button("Unlink course", role: .destructive, action: actions.unlinkCourse)
+            }
+        }
+        Button(model.mode == .casual ? "Switch to tracking" : "Switch to casual", action: actions.toggleCasual)
+        Button("End round", role: .destructive, action: actions.endRound)
     }
 }
 

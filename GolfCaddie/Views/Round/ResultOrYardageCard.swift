@@ -18,6 +18,8 @@ struct ResultOrYardageCard<Accessory: View>: View {
     /// Floating box (folded) instead of a ruled box inside a panel.
     var floating = false
     var linkCourse: () -> Void = {}
+    /// Review's PUTTS stepper writes through these.
+    var reviewActions = RoundPanelActions()
     @ViewBuilder var accessory: () -> Accessory
 
     @Environment(\.palette) private var palette
@@ -35,6 +37,8 @@ struct ResultOrYardageCard<Accessory: View>: View {
     private var content: some View {
         if model.viewingLive {
             yardage // casual too: every casual board shows the yardage card
+        } else if model.showsReviewResult {
+            reviewResult
         } else if model.state == .pastTracked {
             result
         } else if model.showsRoundSoFar {
@@ -129,12 +133,29 @@ struct ResultOrYardageCard<Accessory: View>: View {
     }
 
     private var showsNotTracked: Bool {
-        !model.viewingLive && model.state == .entry && !model.showsRoundSoFar
+        !model.viewingLive && model.state == .entry && !model.showsRoundSoFar && !model.showsReviewResult
     }
 
     private var isStacked: Bool {
         if case .stacked = style { return true }
         return false
+    }
+
+    // MARK: Review (a finished round)
+
+    @ViewBuilder
+    private var reviewResult: some View {
+        switch style {
+        case let .stacked(hero):
+            ReviewResultBlock(model: model, actions: reviewActions, stacked: true, hero: hero)
+        case let .inline(hero):
+            HStack(alignment: .center, spacing: 6) {
+                // Folded keeps its PUTTS stepper in the action box.
+                ReviewResultBlock(model: model, actions: reviewActions, stacked: false, hero: hero,
+                                  showsStepper: model.layout != .folded)
+                accessory()
+            }
+        }
     }
 
     // MARK: Past hole
@@ -197,8 +218,10 @@ struct ResultOrYardageCard<Accessory: View>: View {
 }
 
 extension ResultOrYardageCard where Accessory == EmptyView {
-    init(model: RoundPanelModel, style: YardageCardStyle, floating: Bool = false, linkCourse: @escaping () -> Void = {}) {
-        self.init(model: model, style: style, floating: floating, linkCourse: linkCourse) { EmptyView() }
+    init(model: RoundPanelModel, style: YardageCardStyle, floating: Bool = false,
+         linkCourse: @escaping () -> Void = {}, reviewActions: RoundPanelActions = RoundPanelActions()) {
+        self.init(model: model, style: style, floating: floating, linkCourse: linkCourse,
+                  reviewActions: reviewActions) { EmptyView() }
     }
 }
 
