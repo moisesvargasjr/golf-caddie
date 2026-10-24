@@ -15,7 +15,14 @@ if (( free_gb < 10 )); then log "ABORT: disk below 10G"; exit 3; fi
 RT=com.apple.CoreSimulator.SimRuntime.iOS-27-1
 dev() { xcrun simctl list devices -j | /usr/bin/python3 -I -c "import json,sys;d=json.load(sys.stdin)['devices'].get('$RT',[]);print(next((x['udid'] for x in d if x['name']=='$1'),''))"; }
 DUO=$(dev "iPhone Duo"); [[ -z $DUO ]] && DUO=$(xcrun simctl create "iPhone Duo" com.apple.CoreSimulator.SimDeviceType.iPhone-Duo $RT)
-PRO=$(dev "iPhone 17 Pro"); [[ -z $PRO ]] && PRO=$(xcrun simctl create "iPhone 17 Pro" com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro $RT)
+# iOS 27.1 accepts only the Duo; take an iPhone 17 Pro from any iOS runtime, else create one on the newest runtime that accepts it.
+anydev() { xcrun simctl list devices -j | /usr/bin/python3 -I -c "import json,sys;d=json.load(sys.stdin)['devices'];print(next((x['udid'] for r,l in sorted(d.items(),reverse=True) if '.iOS-' in r for x in l if x['name']=='$1' and x.get('isAvailable',True)),''))"; }
+PRO=$(anydev "iPhone 17 Pro")
+if [[ -z $PRO ]]; then
+  for prt in $(xcrun simctl list runtimes -j | /usr/bin/python3 -I -c "import json,sys;print(' '.join(sorted((r['identifier'] for r in json.load(sys.stdin)['runtimes'] if r['identifier'].split('.')[-1].startswith('iOS-') and r.get('isAvailable')),reverse=True)))"); do
+    PRO=$(xcrun simctl create "iPhone 17 Pro" com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro $prt 2>/dev/null) && break
+  done
+fi
 log "duo=$DUO pro=$PRO"
 
 cd $WT
