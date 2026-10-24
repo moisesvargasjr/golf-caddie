@@ -198,6 +198,12 @@ struct ActiveRoundView: View {
         default: break
         }
         if UserDefaults.standard.bool(forKey: "DebugShowHoleGrid") { showHoleGrid = true }
+        // `-DebugViewHole N`: open hole N as a grid pick would (a hole before
+        // a late start shows iPhone-PastHole's score entry).
+        let viewHole = UserDefaults.standard.integer(forKey: "DebugViewHole")
+        if HoleScoring.holeRange.contains(viewHole), let round = controller.currentRound {
+            pickFromGrid(viewHole, round: round)
+        }
     }
     #endif
 
