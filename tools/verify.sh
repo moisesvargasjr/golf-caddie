@@ -3,7 +3,7 @@
 # Serial: build-for-testing once, test on Duo then 17 Pro, then the screenshot tour on each.
 # Never run two at once (resource-capped Mac). Results -> $OUT/<tag>/
 set -u
-WT=$1; TAG=$2; TOURFILE=${3:-}
+WT=${1:A}; TAG=$2; TOURFILE=${3:+${3:A}}
 S=${0:A:h}; OUT=${RESULTS:-$S/results}/$TAG; mkdir -p $OUT
 DD=$WT/.dd
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a $OUT/verify.log; }

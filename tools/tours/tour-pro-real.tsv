@@ -1,3 +1,3 @@
 real	pro-round|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugAutoHide off
-real	pro-past-hole|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugViewHole 4 -DebugAutoHide off
-real	pro-card|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card
+real2	pro-past-hole|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugViewHole 4 -DebugAutoHide off
+real3	pro-card|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card
