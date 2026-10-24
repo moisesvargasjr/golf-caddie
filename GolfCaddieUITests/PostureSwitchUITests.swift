@@ -35,6 +35,9 @@ final class PostureSwitchUITests: XCTestCase {
             "-DebugLayoutClass", "compact",
             "-DebugPosture", "closed",
             "-DebugPostureControls", "1",
+            // Keep the controls up on the folded pose (auto-hide would hide
+            // round.nextHole after 5 s).
+            "-DebugAutoHide", "off",
         ]
         app.launch()
         dismissLocationPromptIfShown()

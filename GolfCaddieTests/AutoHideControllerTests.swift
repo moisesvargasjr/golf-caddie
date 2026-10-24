@@ -298,6 +298,36 @@ final class AutoHideControllerTests: XCTestCase {
         XCTAssertEqual(controller.pauseReasons, [.question])
     }
 
+    // MARK: Policy override (DEBUG -DebugAutoHide off)
+
+    func testOverrideParsing() {
+        XCTAssertEqual(AutoHidePolicy.forced(named: "off"), .manual)
+        XCTAssertEqual(AutoHidePolicy.forced(named: "OFF"), .manual)
+        XCTAssertEqual(AutoHidePolicy.forced(named: "manual"), .manual)
+        XCTAssertEqual(AutoHidePolicy.forced(named: "on"), .automatic)
+        XCTAssertNil(AutoHidePolicy.forced(named: nil))
+        XCTAssertNil(AutoHidePolicy.forced(named: "bogus"))
+    }
+
+    func testOverrideForcesManualOnFolded() {
+        let clock = TestAutoHideScheduler()
+        let controller = AutoHideController(display: folded, scheduler: clock, policyOverride: .manual)
+        XCTAssertEqual(controller.policy, .manual)
+        clock.advance(by: 60)
+        XCTAssertFalse(controller.isHidden)
+        XCTAssertEqual(clock.pendingCount, 0)
+    }
+
+    func testOverrideSurvivesDisplayChanges() {
+        let clock = TestAutoHideScheduler()
+        let controller = AutoHideController(display: openWide, scheduler: clock, policyOverride: .manual)
+        controller.update(display: folded)
+        controller.update(display: iPhonePortrait)
+        XCTAssertEqual(controller.policy, .manual)
+        clock.advance(by: 60)
+        XCTAssertFalse(controller.isHidden)
+    }
+
     // MARK: Production scheduler
 
     func testTaskSchedulerFiresAndCancels() async throws {
