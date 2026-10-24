@@ -667,14 +667,7 @@ struct HoleReviewSheet: View {
     }
 
     private func addPenalty(type: PenaltyType) {
-        let penalty = Penalty(
-            id: UUID(),
-            holeID: hole.id,
-            type: type,
-            strokeCount: 1,
-            timestamp: Date(),
-            notes: nil
-        )
+        let penalty = Penalty.make(holeID: hole.id, type: type) // wrong ball = 2 strokes
         do {
             try PenaltyRepository.insert(penalty)
             showPenaltySheet = false
