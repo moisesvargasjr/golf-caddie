@@ -194,7 +194,7 @@ struct RoundScoreChip: View {
             .foregroundStyle(palette.ink)
             .padding(.horizontal, 10)
             .frame(minHeight: RoundChromeMetrics.minTap)
-            .background(palette.paper.opacity(RoundChromeMetrics.boxOpacity))
+            .background(palette.paper.opacity(RoundChromeMetrics.boxOpacity), ignoresSafeAreaEdges: [])
             .overlay(Rectangle().strokeBorder(palette.ruleStrong, lineWidth: 1))
             .accessibilityLabel("Round score \(text)")
     }
@@ -218,7 +218,7 @@ struct ShowControlsPill: View {
             .foregroundStyle(palette.ink)
             .padding(.horizontal, 16)
             .frame(minHeight: 52)
-            .background(palette.paper.opacity(0.9))
+            .background(palette.paper.opacity(0.9), ignoresSafeAreaEdges: [])
             .overlay(Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule))
             .contentShape(Rectangle())
         }
@@ -239,7 +239,7 @@ struct RoundToastView: View {
             .foregroundStyle(palette.paper)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(toast.kind == .error ? palette.red : palette.ink)
+            .background(toast.kind == .error ? palette.red : palette.ink, ignoresSafeAreaEdges: [])
             .frame(maxWidth: 320, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
             .allowsHitTesting(false)

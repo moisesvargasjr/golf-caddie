@@ -58,7 +58,7 @@ struct RoundMapScreen: View {
     @State var roundSoFar = RoundSoFar.empty
     @State var toast: RoundToast?
     @State var trail: [CLLocationCoordinate2D] = []
-    @State var chromeFrames: [String: CGRect] = [:]
+    @State var chromeBook = ChromeFrameBook()
     /// The map's frame in `ChromeFrames.space` (anchors `chromeFrames`);
     /// `ChromeFrames.mapFrame` of the screen's size and safe area.
     @State var mapFrame: CGRect = .zero
@@ -99,7 +99,7 @@ struct RoundMapScreen: View {
                 mapFrame = ChromeFrames.mapFrame(size: screen.size, safeArea: screen.safeArea)
             }
         }
-        .environment(\.chromeFrameSink, ChromeFrameSink { id, frame in noteChromeFrame(id, frame) })
+        .environment(\.chromeFrameSink, ChromeFrameSink { id, owner, frame in noteChromeFrame(id, owner: owner, frame) })
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if DebugPostureSwitch.shared.controlsEnabled {
@@ -142,7 +142,7 @@ struct RoundMapScreen: View {
             clubLabels: Self.clubLabels(for: shots),
             selectedShotID: selectedShotID,
             trail: trail,
-            unobstructedRect: ChromeFrames.unobstructedRect(display: display, frames: chromeFrames,
+            unobstructedRect: ChromeFrames.unobstructedRect(display: display, frames: chromeBook.frames,
                                                             mapFrame: mapFrame, safeRect: safeRect),
             onMoveShot: { id, coordinate in moveShot(id, to: coordinate) },
             onLongPress: { coordinate in holdToAdd(at: coordinate) },
@@ -193,11 +193,10 @@ struct RoundMapScreen: View {
         }
     }
 
-    private func noteChromeFrame(_ id: String, _ frame: CGRect?) {
-        guard chromeFrames[id] != frame else { return }
-        var next = chromeFrames
-        next[id] = frame
-        chromeFrames = next
+    private func noteChromeFrame(_ id: String, owner: UUID, _ frame: CGRect?) {
+        var next = chromeBook
+        guard next.report(id, owner: owner, frame: frame) else { return }
+        chromeBook = next
     }
 
     // MARK: Hole on screen
@@ -285,11 +284,14 @@ struct RoundMapScreen: View {
                     score: HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: penalties.totalStrokes),
                     putts: HoleScoring.putts(hole: hole, shots: shots))
         }
-        let rows: [(par: Int?, score: Int?)] = scored.map { (par: $0.hole.par, score: $0.score) }
+        let rows: [(par: Int?, score: Int?)] = scored.map {
+            (par: $0.hole.par ?? curatedPar($0.hole.holeNumber), score: $0.score)
+        }
         roundScoreText = RoundMapFormat.roundScoreText(holes: rows)
         roundToPar = RoundMapFormat.roundToPar(holes: rows)
         let inputs: [RoundScoreInput] = scored.compactMap { entry in
-            entry.score.map { RoundScoreInput(holeNumber: entry.hole.holeNumber, par: entry.hole.par,
+            entry.score.map { RoundScoreInput(holeNumber: entry.hole.holeNumber,
+                                              par: entry.hole.par ?? curatedPar(entry.hole.holeNumber),
                                               strokes: $0, putts: entry.putts) }
         }
         roundSoFar = RoundSoFar.build(scores: inputs, startingHole: session?.startingHole,

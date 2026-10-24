@@ -13,7 +13,33 @@ import SwiftUI
 /// (`ChromeFrames.mapFrame`), and the free rect is handed to it in the map's
 /// own coordinates.
 struct ChromeFrameSink {
-    var report: (String, CGRect?) -> Void = { _, _ in }
+    /// (id, owner, frame); a nil frame withdraws the owner's frame.
+    var report: (String, UUID, CGRect?) -> Void = { _, _, _ in }
+}
+
+/// The reported chrome frames, each with the reporter that owns it. Two
+/// layouts can use the same id ("title", "compass"): when the posture or
+/// layout switches, the outgoing view's `onDisappear` can land after the
+/// incoming view reported, and must not erase the new frame. Only the owner
+/// withdraws.
+struct ChromeFrameBook: Equatable {
+    private(set) var frames: [String: CGRect] = [:]
+    private var owners: [String: UUID] = [:]
+
+    /// Returns false when nothing changed.
+    @discardableResult
+    mutating func report(_ id: String, owner: UUID, frame: CGRect?) -> Bool {
+        if let frame {
+            guard frames[id] != frame || owners[id] != owner else { return false }
+            frames[id] = frame
+            owners[id] = owner
+            return true
+        }
+        guard owners[id] == owner else { return false }
+        frames[id] = nil
+        owners[id] = nil
+        return true
+    }
 }
 
 extension EnvironmentValues {
@@ -23,13 +49,14 @@ extension EnvironmentValues {
 private struct ChromeFrameReporter: ViewModifier {
     let id: String
     @Environment(\.chromeFrameSink) private var sink
+    @State private var owner = UUID()
 
     func body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ChromeFrames.space)) } action: { frame in
-                sink.report(id, frame)
+                sink.report(id, owner, frame)
             }
-            .onDisappear { sink.report(id, nil) }
+            .onDisappear { sink.report(id, owner, nil) }
     }
 }
 

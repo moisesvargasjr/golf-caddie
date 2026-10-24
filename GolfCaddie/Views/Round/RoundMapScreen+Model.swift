@@ -12,7 +12,9 @@ extension RoundMapScreen {
     func panelModel(layout: RoundMapLayout) -> RoundPanelModel {
         let shots = session?.shots ?? []
         let penalties = session?.penalties ?? []
-        let par = session?.par
+        // The hole's own par, else the linked course's (a hole with no row
+        // yet — late start, untracked in review — has yards but no par).
+        let par = session?.par ?? curatedPar(holeNumber)
         let state = session.map(panelState(for:)) ?? .live
         let length = curatedYards
         let selected = selectedShotID.flatMap { id in shots.first { $0.id == id } }
@@ -104,6 +106,12 @@ extension RoundMapScreen {
     static var greenHalfDepth: Int { 14 }
 
     /// Hole length from the curated course, yards.
+    func curatedPar(_ number: Int) -> Int? {
+        guard let courseId = curatedCourseId,
+              let course = CourseLookupCache.shared.course(courseId) else { return nil }
+        return course.holes.first(where: { $0.number == number })?.par
+    }
+
     private var curatedYards: Int? {
         guard let courseId = curatedCourseId,
               let course = CourseLookupCache.shared.course(courseId),
