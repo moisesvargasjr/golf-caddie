@@ -19,8 +19,13 @@ import Foundation
 /// Launch-arg keys are read straight from UserDefaults (NSUserDefaults maps
 /// `-Key Value` launch arguments automatically).
 enum DebugHarness {
-    /// `-DebugOpen review|card|bag|course|logbook|settings|casual|casual-finish`
+    /// `-DebugOpen review|card|roundcard|review-round|bag|course|logbook|settings|casual|casual-finish`
     /// — opens one screen on launch so simulator screenshots don't need taps.
+    /// `card` is the live round's scorecard (with `-DebugStartRound 1`; add
+    /// `-DebugStartHole 7` for ADD holes); `roundcard` is a finished round's
+    /// card from Home (seeds one if there is none; see `DebugScorecardSeed`);
+    /// `review-round` opens that round's review on the map, on hole
+    /// `-DebugReviewHole N` (default: its first hole).
     static var openScreen: String? { UserDefaults.standard.string(forKey: "DebugOpen") }
 
     /// `-DebugOpen casual` (or `casual-finish`, which also opens the score

@@ -6,18 +6,22 @@ import Foundation
 /// - `.tracking`: the live round with shot tracking.
 /// - `.casual`: the live round, score only — the round so far in the panel,
 ///   Finish hole opens the 1–10+ score grid.
-/// - `.review` (PR 7): a finished round. Add the case and answer each trait
-///   below; the layouts read only the traits, never the case.
+/// - `.review` (PR 7): a finished round (`live: nil`). The result card
+///   instead of the yardage, Next hole › instead of Finish hole, no + SHOT,
+///   watch status or auto-hide; pins, clubs, putts and penalties stay
+///   editable. The layouts read only the traits below, never the case.
 enum RoundMapMode: Equatable, Sendable {
     case tracking
     case casual
+    case review
 
-    /// Shots are logged as they happen (+ SHOT, pins, the club list).
-    var tracksShots: Bool { self == .tracking }
+    /// Shots show as pins with the shot list and club list (+ SHOT itself
+    /// only on the live hole, which review never has).
+    var tracksShots: Bool { self != .casual }
 
     /// The live hole shows the TO PIN yardage (review shows the result).
     /// Casual keeps it: the casual boards all show the yardage card.
-    var showsYardage: Bool { true }
+    var showsYardage: Bool { self != .review }
 
     /// Finish hole asks only for putts (tracking) instead of a score.
     var finishAsksPutts: Bool { finishQuestion == .putts }
@@ -34,13 +38,32 @@ enum RoundMapMode: Equatable, Sendable {
     var showsRoundSoFar: Bool { self == .casual }
 
     /// Tag after the par in the hole caption ("PAR 4 · CASUAL").
-    var captionTag: String? { self == .casual ? "CASUAL" : nil }
+    var captionTag: String? {
+        switch self {
+        case .tracking: return nil
+        case .casual: return "CASUAL"
+        case .review: return "REVIEW"
+        }
+    }
 
     /// Auto-hide applies at all (review turns it off — plan rule 12).
-    var allowsAutoHide: Bool { true }
+    var allowsAutoHide: Bool { self != .review }
 
     /// Holding the map adds a shot.
-    var allowsHoldToAdd: Bool { self == .tracking }
+    var allowsHoldToAdd: Bool { self != .casual }
+
+    /// The panel's primary is Next hole › (Back to card › on the last hole)
+    /// instead of Finish hole / Back to hole N.
+    var advancesWithNextHole: Bool { self == .review }
+
+    /// "WATCH IS DETECTING SWINGS" and other live-watch hints.
+    var showsWatchStatus: Bool { self != .review }
+
+    /// The result card carries a PUTTS − n + stepper (Review-* boards).
+    var editsPuttsInResult: Bool { self == .review }
+
+    /// CARD opens the live card; in review it goes back to the round's card.
+    var cardButtonTitle: String { self == .review ? "‹ CARD" : "CARD" }
 }
 
 /// The one open question the panel (or bottom sheet) is asking.

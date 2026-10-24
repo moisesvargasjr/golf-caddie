@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// "The Logbook." — list of past rounds. Each row shows date column + course
-/// name + score/delta. Tap a row to push the Summary for that round.
+/// name + score/delta. Tap a row to open the round's card (and from it, any
+/// hole's review on the map: `FinishedRoundScreen`).
 struct RoundListView: View {
     let bag: [Club]
 
@@ -37,11 +38,7 @@ struct RoundListView: View {
                     } else {
                         ForEach(rounds) { row in
                             NavigationLink {
-                                RoundReviewView(
-                                    round: row.round,
-                                    bag: bag,
-                                    onDeleted: { reload() }
-                                )
+                                FinishedRoundScreen(round: row.round, bag: bag, onDeleted: { reload() })
                             } label: {
                                 roundRow(row)
                                     .padding(.horizontal, 24)

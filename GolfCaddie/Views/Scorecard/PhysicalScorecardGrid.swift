@@ -11,43 +11,49 @@ enum CardInk {
     static func hand(_ size: CGFloat) -> Font { .custom("Noteworthy-Bold", size: size) }
 }
 
-/// 22-column grid: label · 1–9 · OUT · 10–18 · IN · TOT.
+/// The traditional card's 22-column grid (Scorecard-Open / Round-Open
+/// mockups): label · 1–9 · OUT · 10–18 · IN · TOT. Tapping anywhere in a
+/// hole's column selects it; the SCORE cell is the hole's VoiceOver element.
 struct PhysicalScorecardGrid: View {
     let model: ScorecardModel
-    let highlightedHole: Int?
-    @Binding var selectedHole: Int?
+    let currentHole: Int?
+    let selectedHole: Int?
+    let onSelect: (Int) -> Void
 
     static let labelWidth: CGFloat = 92
-    static let scoreRowHeight: CGFloat = 46
-    static let rowHeight: CGFloat = 26
-    static let headerHeight: CGFloat = 44
 
     private enum Slot: Hashable {
         case hole(Int), out, inn, tot
     }
 
+    private enum RowRule { case none, hair, strong }
+
     private var slots: [Slot] {
         (1...9).map(Slot.hole) + [.out] + (10...18).map(Slot.hole) + [.inn, .tot]
     }
 
-    private let ink = CardInk.palette.ink
+    private let ink = CardInk.ink
 
     var body: some View {
         VStack(spacing: 0) {
             holeRow
-            textRow("YARDS", height: Self.rowHeight) { col in col.yards.map(String.init) } total: { $0.yards.map(String.init) }
-            textRow("PAR", height: Self.rowHeight) { col in col.par.map(String.init) } total: { $0.par.map(String.init) ?? "—" }
+            textRow("YARDS", height: 26, font: CardInk.mono(10), color: CardInk.ink2,
+                    value: { $0.yards.map(String.init) }, total: { totals($0).yards.map(String.init) })
+            textRow("PAR", height: 28, rowRule: .strong, font: CardInk.serif(14),
+                    value: { $0.par.map(String.init) }, total: { totals($0).par.map(String.init) ?? "—" })
             if model.hasStrokeIndex {
-                textRow("HCP", height: Self.rowHeight) { col in col.strokeIndex.map(String.init) } total: { _ in nil }
+                textRow("HCP", height: 26, font: CardInk.mono(10), color: CardInk.ink2,
+                        value: { $0.strokeIndex.map(String.init) }, total: { _ in nil })
             }
             scoreRow
-            textRow("PUTTS", height: Self.rowHeight, hand: true) { col in col.putts.map(String.init) } total: { $0.putts.map(String.init) }
-            textRow("GIR", height: Self.rowHeight) { col in col.gir == true ? "●" : nil } total: { _ in nil }
-            textRow("PEN", height: Self.rowHeight, color: CardInk.palette.red) { col in
-                col.penalties.flatMap { $0 > 0 ? "\($0)" : nil }
-            } total: { $0.penalties.flatMap { $0 > 0 ? "\($0)" : nil } }
+            puttsRow
+            textRow("GIR", height: 26, font: .system(size: 12),
+                    value: { $0.gir == true ? "●" : nil }, total: { "\(girTotal($0))" })
+            textRow("PEN", height: 26, rowRule: .none, font: CardInk.mono(11), color: CardInk.palette.red,
+                    value: { $0.penalties.flatMap { $0 > 0 ? "\($0)" : nil } },
+                    total: { totals($0).penalties.flatMap { $0 > 0 ? "\($0)" : nil } })
         }
-        .overlay(Rectangle().stroke(ink, lineWidth: CardInk.border))
+        .overlay(Rectangle().strokeBorder(ink, lineWidth: CardInk.border))
     }
 
     // MARK: Rows
@@ -56,106 +62,138 @@ struct PhysicalScorecardGrid: View {
         HStack(spacing: 0) {
             label("HOLE", color: CardInk.palette.paper)
             ForEach(slots, id: \.self) { slot in
-                switch slot {
-                case .hole(let n):
-                    Button { selectedHole = n } label: {
-                        Text("\(n)")
-                            .font(AppFont.monoNumeral)
-                            .foregroundStyle(CardInk.palette.paper)
-                            .frame(maxWidth: .infinity, minHeight: Self.headerHeight)
-                            .background(n == selectedHole || n == highlightedHole
-                                        ? CardInk.palette.flag.opacity(0.55) : Color.clear)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Select hole \(n)")
-                default:
-                    Text(totalLabel(slot))
-                        .font(AppFont.stamp).tracking(1)
+                cell(slot, height: 30, ruleColor: CardInk.palette.paper.opacity(0.25)) {
+                    Text(slotTitle(slot))
+                        .font(CardInk.serif(15))
                         .foregroundStyle(CardInk.palette.paper)
-                        .frame(maxWidth: .infinity, minHeight: Self.headerHeight)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
             }
         }
         .background(ink)
+        .accessibilityHidden(true)
     }
 
     private var scoreRow: some View {
         HStack(spacing: 0) {
-            label("SCORE")
+            label("SCORE", size: 11)
             ForEach(slots, id: \.self) { slot in
-                Group {
-                    switch slot {
-                    case .hole(let n):
-                        let col = model.columns[n - 1]
-                        if let score = col.score {
-                            ScoreMarkView(score: score, mark: .mark(toPar: col.toPar))
-                        } else {
-                            Color.clear
-                        }
-                    default:
-                        handText(totals(slot).score.map(String.init), size: 18)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: Self.scoreRowHeight, maxHeight: Self.scoreRowHeight)
-                .background(tint(for: slot))
-                .overlay(alignment: .trailing) { divider }
+                scoreCell(slot)
             }
         }
-        .background(Color.white.opacity(0.45))
-        .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.35)).frame(height: 1) }
+        .background(CardInk.scoreRow)
+        .overlay(alignment: .bottom) { rule(.hair) }
     }
 
-    private func textRow(_ title: String, height: CGFloat, hand: Bool = false, color: Color? = nil,
+    @ViewBuilder
+    private func scoreCell(_ slot: Slot) -> some View {
+        if case let .hole(n) = slot {
+            let column = model.columns[n - 1]
+            cell(slot, height: 46) {
+                ScorecardScoreGlyph(cell: .resolve(column, currentHole: currentHole),
+                                    font: CardInk.hand(24), size: 28,
+                                    nowColor: CardInk.palette.flag)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(ScorecardText.accessibilityLabel(column, currentHole: currentHole))
+            .accessibilityAddTraits(n == selectedHole ? [.isButton, .isSelected] : [.isButton])
+            .accessibilityAction { onSelect(n) }
+            .accessibilityIdentifier("scorecard.hole.\(n)")
+        } else {
+            cell(slot, height: 46) {
+                Text(totals(slot).score.map(String.init) ?? "")
+                    .font(CardInk.serif(16)).foregroundStyle(ink)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(ScorecardText.totalAccessibilityLabel(totalName(slot), totals(slot)))
+            .accessibilityIdentifier("scorecard.total.\(slotTitle(slot).lowercased())")
+        }
+    }
+
+    private var puttsRow: some View {
+        HStack(spacing: 0) {
+            label("PUTTS")
+            ForEach(slots, id: \.self) { slot in
+                cell(slot, height: 30) {
+                    if case let .hole(n) = slot {
+                        Text(model.columns[n - 1].putts.map(String.init) ?? "")
+                            .font(CardInk.hand(20)).foregroundStyle(CardInk.graphite)
+                    } else {
+                        Text(totals(slot).putts.map(String.init) ?? "")
+                            .font(CardInk.serif(14)).foregroundStyle(ink)
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .bottom) { rule(.hair) }
+        .accessibilityHidden(true)
+    }
+
+    private func textRow(_ title: String, height: CGFloat, rowRule: RowRule = .hair, font: Font,
+                         color: Color = CardInk.ink,
                          value: @escaping (ScorecardColumn) -> String?,
-                         total: @escaping (ScorecardTotals) -> String?) -> some View {
+                         total: @escaping (Slot) -> String?) -> some View {
         HStack(spacing: 0) {
             label(title)
             ForEach(slots, id: \.self) { slot in
-                let text: String? = {
-                    if case .hole(let n) = slot { return value(model.columns[n - 1]) }
-                    return total(totals(slot))
-                }()
-                Group {
-                    if hand {
-                        handText(text, size: 15)
-                    } else {
-                        Text(text ?? "")
-                            .font(.custom(AppFont.monoName, size: 11).weight(.bold))
-                            .foregroundStyle(color ?? ink)
-                            .tabularNumerals()
-                    }
+                cell(slot, height: height) {
+                    Text(text(for: slot, value: value, total: total))
+                        .font(font)
+                        .foregroundStyle(color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .tabularNumerals()
                 }
-                .frame(maxWidth: .infinity, minHeight: height)
-                .background(tint(for: slot))
-                .overlay(alignment: .trailing) { divider }
             }
         }
-        .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.35)).frame(height: 1) }
+        .overlay(alignment: .bottom) { rule(rowRule) }
+        .accessibilityHidden(true)
+    }
+
+    private func text(for slot: Slot, value: (ScorecardColumn) -> String?, total: (Slot) -> String?) -> String {
+        if case let .hole(n) = slot { return value(model.columns[n - 1]) ?? "" }
+        return total(slot) ?? ""
     }
 
     // MARK: Cells
 
-    private func label(_ text: String, color: Color? = nil) -> some View {
+    private func cell<Content: View>(_ slot: Slot, height: CGFloat,
+                                     ruleColor: Color = CardInk.ink.opacity(0.2),
+                                     @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: height, maxHeight: height)
+            .background(wash(slot))
+            .overlay(alignment: .leading) { Rectangle().fill(ruleColor).frame(width: 1) }
+            .contentShape(Rectangle())
+            .onTapGesture { if case let .hole(n) = slot { onSelect(n) } }
+    }
+
+    private func label(_ text: String, size: CGFloat = 10, color: Color = CardInk.ink) -> some View {
         Text(text)
-            .font(AppFont.stamp).tracking(1.2)
-            .foregroundStyle(color ?? ink)
+            .font(CardInk.mono(size)).tracking(0.8)
+            .foregroundStyle(color)
             .padding(.leading, 8)
             .frame(width: Self.labelWidth, alignment: .leading)
             .frame(maxHeight: .infinity)
-            .overlay(alignment: .trailing) { Rectangle().fill(color ?? ink).opacity(0.6).frame(width: 1) }
+            .overlay(alignment: .trailing) { Rectangle().fill(color).frame(width: 1.5) }
     }
 
-    private func handText(_ text: String?, size: CGFloat) -> some View {
-        Text(text ?? "")
-            .font(CardInk.hand(size))
-            .foregroundStyle(CardInk.graphite)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+    @ViewBuilder
+    private func rule(_ rowRule: RowRule) -> some View {
+        switch rowRule {
+        case .none: EmptyView()
+        case .hair: Rectangle().fill(ink.opacity(0.2)).frame(height: 1)
+        case .strong: Rectangle().fill(ink).frame(height: 1.5)
+        }
     }
 
-    private var divider: some View {
-        Rectangle().fill(ink.opacity(0.25)).frame(width: 1)
+    /// OUT/IN/TOT get a light ink tint; the selected hole a faint flag tint.
+    private func wash(_ slot: Slot) -> Color {
+        switch slot {
+        case .out, .inn, .tot: return ink.opacity(0.08)
+        case let .hole(n): return n == selectedHole ? CardInk.palette.flag.opacity(0.14) : .clear
+        }
     }
 
     private func totals(_ slot: Slot) -> ScorecardTotals {
@@ -166,52 +204,28 @@ struct PhysicalScorecardGrid: View {
         }
     }
 
-    private func totalLabel(_ slot: Slot) -> String {
+    private func girTotal(_ slot: Slot) -> Int {
+        switch slot {
+        case .out: return model.girCount(.front)
+        case .inn: return model.girCount(.back)
+        default: return model.girCount
+        }
+    }
+
+    private func slotTitle(_ slot: Slot) -> String {
         switch slot {
         case .out: return "OUT"
         case .inn: return "IN"
         case .tot: return "TOT"
-        case .hole(let n): return "\(n)"
+        case let .hole(n): return "\(n)"
         }
     }
 
-    /// OUT/IN/TOT get a light ink tint; the current or selected hole a faint flag tint.
-    private func tint(for slot: Slot) -> Color {
+    private func totalName(_ slot: Slot) -> String {
         switch slot {
-        case .out, .inn, .tot:
-            return ink.opacity(0.07)
-        case .hole(let n):
-            return (n == selectedHole || n == highlightedHole)
-                ? CardInk.palette.flag.opacity(0.13) : .clear
+        case .out: return "Out"
+        case .inn: return "In"
+        default: return "Total"
         }
-    }
-}
-
-/// Handwritten score with its birdie/bogey mark.
-struct ScoreMarkView: View {
-    let score: Int
-    let mark: ScoreMark
-
-    var body: some View {
-        ZStack {
-            switch mark {
-            case .circle:
-                Circle().stroke(CardInk.graphite, lineWidth: 1.2).frame(width: 28, height: 28)
-            case .doubleCircle:
-                Circle().stroke(CardInk.graphite, lineWidth: 1.2).frame(width: 32, height: 32)
-                Circle().stroke(CardInk.graphite, lineWidth: 1.2).frame(width: 25, height: 25)
-            case .square:
-                Rectangle().stroke(CardInk.graphite, lineWidth: 1.2).frame(width: 26, height: 26)
-            case .doubleSquare:
-                Rectangle().stroke(CardInk.graphite, lineWidth: 1.2).frame(width: 31, height: 31)
-                Rectangle().stroke(CardInk.graphite, lineWidth: 1.2).frame(width: 24, height: 24)
-            case .none:
-                EmptyView()
-            }
-            Text("\(score)")
-                .font(CardInk.hand(19))
-                .foregroundStyle(CardInk.graphite)
-        }
-        .accessibilityLabel("\(score)")
     }
 }

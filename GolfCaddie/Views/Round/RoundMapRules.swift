@@ -8,9 +8,12 @@ import Foundation
 /// Which `AutoHidePauseReason`s the screen's UI state holds open (rule 5:
 /// auto-hide pauses while a question, a selected pin or a drag is open).
 enum AutoHideWiring {
+    /// `modeAllowsAutoHide` false (review) holds the controls up for good;
+    /// the manual hide button still works.
     static func pauseReasons(questionOpen: Bool, entryOpen: Bool, shotSelected: Bool,
-                             dragging: Bool) -> Set<AutoHidePauseReason> {
+                             dragging: Bool, modeAllowsAutoHide: Bool = true) -> Set<AutoHidePauseReason> {
         var reasons: Set<AutoHidePauseReason> = []
+        if !modeAllowsAutoHide { reasons.insert(.modeOff) }
         // The late-start / casual score entry is a question too.
         if questionOpen || entryOpen { reasons.insert(.question) }
         if shotSelected { reasons.insert(.selection) }
@@ -47,8 +50,8 @@ enum HolePanelState: Equatable, Sendable {
     /// hole): strokes + putts entry (tracking) or the score grid (casual).
     case entry
 
-    /// `mode` is kept for PR 7's review mode; tracking and casual resolve alike
-    /// (the casual live hole asks for its score only when Finish is tapped).
+    /// Every mode resolves alike: the casual live hole asks for its score only
+    /// when Finish is tapped, and review (no live hole) is past or entry.
     static func resolve(mode: RoundMapMode, isLive: Bool, isTracked: Bool,
                         needsEntry: Bool, isHandScored: Bool) -> HolePanelState {
         if isLive { return .live }

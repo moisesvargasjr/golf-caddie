@@ -28,22 +28,18 @@ struct ActiveRoundView: View {
                 idleBody
             }
         }
-        // Push (not sheet) so HoleDetailView can stack on top of Summary. The
+        // The round just ended: its card, then any hole's review on the map
+        // (`FinishedRoundScreen`). The only place Resume is offered. The
         // controller's `mostRecentlyEndedRound` survives across this push.
         .navigationDestination(isPresented: endedRoundBinding) {
             if let round = endedRoundForReview {
-                RoundReviewView(
+                FinishedRoundScreen(
                     round: round,
                     bag: bag,
+                    liveRoundActive: controller.isActive,
                     onResume: { resumeRound(round) },
-                    onDismiss: {
-                        endedRoundForReview = nil
-                        controller.clearMostRecentlyEndedRound()
-                    },
-                    onDeleted: {
-                        endedRoundForReview = nil
-                        controller.clearMostRecentlyEndedRound()
-                    }
+                    onClose: closeEndedRound,
+                    onDeleted: closeEndedRound
                 )
             }
         }
@@ -51,7 +47,7 @@ struct ActiveRoundView: View {
             Button("Cancel", role: .cancel) {}
             Button("End Round", role: .destructive) { performEndRound() }
         } message: {
-            Text("Your round will be saved. You can resume it from the review screen if you change your mind.")
+            Text("Your round will be saved. You can resume it from its card's ··· menu if you change your mind.")
         }
         // Mid-round link / re-link to a curated course — the recovery for a
         // missed or wrong auto-detect. Routes through the controller so the
@@ -125,16 +121,20 @@ struct ActiveRoundView: View {
                     onDone: { showClubsInPlay = false }
                 )
             }
-            // One presentation for both widths, so folding/unfolding while the
-            // card is open swaps its body instead of dismissing it. (PR 6
-            // replaces the card itself.)
+            // One presentation for every layout, so folding/unfolding while the
+            // card is open swaps the card variant instead of dismissing it.
+            // Opening a hole from the card goes there on the round map (a
+            // finished hole is viewed; an unplayed one becomes the live hole).
             .fullScreenCover(isPresented: $showScorecard) {
                 AdaptiveScorecardPresentation(
                     round: round,
                     currentHoleNumber: controller.currentHole?.holeNumber ?? 1,
-                    bag: bag,
                     curatedCourseId: controller.curatedCourseId,
-                    onStrokeMoved: { controller.refreshCurrentHoleShots(ifActiveHoleIn: $0) },
+                    live: controller,
+                    onOpenHole: { number in
+                        pickFromGrid(number, round: round)
+                        showScorecard = false
+                    },
                     onDismiss: { showScorecard = false }
                 )
             }
@@ -200,6 +200,11 @@ struct ActiveRoundView: View {
         if UserDefaults.standard.bool(forKey: "DebugShowHoleGrid") { showHoleGrid = true }
     }
     #endif
+
+    private func closeEndedRound() {
+        endedRoundForReview = nil
+        controller.clearMostRecentlyEndedRound()
+    }
 
     /// `navigationDestination(isPresented:)` wants a `Binding<Bool>`; any
     /// ended round pushes, and dismissing clears it.

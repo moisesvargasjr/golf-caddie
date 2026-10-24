@@ -121,7 +121,7 @@ struct PenaltyQuestion: View {
 }
 
 /// Strokes + putts for a hole that wasn't tracked (late start, skipped hole)
-/// in tracking mode (casual uses `ScoreGrid`).
+/// in tracking mode and review (casual uses `ScoreGrid`).
 struct HandScoreEntry: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -145,6 +145,11 @@ struct HandScoreEntry: View {
                 if model.entryShowsBackToLive {
                     OutlineActionButton(title: model.backToLiveShortTitle, minHeight: 52, action: actions.backToLive)
                         .accessibilityIdentifier(InRoundAccessibilityID.backToLive)
+                } else if let next = model.reviewNext {
+                    // Review: move on without saving (Next hole replaces Finish).
+                    OutlineActionButton(title: next.shortTitle, minHeight: 52, action: actions.reviewNext)
+                        .accessibilityLabel(next.accessibilityLabel)
+                        .accessibilityIdentifier(InRoundAccessibilityID.reviewNext)
                 }
                 PrimaryActionButton(title: model.entrySaveTitle, fontSize: 18, minHeight: 52, action: actions.saveEntry)
                     .accessibilityIdentifier(InRoundAccessibilityID.saveEntry)
