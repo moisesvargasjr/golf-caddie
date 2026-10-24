@@ -121,7 +121,7 @@ struct PenaltyQuestion: View {
 }
 
 /// Strokes + putts for a hole that wasn't tracked (late start, skipped hole)
-/// and, until PR 5, the casual live hole.
+/// in tracking mode (casual uses `ScoreGrid`).
 struct HandScoreEntry: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions

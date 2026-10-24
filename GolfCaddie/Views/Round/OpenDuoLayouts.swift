@@ -6,16 +6,19 @@ import SwiftUI
 
 /// Fully open, wide: hole title top-left; compass · hide · score · CARD · ···
 /// bottom-left; the 340 pt command panel on the right with the club list
-/// down its right edge.
+/// down its right edge. Casual (canvas Casual): a 320 pt panel, no club list,
+/// the round so far in the shots' place and no score chip (the list has it).
 struct OpenWideLayout: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
     let insets: EdgeInsets
 
     static let panelWidth: CGFloat = 340
+    static let casualPanelWidth: CGFloat = 320
     static let railWidth: CGFloat = 84
 
     var body: some View {
+        let casual = model.showsRoundSoFar
         ZStack(alignment: .topLeading) {
             HoleTitleBar(model: model, actions: actions, style: .inline(size: 26))
                 .fixedSize()
@@ -25,7 +28,7 @@ struct OpenWideLayout: View {
             HStack(spacing: 6) {
                 CompassChromeButton(model: model, actions: actions)
                 HideControlsButton(actions: actions)
-                if let score = model.roundScoreText {
+                if !casual, let score = model.roundScoreText {
                     RoundScoreChip(text: score).padding(.leading, 6)
                 }
                 CardButton(actions: actions)
@@ -36,9 +39,11 @@ struct OpenWideLayout: View {
             .pinned(.bottomLeading, insets: insets)
 
             CommandPanel(model: model, actions: actions,
-                         columnStyle: PanelColumn.Style(card: .stacked(hero: 60)),
+                         columnStyle: PanelColumn.Style(card: .stacked(hero: casual ? 68 : 60),
+                                                        spacing: casual ? 12 : 10,
+                                                        padding: casual ? 14 : 12),
                          railWidth: Self.railWidth)
-                .frame(width: Self.panelWidth)
+                .frame(width: casual ? Self.casualPanelWidth : Self.panelWidth)
                 .frame(maxHeight: .infinity)
                 .reportsChromeFrame("panel")
                 .padding(insets)
@@ -51,7 +56,9 @@ struct OpenWideLayout: View {
 /// into two boxes around the hinge band so nothing sits on the fold. The top
 /// box holds the score row, the yardage, the shots and the club list; the
 /// bottom box the questions, score entry and actions. Nothing across the
-/// bottom.
+/// bottom. Casual has no board for this pose yet: it reuses the open-wide
+/// casual arrangement — the round so far in the top box, the score grid and
+/// Finish in the bottom one.
 struct OpenPortraitLayout: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -104,7 +111,9 @@ struct OpenPortraitLayout: View {
 }
 
 /// Book pose: the hole on the left page; the command panel fills the right
-/// page, starting 16 pt past the hinge band.
+/// page, starting 16 pt past the hinge band. Casual has no board for book
+/// pose yet: the right page takes the open-wide casual panel (yardage, the
+/// round so far, Finish → the score grid in place).
 struct BookLayout: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions

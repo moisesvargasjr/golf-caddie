@@ -26,11 +26,16 @@ extension RoundMapScreen {
             holeNumber: holeNumber,
             liveHoleNumber: liveNumber,
             par: par,
-            holeCaption: RoundMapFormat.holeCaption(par: par, length: length.map { units.format(yards: $0).value },
-                                                    unit: units.format(yards: 0).unit, roundToPar: nil),
-            compactCaption: RoundMapFormat.holeCaption(par: par,
-                                                       length: length.map { units.format(yards: $0).value },
-                                                       unit: nil, roundToPar: roundToPar),
+            holeCaption: RoundMapFormat.tagged(
+                RoundMapFormat.holeCaption(par: par, length: length.map { units.format(yards: $0).value },
+                                           unit: units.format(yards: 0).unit, roundToPar: nil),
+                tag: mode.captionTag),
+            // Casual lists the round below, so its compact caption carries
+            // the mode instead of the round's to-par.
+            compactCaption: RoundMapFormat.tagged(
+                RoundMapFormat.holeCaption(par: par, length: length.map { units.format(yards: $0).value },
+                                           unit: nil, roundToPar: mode.showsRoundSoFar ? nil : roundToPar),
+                tag: mode.captionTag),
             shortCaption: "H\(holeNumber) · P\(parText)",
             canGoPrevious: HoleNavigation.previous(viewing: holeNumber, live: liveNumber) != nil,
             canGoNext: HoleNavigation.next(viewing: holeNumber, live: liveNumber) != nil,
@@ -69,6 +74,8 @@ extension RoundMapScreen {
             notTrackedText: RoundMapFormat.notTrackedText(holeNumber: holeNumber,
                                                           startingHole: session?.startingHole),
             entryShowsBackToLive: !isViewingLive && live != nil,
+            roundSoFar: roundSoFar,
+            scoreDraft: scoreDraft,
             controlsVisible: autoHide?.controlsVisible ?? true,
             compassRotation: mapController.rotationFromHoleUp,
             toast: toast

@@ -55,9 +55,11 @@ final class RoundMapRulesTests: XCTestCase {
                                               needsEntry: false, isHandScored: false), .live)
     }
 
-    func testCasualLiveHoleIsEntry() {
+    func testCasualLiveHoleIsLive() {
+        // PR 5: the casual live hole shows the round so far + Finish (the
+        // score grid opens on Finish), not an always-open entry.
         XCTAssertEqual(HolePanelState.resolve(mode: .casual, isLive: true, isTracked: true,
-                                              needsEntry: false, isHandScored: false), .entry)
+                                              needsEntry: false, isHandScored: false), .live)
     }
 
     func testHoleBeforeLateStartShowsEntry() {

@@ -20,11 +20,12 @@ struct RoundMapHost {
 /// add, tap a shot then a club, penalties, putts, hand scores).
 ///
 /// - `mode`: `.tracking` / `.casual` now; PR 7 adds `.review` (a finished
-///   round: pass `live: nil` and drive `viewedHole`).
+///   round: pass `live: nil` and drive `viewedHole`). The layouts read only
+///   the mode's traits, so `.review` needs no layout changes of its own.
 /// - `viewedHole`: the hole on screen; nil follows the live hole. The host
 ///   owns it so the hole grid (and PR 7's card) can open any hole.
 /// - `question`: the open question; a binding so the host can open one
-///   (DEBUG `-DebugOpen review|penalty`).
+///   (DEBUG `-DebugOpen review|penalty|casual-finish`).
 ///
 /// Posture changes only swap the chrome: the map, the session and all state
 /// here survive fold / unfold / book / rotate.
@@ -51,6 +52,10 @@ struct RoundMapScreen: View {
     @State var isDragging = false
     @State var puttsChoice = PuttsQuestionModel.defaultPutts
     @State var entryDraft = HandScoreDraft(strokes: 4, putts: PuttsQuestionModel.defaultPutts)
+    /// Casual score grid picks (Finish on the live hole, or a hole being edited).
+    @State var scoreDraft = ScoreGridDraft.empty
+    /// Casual "Your round": every scored hole, newest first.
+    @State var roundSoFar = RoundSoFar.empty
     @State var toast: RoundToast?
     @State var trail: [CLLocationCoordinate2D] = []
     @State var chromeFrames: [String: CGRect] = [:]
@@ -249,6 +254,7 @@ struct RoundMapScreen: View {
         isDragging = false
         if !isFirst { question = nil }
         entryDraft = HandScoreDraft.initial(hole: next.hole, par: next.par)
+        scoreDraft = ScoreGridDraft.initial(hole: next.hole)
         trail = []
         reloadTrail()
         refreshRoundScore()
@@ -265,22 +271,32 @@ struct RoundMapScreen: View {
         }
     }
 
-    /// "+1 · 2 SCORED" from the stored holes: finished and hand-scored holes.
+    /// "+1 · 2 SCORED" and the casual round so far, from the stored holes:
+    /// finished and hand-scored holes.
     func refreshRoundScore() {
         guard let holes = try? HoleRepository.holesForRound(roundID) else {
             roundScoreText = nil
             roundToPar = nil
+            roundSoFar = .empty
             return
         }
-        let rows: [(par: Int?, score: Int?)] = holes.map { hole in
+        let scored: [(hole: Hole, score: Int?, putts: Int?)] = holes.map { hole in
             let counts = hole.confirmedAt != nil || (hole.isHandScored && hole.handStrokes != nil)
-            guard counts else { return (par: hole.par, score: nil) }
+            guard counts else { return (hole: hole, score: nil, putts: nil) }
             let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
             let penalties = (try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []
-            return (par: hole.par,
-                    score: HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: penalties.totalStrokes))
+            return (hole: hole,
+                    score: HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: penalties.totalStrokes),
+                    putts: HoleScoring.putts(hole: hole, shots: shots))
         }
+        let rows: [(par: Int?, score: Int?)] = scored.map { (par: $0.hole.par, score: $0.score) }
         roundScoreText = RoundMapFormat.roundScoreText(holes: rows)
         roundToPar = RoundMapFormat.roundToPar(holes: rows)
+        let inputs: [RoundScoreInput] = scored.compactMap { entry in
+            entry.score.map { RoundScoreInput(holeNumber: entry.hole.holeNumber, par: entry.hole.par,
+                                              strokes: $0, putts: entry.putts) }
+        }
+        roundSoFar = RoundSoFar.build(scores: inputs, startingHole: session?.startingHole,
+                                      onScreen: holeNumber, live: liveHoleNumber)
     }
 }

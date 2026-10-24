@@ -73,7 +73,7 @@ enum PuttsQuestionModel {
     }
 }
 
-// MARK: - Hand entry: strokes + putts (late start, casual stop-gap)
+// MARK: - Hand entry: strokes + putts (late start / skipped holes, tracking)
 
 /// The steppers' working values. Immutable: every step returns a new draft.
 struct HandScoreDraft: Equatable, Sendable {

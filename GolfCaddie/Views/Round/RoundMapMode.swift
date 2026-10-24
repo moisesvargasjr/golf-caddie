@@ -3,9 +3,9 @@ import Foundation
 /// What `RoundMapScreen` is doing with the hole on screen (Duo v2,
 /// Architecture C). One screen, three modes:
 ///
-/// - `.tracking` (this PR): the live round with shot tracking.
-/// - `.casual`: the live round, score only. Until PR 5 lands the score grid it
-///   is a stop-gap — the panel shows the strokes/putts entry for the live hole.
+/// - `.tracking`: the live round with shot tracking.
+/// - `.casual`: the live round, score only — the round so far in the panel,
+///   Finish hole opens the 1–10+ score grid.
 /// - `.review` (PR 7): a finished round. Add the case and answer each trait
 ///   below; the layouts read only the traits, never the case.
 enum RoundMapMode: Equatable, Sendable {
@@ -16,13 +16,25 @@ enum RoundMapMode: Equatable, Sendable {
     var tracksShots: Bool { self == .tracking }
 
     /// The live hole shows the TO PIN yardage (review shows the result).
+    /// Casual keeps it: the casual boards all show the yardage card.
     var showsYardage: Bool { true }
 
-    /// Finish hole asks only for putts (tracking) instead of a score entry.
-    var finishAsksPutts: Bool { self == .tracking }
+    /// Finish hole asks only for putts (tracking) instead of a score.
+    var finishAsksPutts: Bool { finishQuestion == .putts }
 
-    /// The live hole is entered by hand (strokes + putts) instead of tracked.
-    var liveHoleIsHandEntry: Bool { self == .casual }
+    /// The question Finish hole opens on the live hole.
+    var finishQuestion: RoundMapQuestion { self == .casual ? .score : .putts }
+
+    /// A hole entered by hand (a past casual hole, a hole before a late
+    /// start) uses the 1–10+ score grid instead of the strokes/putts steppers.
+    var entryUsesScoreGrid: Bool { self == .casual }
+
+    /// The panel lists the round so far (list / chips / squares by layout)
+    /// where tracking lists the hole's shots and clubs.
+    var showsRoundSoFar: Bool { self == .casual }
+
+    /// Tag after the par in the hole caption ("PAR 4 · CASUAL").
+    var captionTag: String? { self == .casual ? "CASUAL" : nil }
 
     /// Auto-hide applies at all (review turns it off — plan rule 12).
     var allowsAutoHide: Bool { true }
@@ -33,8 +45,10 @@ enum RoundMapMode: Equatable, Sendable {
 
 /// The one open question the panel (or bottom sheet) is asking.
 enum RoundMapQuestion: Equatable, Sendable {
-    /// Finish hole: putts 0–4+.
+    /// Finish hole (tracking): putts 0–4+.
     case putts
     /// + PENALTY: what happened?
     case penalty
+    /// Finish hole (casual): score 1–10+ plus a putts row.
+    case score
 }

@@ -188,9 +188,9 @@ final class RoundMapLayoutTests: XCTestCase {
         XCTAssertTrue(RoundMapMode.tracking.tracksShots)
         XCTAssertTrue(RoundMapMode.tracking.finishAsksPutts)
         XCTAssertTrue(RoundMapMode.tracking.allowsHoldToAdd)
-        XCTAssertFalse(RoundMapMode.tracking.liveHoleIsHandEntry)
+        XCTAssertFalse(RoundMapMode.tracking.entryUsesScoreGrid)
         XCTAssertFalse(RoundMapMode.casual.tracksShots)
-        XCTAssertTrue(RoundMapMode.casual.liveHoleIsHandEntry)
+        XCTAssertTrue(RoundMapMode.casual.entryUsesScoreGrid)
         XCTAssertFalse(RoundMapMode.casual.allowsHoldToAdd)
     }
 }

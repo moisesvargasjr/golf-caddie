@@ -13,7 +13,7 @@ extension RoundMapScreen {
             backToLive: { go(.live) },
             addShot: logShot,
             askPenalty: { open(.penalty) },
-            finishHole: askPutts,
+            finishHole: finishHole,
             pickPutts: { puttsChoice = $0 },
             confirmFinish: confirmFinish,
             pickPenalty: addPenalty,
@@ -23,6 +23,10 @@ extension RoundMapScreen {
             pickClub: pickClub,
             deleteSelectedShot: deleteSelectedShot,
             doneSelection: { selectedShotID = nil },
+            pickScore: { scoreDraft = scoreDraft.picking(strokes: $0) },
+            pickScorePutts: { scoreDraft = scoreDraft.picking(putts: $0) },
+            saveScore: saveScore,
+            openRoundHole: openRoundHole,
             stepEntryStrokes: { entryDraft = entryDraft.steppingStrokes(by: $0) },
             stepEntryPutts: { entryDraft = entryDraft.steppingPutts(by: $0) },
             saveEntry: saveEntry,
@@ -66,6 +70,18 @@ extension RoundMapScreen {
                 toast = RoundToast(text: "Couldn't log the shot: \(error.localizedDescription)", kind: .error)
             }
             isMarking = false
+        }
+    }
+
+    /// Finish hole asks the mode's question: putts (tracking) or the score
+    /// grid (casual), which starts with nothing picked.
+    private func finishHole() {
+        switch mode.finishQuestion {
+        case .score:
+            scoreDraft = ScoreGridDraft.initial(hole: session?.hole)
+            open(.score)
+        case .putts, .penalty:
+            askPutts()
         }
     }
 
@@ -124,6 +140,36 @@ extension RoundMapScreen {
             toast = RoundToast(text: "Hole \(number) saved · \(draft.strokes) (\(draft.summary(par: session.par)))")
             refreshRoundScore()
         }
+    }
+
+    /// Casual: the grid's (strokes, putts) as the hole's hand score. On the
+    /// live hole (Finish) the round then moves on, as the watch's Finish does.
+    private func saveScore() {
+        guard let session else { return }
+        let number = holeNumber
+        let par = session.par
+        let advances = question == .score && session.isLive
+        perform("save the score") {
+            let result = try scoreDraft.result()
+            try session.setHandScore(strokes: result.strokes, putts: result.putts)
+            if advances, let live {
+                try live.confirmHoleAndAdvance(par: par)
+                viewedHole = nil
+            }
+            question = nil
+            let toPar = par.map { " (\(RoundMapFormat.toPar(result.strokes - $0)))" } ?? ""
+            toast = RoundToast(text: "Hole \(number) saved · \(result.strokes)\(toPar)")
+            refreshRoundScore()
+        }
+    }
+
+    /// A hole tapped in the round-so-far list: open it to edit its score
+    /// (the live hole goes back to following the round).
+    private func openRoundHole(_ number: Int) {
+        question = nil
+        let step: HoleNavigation.Step = number == liveHoleNumber ? .live : .view(number)
+        go(step)
+        autoHide?.noteInteraction()
     }
 
     // MARK: Shots
