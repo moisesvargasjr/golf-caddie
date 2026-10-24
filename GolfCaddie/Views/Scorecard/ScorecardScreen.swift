@@ -62,6 +62,13 @@ struct ScorecardScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(variant.accessibilityID)
         .onAppear(perform: reload)
+        // A CARD left open stays current when the watch logs a shot or
+        // finishes a hole (or any other writer changes the round's scores).
+        .task {
+            do {
+                for try await _ in ScoringChanges.values() { reload() }
+            } catch {}
+        }
         .sheet(item: $entry) { draft in
             HandScoreEntrySheet(draft: draft, startingHole: round.startingHole,
                                 onSave: save, onCancel: { entry = nil })
