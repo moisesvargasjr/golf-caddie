@@ -27,7 +27,9 @@ struct FoldedLayout: View {
                         CompassChromeButton(model: model, actions: actions)
                             .reportsChromeFrame("compass")
                         if model.state == .entry, !model.viewingLive {
-                            NotTrackedTag(text: model.notTrackedText).padding(.top, 10)
+                            NotTrackedTag(text: model.notTrackedText)
+                                .reportsChromeFrame("hint")
+                                .padding(.top, 10)
                         }
                         Spacer(minLength: 0)
                         if !showsSheet { bottomLeftCard }
@@ -133,8 +135,10 @@ struct PhonePortraitLayout: View {
                         .reportsChromeFrame("compass")
                     if model.state == .entry, !model.viewingLive {
                         NotTrackedTag(text: model.notTrackedText)
+                            .reportsChromeFrame("hint")
                     } else if model.mode.allowsHoldToAdd {
                         MapHintTag(text: "DRAG PINS · HOLD TO ADD")
+                            .reportsChromeFrame("hint")
                     }
                     Spacer(minLength: 0)
                 }
