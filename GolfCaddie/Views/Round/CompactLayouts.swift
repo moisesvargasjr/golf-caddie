@@ -268,6 +268,7 @@ struct BottomQuestionSheet: View {
             Rectangle().fill(model.question == .penalty ? palette.red : palette.ink)
                 .frame(height: RoundChromeMetrics.rule)
         }
+        .compositingGroup()
         .shadow(color: palette.cardShadow.color.opacity(0.7), radius: 0, x: 0, y: -4)
     }
 }

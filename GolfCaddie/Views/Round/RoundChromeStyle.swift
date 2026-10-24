@@ -92,6 +92,7 @@ struct PrimaryActionButton: View {
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, minHeight: max(minHeight, RoundChromeMetrics.minTap))
                 .background(palette.ink)
+                .compositingGroup()
                 .shadow(color: palette.cardShadow.color, radius: 0, x: RoundChromeMetrics.shadow,
                         y: RoundChromeMetrics.shadow)
                 .contentShape(Rectangle())
