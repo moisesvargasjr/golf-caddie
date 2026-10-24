@@ -70,8 +70,24 @@ private struct AdaptiveLayoutRoot: ViewModifier {
     @State private var posture: HingePosture = .unknown
 
     func body(content: Content) -> some View {
+        #if DEBUG
+        if let simulated = DebugSimulatedWindow.size {
+            DebugSimulatedWindow.Frame(size: simulated) {
+                content
+                    .environment(\.layoutClass, context(for: simulated).layoutClass)
+                    .environment(\.displayContext, context(for: simulated))
+            }
+        } else {
+            measured(content)
+        }
+        #else
+        measured(content)
+        #endif
+    }
+
+    private func measured(_ content: Content) -> some View {
         let context = resolvedContext
-        content
+        return content
             .environment(\.layoutClass, context.layoutClass)
             .environment(\.displayContext, context)
             .background {
@@ -94,7 +110,9 @@ private struct AdaptiveLayoutRoot: ViewModifier {
             }
     }
 
-    private var resolvedContext: DisplayContext {
+    private var resolvedContext: DisplayContext { context(for: windowSize) }
+
+    private func context(for windowSize: CGSize) -> DisplayContext {
         var context = DisplayContext(
             layoutClass: LayoutClass.resolve(windowSize: windowSize,
                                              horizontal: horizontalSizeClass,
@@ -196,6 +214,39 @@ enum DebugLayoutOverride {
     static func apply(to context: DisplayContext) -> DisplayContext {
         MainActor.assumeIsolated {
             DebugPostureSwitch.shared.apply(to: context)
+        }
+    }
+}
+#endif
+
+#if DEBUG
+/// `-DebugWindowSize 951x669` lays the app out at that window size and scales
+/// it to fit the real window — so the Duo simulator, which only runs folded
+/// from the command line, can render the unfolded and portrait poses for
+/// screenshots. Layout only: touches land in the scaled frame.
+enum DebugSimulatedWindow {
+    static var size: CGSize? {
+        guard let raw = UserDefaults.standard.string(forKey: "DebugWindowSize") else { return nil }
+        let parts = raw.lowercased().split(separator: "x").compactMap { Double($0) }
+        guard parts.count == 2, parts[0] > 0, parts[1] > 0 else { return nil }
+        return CGSize(width: parts[0], height: parts[1])
+    }
+
+    struct Frame<Content: View>: View {
+        let size: CGSize
+        @ViewBuilder let content: Content
+
+        var body: some View {
+            GeometryReader { proxy in
+                let scale = min(proxy.size.width / size.width, proxy.size.height / size.height, 1)
+                content
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .scaleEffect(scale)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+            .ignoresSafeArea()
+            .background(Color.black)
         }
     }
 }

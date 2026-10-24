@@ -38,18 +38,20 @@ final class HoleSession {
     private let anchors: HolePathAnchors
     @ObservationIgnored private var registeredHoleID: UUID? = nil
 
+    /// `store` nil = the GRDB-backed `RepositoryHoleStore` (built here, not as a
+    /// default argument: its init is main-actor isolated).
     init(roundID: UUID, holeNumber: Int, live: LiveHoleEditing?,
-         store: HoleStore = RepositoryHoleStore(), anchors: HolePathAnchors = .none) {
+         store: HoleStore? = nil, anchors: HolePathAnchors = .none) {
         self.roundID = roundID
         self.holeNumber = holeNumber
         self.live = live
-        self.store = store
+        self.store = store ?? RepositoryHoleStore()
         self.anchors = anchors
         reload()
     }
 
     convenience init(hole: Hole, live: LiveHoleEditing?,
-                     store: HoleStore = RepositoryHoleStore(), anchors: HolePathAnchors = .none) {
+                     store: HoleStore? = nil, anchors: HolePathAnchors = .none) {
         self.init(roundID: hole.roundID, holeNumber: hole.holeNumber, live: live,
                   store: store, anchors: anchors)
     }

@@ -18,6 +18,16 @@ struct HoleFrame: Equatable {
                     pitch: 0, heading: heading)
     }
 
+    /// The frame whose camera centre is what THIS frame shows at
+    /// `windowCentre + offset` — for a map that draws its camera centre
+    /// `offset` points away from the view's centre (measured on the live map).
+    func recentered(forCameraCentreOffset offset: CGVector, windowSize: CGSize) -> HoleFrame {
+        guard offset.dx != 0 || offset.dy != 0 else { return self }
+        let point = CGPoint(x: windowSize.width / 2 + offset.dx, y: windowSize.height / 2 + offset.dy)
+        let centre = HoleFraming.coordinate(at: point, frame: self, windowSize: windowSize)
+        return HoleFrame(center: centre, heading: heading, metersPerPoint: metersPerPoint)
+    }
+
     static func == (a: HoleFrame, b: HoleFrame) -> Bool {
         a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude
             && a.heading == b.heading && a.metersPerPoint == b.metersPerPoint
@@ -47,11 +57,21 @@ enum HoleFraming {
 
     // MARK: Rects and insets
 
+    /// A free rect narrower or shorter than this (or a quarter of the window
+    /// side, if smaller) is treated as no rect (the whole window): framing
+    /// into a sliver would zoom out to the county.
+    static let minimumUsableSide: CGFloat = 64
+
     /// `rect` clipped to the window; the whole window when nothing usable is left.
     static func usableRect(_ rect: CGRect, in windowSize: CGSize) -> CGRect {
         let window = CGRect(origin: .zero, size: windowSize)
         let clipped = rect.intersection(window)
-        guard !clipped.isNull, clipped.width >= 1, clipped.height >= 1 else { return window }
+        // The floor is relative on small windows (a quarter of the side).
+        let minWidth = max(1, min(minimumUsableSide, windowSize.width / 4))
+        let minHeight = max(1, min(minimumUsableSide, windowSize.height / 4))
+        guard !clipped.isNull, clipped.width >= minWidth, clipped.height >= minHeight else {
+            return window
+        }
         return clipped
     }
 
@@ -109,6 +129,13 @@ enum HoleFraming {
                        y: windowSize.height / 2 - CGFloat(s.u / frame.metersPerPoint))
     }
 
+    /// Inverse of `project`: the coordinate shown at `point`.
+    static func coordinate(at point: CGPoint, frame: HoleFrame, windowSize: CGSize) -> CLLocationCoordinate2D {
+        let x = Double(point.x - windowSize.width / 2) * frame.metersPerPoint
+        let u = -Double(point.y - windowSize.height / 2) * frame.metersPerPoint
+        return coordinate(fromScreenX: x, u: u, origin: frame.center, heading: frame.heading)
+    }
+
     // MARK: Heading
 
     /// Hole-up: the camera heading that puts the green straight above the tee.
@@ -121,6 +148,20 @@ enum HoleFraming {
         guard let start, let end else { return nil }
         guard Distance.meters(from: start, to: end) > minimumBearingMeters else { return nil }
         return Distance.bearingDegrees(from: start, to: end)
+    }
+
+    /// A free rect at least this much wider than tall lays the hole on its side.
+    static let sidewaysAspect: CGFloat = 1.4
+
+    /// The heading at the top of the screen for a hole whose hole-up heading
+    /// is `holeUp`, framed into a free rect of `freeRect`: hole-up, unless
+    /// the rect is clearly landscape — then the hole runs tee-left → green-right
+    /// along the long side (canvas iPhone-Landscape).
+    static func screenHeading(holeUp: CLLocationDirection, freeRect: CGSize) -> CLLocationDirection {
+        guard freeRect.height > 0, freeRect.width >= freeRect.height * sidewaysAspect else {
+            return normalizedHeading(holeUp)
+        }
+        return normalizedHeading(holeUp - 90)
     }
 
     /// Signed turn from `holeUp` to `heading`, in (-180, 180].

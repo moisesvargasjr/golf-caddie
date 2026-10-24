@@ -17,8 +17,9 @@ import SwiftUI
 ///   (auto-hide brings the controls back), `onSelectHole(n)` for a course
 ///   badge tap, and `onDragChanged(isDragging)` (pause auto-hide with `.drag`).
 ///
-/// Framing: tee and green are fitted into `unobstructedRect` — WINDOW
-/// coordinates, as `SafeChrome.unobstructedRect` returns — and re-fitted with
+/// Framing: tee and green are fitted into `unobstructedRect` — in the MAP
+/// VIEW's own coordinates (origin top-left of the map; see
+/// `ChromeFrames.unobstructedRect(display:frames:mapFrame:)`) — and re-fitted with
 /// animation when it changes (auto-hide showing/hiding the controls), unless
 /// the player has panned, zoomed or rotated by hand (`controller.isAutoFraming`).
 struct HoleMap: UIViewRepresentable {
@@ -38,7 +39,7 @@ struct HoleMap: UIViewRepresentable {
     var trail: [CLLocationCoordinate2D] = []
     /// Course mode: every hole's outline.
     var courseHoles: [CourseHoleOutline] = []
-    /// Free area for framing, in window coordinates; nil = the whole map.
+    /// Free area for framing, in the map's own coordinates; nil = the whole map.
     var unobstructedRect: CGRect?
     var snapper: HoleMapShotSnapper = .live
 

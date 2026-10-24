@@ -36,3 +36,4 @@ __pycache__/
 # Pulled device DB + reconstruction scratch (personal GPS data)
 sample-data/
 sample-data/rounds/
+.dd/

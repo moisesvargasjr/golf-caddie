@@ -12,7 +12,8 @@ struct ShotList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showsTitle {
-                Text("This hole")
+                // Review-Open titles the list "Shots"; play keeps "This hole".
+                Text(model.mode == .review ? "Shots" : "This hole")
                     .font(.custom(AppFont.serifName, size: 16).weight(.bold).italic())
                     .foregroundStyle(palette.ink)
                     .padding(.bottom, 2)

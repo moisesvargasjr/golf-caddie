@@ -252,6 +252,7 @@ struct FlagFinishButton: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .frame(minHeight: RoundChromeMetrics.minTap)
             .background(palette.ink)
+            .compositingGroup()
             .shadow(color: palette.cardShadow.color, radius: 0, x: RoundChromeMetrics.shadow,
                     y: RoundChromeMetrics.shadow)
             .contentShape(Rectangle())
