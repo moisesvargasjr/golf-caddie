@@ -202,6 +202,31 @@ final class RoundMapLayoutTests: XCTestCase {
         XCTAssertEqual(free.maxY, 609)
     }
 
+    func testAnOutgoingLayoutCannotWithdrawTheIncomingLayoutsFrame() {
+        // Folded Duo launch: the iPhone layout's title disappears after the
+        // folded layout's title reported under the same id.
+        var book = ChromeFrameBook()
+        let iPhoneTitle = UUID(), foldedTitle = UUID()
+        book.report("title", owner: iPhoneTitle, frame: CGRect(x: 24, y: 0, width: 354, height: 51))
+        book.report("title", owner: foldedTitle, frame: CGRect(x: 24, y: 36, width: 418, height: 52))
+        XCTAssertFalse(book.report("title", owner: iPhoneTitle, frame: nil))
+        XCTAssertEqual(book.frames["title"], CGRect(x: 24, y: 36, width: 418, height: 52))
+        XCTAssertTrue(book.report("title", owner: foldedTitle, frame: nil))
+        XCTAssertNil(book.frames["title"])
+    }
+
+    func testTheSameFrameFromANewOwnerIsKept() {
+        // Two layouts can put the title in exactly the same place.
+        var book = ChromeFrameBook()
+        let old = UUID(), new = UUID()
+        let rect = CGRect(x: 24, y: 36, width: 418, height: 52)
+        book.report("title", owner: old, frame: rect)
+        XCTAssertTrue(book.report("title", owner: new, frame: rect))
+        book.report("title", owner: old, frame: nil)
+        XCTAssertEqual(book.frames["title"], rect)
+        XCTAssertFalse(book.report("title", owner: new, frame: rect), "unchanged")
+    }
+
     func testEmptyMapFrameNoFraming() {
         let folded = display(466, 678, .compact, .closed)
         XCTAssertNil(ChromeFrames.unobstructedRect(display: folded, frames: [:], mapFrame: .zero))

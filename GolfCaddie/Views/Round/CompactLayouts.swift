@@ -316,7 +316,7 @@ struct NotTrackedTag: View {
         StampLabel(text: text, size: 10, color: palette.red)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(palette.paper.opacity(0.9))
+            .background(palette.paper.opacity(0.9), ignoresSafeAreaEdges: [])
     }
 }
 
@@ -331,7 +331,7 @@ struct MapHintTag: View {
         StampLabel(text: text, size: size, color: palette.ink2)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(palette.paper.opacity(0.9))
+            .background(palette.paper.opacity(0.9), ignoresSafeAreaEdges: [])
     }
 }
 

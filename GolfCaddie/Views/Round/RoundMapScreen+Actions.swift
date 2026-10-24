@@ -163,7 +163,8 @@ extension RoundMapScreen {
                 try live.confirmHoleAndAdvance(par: session.par)
                 viewedHole = nil
             }
-            toast = RoundToast(text: "Hole \(number) saved · \(draft.strokes) (\(draft.summary(par: session.par)))")
+            let toPar = draft.summary(par: session.par ?? curatedPar(number))
+            toast = RoundToast(text: "Hole \(number) saved · \(draft.strokes)" + (toPar.isEmpty ? "" : " (\(toPar))"))
             refreshRoundScore()
         }
     }

@@ -28,7 +28,7 @@ private struct ChromeBox: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(palette.paper.opacity(opacity))
+            .background(palette.paper.opacity(opacity), ignoresSafeAreaEdges: [])
             .overlay(Rectangle().strokeBorder(border ?? palette.ink, lineWidth: RoundChromeMetrics.rule))
             .compositingGroup()
             .shadow(color: palette.cardShadow.color, radius: 0, x: shadow, y: shadow)
@@ -91,7 +91,7 @@ struct PrimaryActionButton: View {
                 .minimumScaleFactor(0.7)
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, minHeight: max(minHeight, RoundChromeMetrics.minTap))
-                .background(palette.ink)
+                .background(palette.ink, ignoresSafeAreaEdges: [])
                 .compositingGroup()
                 .shadow(color: palette.cardShadow.color, radius: 0, x: RoundChromeMetrics.shadow,
                         y: RoundChromeMetrics.shadow)
