@@ -348,7 +348,10 @@ final class RoundController {
     /// `courseName`. Soft-fail (no cache / no match ⇒ nil). Guarded to the
     /// still-active originating round.
     private func resolveCuratedCourse(near coord: CLLocationCoordinate2D, roundID: UUID) {
-        guard case let .active(round, _) = state, round.id == roundID else { return }
+        // A course already linked by hand (Home's Course row, or an in-round
+        // relink before the fix arrived) wins over proximity.
+        guard case let .active(round, _) = state, round.id == roundID,
+              round.curatedCourseId == nil else { return }
         if let course = try? CourseDataRepository.nearest(to: coord, within: 3000) {
             applyCuratedCourseId(course.id)
             return
