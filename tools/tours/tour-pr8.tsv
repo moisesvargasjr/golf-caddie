@@ -1,0 +1,8 @@
+track	track-folded|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off
+review	review-open-wide|portrait|-DebugSeedBag 1 -DebugOpen review-round -DebugReviewHole 5 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+review	roundcard-open-wide|portrait|-DebugSeedBag 1 -DebugOpen roundcard -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+course	course-open-wide|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+course	course-open-portrait|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+course	course-folded|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off
+course	course-iphone-portrait|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugWindowSize 402x874 -DebugLayoutClass compact -DebugAutoHide off
+course	course-iphone-landscape|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugWindowSize 874x402 -DebugLayoutClass compact -DebugAutoHide off

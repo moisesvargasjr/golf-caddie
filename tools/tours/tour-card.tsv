@@ -1,0 +1,7 @@
+live	card-open-wide|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open
+live	card-open-portrait|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open
+live	card-folded|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card -DebugLayoutClass compact -DebugPosture closed
+live	card-iphone-portrait|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card -DebugWindowSize 402x874 -DebugLayoutClass compact
+live	card-iphone-landscape|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugOpen card -DebugWindowSize 874x402 -DebugLayoutClass compact
+finished	finished-card-open-wide|portrait|-DebugSeedBag 1 -DebugOpen roundcard -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open
+finished	finished-card-folded|portrait|-DebugSeedBag 1 -DebugOpen roundcard -DebugLayoutClass compact -DebugPosture closed

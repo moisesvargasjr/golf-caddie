@@ -1,0 +1,8 @@
+track-folded	Folded
+review-open-wide	Course-Open (hole selected) / Review-Open
+roundcard-open-wide	Round-Open
+course-open-wide	Course-Open
+course-open-portrait	Course-Open (open portrait; no board of its own)
+course-folded	— (fallback, no mockup)
+course-iphone-portrait	— (fallback, no mockup)
+course-iphone-landscape	— (fallback, no mockup)

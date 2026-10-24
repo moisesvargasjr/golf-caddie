@@ -1,0 +1,6 @@
+casual	casual-open-wide|portrait|-DebugSeedBag 1 -DebugOpen casual -DebugCasualHoles 7 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+casual	casual-folded|portrait|-DebugSeedBag 1 -DebugOpen casual -DebugCasualHoles 7 -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off
+casual	casual-iphone-portrait|portrait|-DebugSeedBag 1 -DebugOpen casual -DebugCasualHoles 7 -DebugWindowSize 402x874 -DebugLayoutClass compact -DebugAutoHide off
+casual	casual-iphone-landscape|portrait|-DebugSeedBag 1 -DebugOpen casual -DebugCasualHoles 7 -DebugWindowSize 874x402 -DebugLayoutClass compact -DebugAutoHide off
+casual	casual-finish-open-wide|portrait|-DebugSeedBag 1 -DebugOpen casual-finish -DebugCasualHoles 7 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+casual	casual-finish-folded|portrait|-DebugSeedBag 1 -DebugOpen casual-finish -DebugCasualHoles 7 -DebugLayoutClass compact -DebugPosture closed -DebugAutoHide off

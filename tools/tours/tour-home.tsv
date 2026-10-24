@@ -1,0 +1,6 @@
+duo	home-open-wide|portrait|-DebugOpen home -DebugSeedBag 1 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open
+duo	home-open-portrait|portrait|-DebugOpen home -DebugSeedBag 1 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open
+duo	home-book|portrait|-DebugOpen home -DebugSeedBag 1 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture halfOpen
+duo	home-folded|portrait|-DebugOpen home -DebugSeedBag 1 -DebugLayoutClass compact -DebugPosture closed
+duo	home-iphone-portrait|portrait|-DebugOpen home -DebugSeedBag 1 -DebugWindowSize 402x874 -DebugLayoutClass compact
+duo	home-iphone-landscape|portrait|-DebugOpen home -DebugSeedBag 1 -DebugWindowSize 874x402 -DebugLayoutClass compact

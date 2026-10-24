@@ -1,0 +1,11 @@
+open-wide	Main
+open-portrait	Portrait
+book	Book
+folded	Folded
+iphone-portrait	iPhone-Round
+iphone-landscape	iPhone-Landscape
+putts-folded	Folded (Finish → putts)
+penalty-open-wide	Main (+ PENALTY question)
+late-start-grid-iphone	iPhone-PastHole (hole grid on a late start)
+folded-clear	Folded-Clear
+iphone-clear	iPhone-Clear

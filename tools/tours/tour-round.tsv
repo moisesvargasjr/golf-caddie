@@ -1,0 +1,6 @@
+duo	open-wide|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture open
+duo	open-portrait|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open
+duo	book|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugWindowSize 951x669 -DebugLayoutClass expanded -DebugPosture halfOpen
+duo	folded|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugLayoutClass compact -DebugPosture closed
+duo	iphone-portrait|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugWindowSize 402x874 -DebugLayoutClass compact
+duo	iphone-landscape|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugWindowSize 874x402 -DebugLayoutClass compact
