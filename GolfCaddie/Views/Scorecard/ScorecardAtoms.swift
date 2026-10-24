@@ -151,7 +151,7 @@ struct ScorecardFilledButton: View {
                 .minimumScaleFactor(0.7)
                 .padding(.horizontal, 14)
                 .frame(maxWidth: expands ? .infinity : nil, minHeight: minHeight)
-                .background(CardInk.ink)
+                .background(CardInk.ink, ignoresSafeAreaEdges: [])
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -172,7 +172,7 @@ struct ScorecardCourseMapButton: View {
             .foregroundStyle(CardInk.palette.paper)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(CardInk.ink)
+            .background(CardInk.ink, ignoresSafeAreaEdges: [])
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
