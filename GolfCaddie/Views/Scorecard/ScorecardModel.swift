@@ -16,6 +16,11 @@ struct ScorecardColumn: Equatable, Identifiable {
     let story: String?
     let holeID: UUID?
     let isConfirmed: Bool
+    /// A hole before the starting hole with no score yet: render ADD; it is
+    /// left out of every total (Duo v2 Decision 2).
+    var needsEntry: Bool = false
+    /// `.hand` when the score was typed in rather than tracked; nil = no row.
+    var scoreSource: HoleScoreSource? = nil
     var id: Int { number }
 
     /// Score relative to par, when both are known.
@@ -64,6 +69,9 @@ struct ScorecardModel: Equatable {
 
     var girCount: Int { columns.filter { $0.gir == true }.count }
 
+    /// Hole numbers the scorecard shows ADD for.
+    var holesNeedingEntry: [Int] { columns.filter(\.needsEntry).map(\.number) }
+
     /// Gross minus par over confirmed holes that have a par.
     var grossToPar: Int? {
         let rated = columns.compactMap(\.toPar)
@@ -102,36 +110,54 @@ struct ScorecardModel: Equatable {
         let penaltyStrokes: Int
     }
 
+    /// `startingHole` (the round's, nil for pre-v10 rounds) flags earlier
+    /// holes with no score as `needsEntry`. Hand-scored holes count with their
+    /// typed-in strokes/putts; penalty input is STROKES, not rows.
     @MainActor
     static func build(holes: [HoleInput], course: CuratedCourse?,
-                      localAnchors: [Int: LocalCourseAnchor] = [:]) -> ScorecardModel {
+                      localAnchors: [Int: LocalCourseAnchor] = [:],
+                      startingHole: Int? = nil) -> ScorecardModel {
         let byNumber = Dictionary(holes.map { ($0.hole.holeNumber, $0) }, uniquingKeysWith: { a, _ in a })
         let columns = (1...18).map { number -> ScorecardColumn in
             let curated = course?.holes.first { $0.number == number }
-            let input = byNumber[number]
-            let par = input?.hole.par ?? curated?.par
-            let confirmed = input?.hole.confirmedAt != nil
-            let shots = input?.shots ?? []
-            let pens = input?.penaltyStrokes ?? 0
-            // A confirmed hole with no shots has nothing to score (skipped /
-            // not tracked): leave score, putts and GIR blank.
-            let scored = confirmed && !shots.isEmpty
-            return ScorecardColumn(
-                number: number,
-                yards: yards(curated: curated, local: localAnchors[number]),
-                par: par,
-                strokeIndex: curated?.strokeIndex,
-                score: scored ? shots.count + pens : nil,
-                putts: scored ? shots.filter(\.isPutt).count : nil,
-                gir: scored ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil,
-                penalties: confirmed ? pens : nil,
-                story: input.map { story(shots: $0.shots, penalties: $0.penaltyStrokes) },
-                holeID: input?.hole.id,
-                isConfirmed: confirmed
-            )
+            return column(number: number, input: byNumber[number], curated: curated,
+                          yards: yards(curated: curated, local: localAnchors[number]),
+                          startingHole: startingHole)
         }
         let hasSI = course?.holes.contains { $0.strokeIndex != nil } ?? false
         return ScorecardModel(columns: columns, hasStrokeIndex: hasSI)
+    }
+
+    @MainActor
+    private static func column(number: Int, input: HoleInput?, curated: CuratedHole?,
+                               yards: Int?, startingHole: Int?) -> ScorecardColumn {
+        let hole = input?.hole
+        let par = hole?.par ?? curated?.par
+        let shots = input?.shots ?? []
+        let pens = input?.penaltyStrokes ?? 0
+        let isHand = hole?.isHandScored ?? false
+        let confirmed = hole?.confirmedAt != nil
+        // A confirmed tracked hole with no shots has nothing to score (skipped /
+        // not tracked): leave score, putts and GIR blank.
+        let tracked = !isHand && confirmed && !shots.isEmpty
+        let scored = isHand || tracked
+        let needsEntry = HoleScoring.needsEntry(
+            holeNumber: number, startingHole: startingHole, hole: hole, hasTrackedData: tracked)
+        return ScorecardColumn(
+            number: number,
+            yards: yards,
+            par: par,
+            strokeIndex: curated?.strokeIndex,
+            score: scored ? HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: pens) : nil,
+            putts: scored ? HoleScoring.putts(hole: hole, shots: shots) : nil,
+            gir: tracked ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil,
+            penalties: (confirmed && !isHand) ? pens : nil,
+            story: isHand ? "Score entered by hand" : input.map { story(shots: $0.shots, penalties: $0.penaltyStrokes) },
+            holeID: hole?.id,
+            isConfirmed: confirmed || isHand,
+            needsEntry: needsEntry,
+            scoreSource: hole?.effectiveScoreSource
+        )
     }
 
     /// Course yardage, else tee→green from the anchors (local wins), else nil.

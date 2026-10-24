@@ -1,6 +1,15 @@
 import Foundation
 import GRDB
 
+/// How a hole's score was recorded (v10). `tracked` = strokes are the logged
+/// shots plus penalty strokes; `hand` = the golfer typed the score in (a late
+/// start's earlier holes, or a casual-mode Finish), held in `handStrokes` /
+/// `handPutts`. A NULL column (every pre-v10 row) reads as tracked.
+enum HoleScoreSource: String, Codable, CaseIterable {
+    case tracked
+    case hand
+}
+
 struct Hole: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable {
     static let databaseTableName = "hole"
 
@@ -9,4 +18,18 @@ struct Hole: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
     var holeNumber: Int
     var par: Int?
     var confirmedAt: Date?
+    /// v10. nil = legacy row, read as `.tracked` (see `effectiveScoreSource`).
+    /// Column names match the property names, so the synthesized coding keys
+    /// map them with no explicit `CodingKeys`.
+    var scoreSource: HoleScoreSource? = nil
+    /// v10. The hand-entered gross score (penalties included); only meaningful
+    /// when `scoreSource == .hand`.
+    var handStrokes: Int? = nil
+    /// v10. The hand-entered putt count; nil = not given.
+    var handPutts: Int? = nil
+}
+
+extension Hole {
+    var effectiveScoreSource: HoleScoreSource { scoreSource ?? .tracked }
+    var isHandScored: Bool { effectiveScoreSource == .hand }
 }

@@ -236,6 +236,30 @@ enum Database {
                           columns: ["roundID", "timestamp"])
         }
 
+        // Duo v2 (PR 2): explicit hand scores instead of placeholder strokes,
+        // so late-start and casual-entered holes are distinguishable from
+        // tracked ones. hole.scoreSource is TEXT 'tracked' | 'hand' (NULL =
+        // legacy, read as tracked); handStrokes/handPutts hold the typed-in
+        // score. round.mode ('tracking' | 'casual') and round.startingHole
+        // record the choices made at Begin, so a finished round knows its mode
+        // and which earlier holes need an entry (ADD). All nullable/additive.
+        // Penalty strokes need no column: penalty.strokeCount exists since v1.
+        //
+        // NOTE: docs/WATCH_OWNS_ROUND.md (branch docs/watch-owns-round) also
+        // plans a "v10". Whichever ships second renumbers to v11 — GRDB keys
+        // migrations by name, so only the name/order must stay unique.
+        migrator.registerMigration("v10_hole_score_source") { db in
+            try db.alter(table: "hole") { t in
+                t.add(column: "scoreSource", .text)
+                t.add(column: "handStrokes", .integer)
+                t.add(column: "handPutts", .integer)
+            }
+            try db.alter(table: "round") { t in
+                t.add(column: "mode", .text)
+                t.add(column: "startingHole", .integer)
+            }
+        }
+
         return migrator
     }
 }
