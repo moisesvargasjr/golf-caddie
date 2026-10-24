@@ -140,10 +140,13 @@ struct HomeView: View {
         debugRound = round
     }
 
-    /// `-DebugOpen course-map`: a finished round with every shot placed,
-    /// opened on its course map (`DebugCourseMapSeed`).
+    /// `-DebugOpen course-map [-DebugReviewHole N]`: a finished round with
+    /// every shot placed, opened on its course map (`DebugCourseMapSeed`),
+    /// or zoomed into hole N with COURSE MAP to go back out.
     private func openDebugCourseMap() {
         guard let round = DebugCourseMapSeed.round() else { return }
+        let requested = UserDefaults.standard.integer(forKey: "DebugReviewHole")
+        debugReviewHole = HoleScoring.holeRange.contains(requested) ? requested : nil
         debugOpensCourseMap = true
         debugRound = round
     }
