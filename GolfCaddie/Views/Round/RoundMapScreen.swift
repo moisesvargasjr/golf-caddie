@@ -59,6 +59,10 @@ struct RoundMapScreen: View {
     @State var toast: RoundToast?
     @State var trail: [CLLocationCoordinate2D] = []
     @State var chromeFrames: [String: CGRect] = [:]
+    /// The map's frame in `ChromeFrames.space` (anchors `chromeFrames`).
+    @State var mapFrame: CGRect = .zero
+    /// The safe area in `ChromeFrames.space` (the screen's own frame).
+    @State var safeRect: CGRect?
     @State var roundScoreText: String?
     @State var roundToPar: String?
     @State var isMarking = false
@@ -78,6 +82,7 @@ struct RoundMapScreen: View {
             ZStack(alignment: .topLeading) {
                 holeMap
                     .ignoresSafeArea()
+                    .reportsMapFrame()
                 chrome(layout: layout, model: model, actions: actions, insets: insets)
                     .ignoresSafeArea()
                 if let toast {
@@ -87,6 +92,10 @@ struct RoundMapScreen: View {
                         .ignoresSafeArea()
                         .transition(.opacity)
                 }
+            }
+            .coordinateSpace(.named(ChromeFrames.space))
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                safeRect = CGRect(origin: .zero, size: size)
             }
         }
         .environment(\.chromeFrameSink, ChromeFrameSink { id, frame in noteChromeFrame(id, frame) })
@@ -132,7 +141,8 @@ struct RoundMapScreen: View {
             clubLabels: Self.clubLabels(for: shots),
             selectedShotID: selectedShotID,
             trail: trail,
-            unobstructedRect: ChromeFrames.unobstructedRect(display: display, frames: chromeFrames),
+            unobstructedRect: ChromeFrames.unobstructedRect(display: display, frames: chromeFrames,
+                                                            mapFrame: mapFrame, safeRect: safeRect),
             onMoveShot: { id, coordinate in moveShot(id, to: coordinate) },
             onLongPress: { coordinate in holdToAdd(at: coordinate) },
             onSelectShot: { id in toggleSelection(id) },
@@ -183,6 +193,11 @@ struct RoundMapScreen: View {
     }
 
     private func noteChromeFrame(_ id: String, _ frame: CGRect?) {
+        if id == ChromeFrames.mapID {
+            let next = frame ?? .zero
+            if mapFrame != next { mapFrame = next }
+            return
+        }
         guard chromeFrames[id] != frame else { return }
         var next = chromeFrames
         next[id] = frame
@@ -214,7 +229,9 @@ struct RoundMapScreen: View {
     }
 
     private func setUp() {
-        if autoHide == nil { autoHide = AutoHideController(display: display) }
+        if autoHide == nil {
+            autoHide = AutoHideController(display: display, policyOverride: AutoHidePolicy.launchOverride)
+        }
         autoHide?.update(display: display)
         syncSession()
         applyPauseReasons(desiredPauseReasons)
