@@ -401,29 +401,15 @@ final class RoundController {
         autoFillParIfAvailable()
     }
 
-    /// A re-link away from a wrong course: every hole of the active round
-    /// whose par still equals the old course's par for that hole was
-    /// auto-filled, so it takes the new course's par (or none after an
-    /// unlink). A par typed in by hand differs from the old course and stays.
+    /// A re-link away from a wrong course: auto-filled pars follow the new
+    /// course (`CourseRelinkPars`), through `setPar` so the live hole follows.
     private func replaceAutoFilledPars(from previousCourseId: String) {
         guard case let .active(round, _) = state,
-              let previous = try? CourseDataRepository.course(byId: previousCourseId),
-              let holes = try? HoleRepository.holesForRound(round.id) else { return }
-        let next = curatedCourseId.flatMap { try? CourseDataRepository.course(byId: $0) }
-        for hole in holes {
-            let oldPar = previous.holes.first(where: { $0.number == hole.holeNumber })?.par
-            let newPar = next?.holes.first(where: { $0.number == hole.holeNumber })?.par
-            guard let replacement = Self.parAfterRelink(current: hole.par, previousCoursePar: oldPar,
-                                                        newCoursePar: newPar) else { continue }
-            try? setPar(replacement, forHole: hole.id)
+              let changes = try? CourseRelinkPars.changes(roundID: round.id, from: previousCourseId,
+                                                          to: curatedCourseId) else { return }
+        for change in changes {
+            try? setPar(change.par, forHole: change.holeID)
         }
-    }
-
-    /// What a hole's par becomes when the round moves to another course:
-    /// nil = leave it; `.some(par)` = set it (`.some(nil)` clears it).
-    nonisolated static func parAfterRelink(current: Int?, previousCoursePar: Int?, newCoursePar: Int?) -> Int?? {
-        guard let current, current == previousCoursePar, current != newCoursePar else { return nil }
-        return .some(newCoursePar)
     }
 
     /// Manually link (or unlink) a curated course on the active round from
