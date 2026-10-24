@@ -9,3 +9,4 @@ penalty-open-wide	Main (+ PENALTY question)
 late-start-grid-iphone	iPhone-PastHole (hole grid on a late start)
 folded-clear	Folded-Clear
 iphone-clear	iPhone-Clear
+past-hole-iphone	iPhone-PastHole

@@ -37,6 +37,7 @@ if (( rc != 0 )); then grep -E "error:" $OUT/build.log | sort -u | head -40 | te
 PAIRS=("duo:$DUO"); [[ $PRO == [0-9A-F]* ]] && PAIRS+=("pro:$PRO") || log "iPhone 17 Pro: BLOCKED (no compatible runtime installed; only iOS 27.1, which supports iPhone Duo only)"
 for pair in $PAIRS; do
   name=${pair%%:*}; id=${pair#*:}
+  [[ -n ${SIMS:-} && " $SIMS " != *" $name "* ]] && continue  # SIMS="pro" tests only the 17 Pro
   rm -rf $OUT/test-$name.xcresult
   log "test $name"
   xcodebuild test-without-building -project GolfCaddie.xcodeproj -scheme GolfCaddie \
@@ -44,6 +45,7 @@ for pair in $PAIRS; do
     -skip-testing:GolfCaddieUITests/ScreenshotTourUITests \
     -resultBundlePath $OUT/test-$name.xcresult > $OUT/test-$name.log 2>&1
   log "test $name rc=$?  $(grep -E 'Executed [0-9]+ tests' $OUT/test-$name.log | tail -1)"
+  log "  UI: $(grep -E "Test Suite '[A-Za-z]+UITests' (passed|failed)" $OUT/test-$name.log | sed -E "s/Test Suite '([A-Za-z]+)' ([a-z]+).*/\1 \2/" | tr '\n' ' ')"
   grep -E "error: -\[|failed \(" $OUT/test-$name.log | head -30 | tee -a $OUT/verify.log
   xcrun simctl shutdown $id 2>/dev/null
 done
@@ -54,7 +56,7 @@ if [[ -n $TOURFILE && -f $TOURFILE ]]; then
   # tourfile lines: device<TAB>shot spec (name|orientation|args)
   # first column = group; each group runs from a clean install on the Duo
   for name in $(cut -f1 $TOURFILE | awk '!seen[$0]++'); do
-    id=$DUO
+    id=$DUO; [[ ${TOUR_SIM:-} == pro ]] && id=$PRO  # TOUR_SIM=pro tours the iPhone 17 Pro at its real size
     xcrun simctl boot $id 2>/dev/null; xcrun simctl bootstatus $id -b >/dev/null 2>&1
     # The Vineyard at Escondido, hole 1 fairway (tee 33.0716,-117.053691 → green 33.069494,-117.056016)
     xcrun simctl uninstall $id com.moisesvargasjr.golfcaddie >/dev/null 2>&1
