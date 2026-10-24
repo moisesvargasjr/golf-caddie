@@ -49,9 +49,10 @@ final class RoundMapLayoutTests: XCTestCase {
         XCTAssertEqual(RoundMapLayout.resolve(DisplayContext()), .phonePortrait)
     }
 
-    func testOnlyFoldedPutsPenaltyInTheOverflowMenu() {
+    func testEveryLayoutShowsPenaltyBesideShot() {
+        // Canvas Folded: + SHOT · + PENALTY in the action box, as everywhere.
         for layout in RoundMapLayout.allCases {
-            XCTAssertEqual(layout.penaltyInOverflow, layout == .folded, "\(layout)")
+            XCTAssertFalse(layout.penaltyInOverflow, "\(layout)")
         }
     }
 
@@ -133,6 +134,48 @@ final class RoundMapLayoutTests: XCTestCase {
         let folded = display(466, 678, .compact, .closed)
         XCTAssertEqual(ChromeFrames.unobstructedRect(display: folded, frames: [:]),
                        CGRect(x: 0, y: 0, width: 466, height: 678))
+    }
+
+    func testFramesAreMadeRelativeToTheMap() throws {
+        // Frames come in the screen's coordinate space; the map starts 47 pt
+        // above it (it ignores the top safe area). The result is in the map's
+        // own coordinates, sized to the map.
+        let folded = display(466, 678, .compact, .closed)
+        let mapFrame = CGRect(x: 0, y: -47, width: 466, height: 678)
+        let frames: [String: CGRect] = [
+            "title": CGRect(x: 24, y: 36 - 47, width: 418, height: 52),
+            "card": CGRect(x: 24, y: 572 - 47, width: 244, height: 70),
+        ]
+        let free = try XCTUnwrap(ChromeFrames.unobstructedRect(display: folded, frames: frames, mapFrame: mapFrame))
+        XCTAssertEqual(free.minY, 88)
+        XCTAssertEqual(free.maxY, 572)
+        XCTAssertEqual(free.width, 466)
+    }
+
+    func testTheMapSizeWinsOverTheDisplaySize() throws {
+        // Under -DebugWindowSize the map is 951×669 even if the display
+        // context lags; frame into the map, never past it.
+        let open = display(412, 600, .expanded, .open)
+        let mapFrame = CGRect(x: 0, y: 0, width: 951, height: 669)
+        let free = try XCTUnwrap(ChromeFrames.unobstructedRect(
+            display: open, frames: ["panel": CGRect(x: 603, y: 24, width: 324, height: 621)], mapFrame: mapFrame))
+        XCTAssertEqual(free, CGRect(x: 0, y: 0, width: 603, height: 669))
+    }
+
+    func testTheFreeRectStaysInsideTheSafeArea() throws {
+        // Controls hidden: no chrome, but the camera island / status bar
+        // (outside `safeRect`) is not free space for the hole.
+        let folded = display(466, 678, .compact, .closed)
+        let mapFrame = CGRect(x: 0, y: -40, width: 466, height: 678)
+        let safeRect = CGRect(x: 0, y: 0, width: 400, height: 618)
+        let free = try XCTUnwrap(ChromeFrames.unobstructedRect(display: folded, frames: [:], mapFrame: mapFrame,
+                                                               safeRect: safeRect))
+        XCTAssertEqual(free, CGRect(x: 0, y: 40, width: 400, height: 618))
+    }
+
+    func testEmptyMapFrameNoFraming() {
+        let folded = display(466, 678, .compact, .closed)
+        XCTAssertNil(ChromeFrames.unobstructedRect(display: folded, frames: [:], mapFrame: .zero))
     }
 
     func testNoWindowNoFraming() {
