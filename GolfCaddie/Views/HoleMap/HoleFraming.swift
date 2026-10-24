@@ -45,6 +45,10 @@ struct HoleFrame: Equatable {
 enum HoleFraming {
     /// Gap kept between the framed points and the edge of the free rect.
     static let padding: CGFloat = 32
+    /// Extra gap above the framed points: the green's marker balloon draws
+    /// upward from its coordinate (about 40 pt), so a uniform gap let it
+    /// touch the top chrome.
+    static let markerHeadroom: CGFloat = 24
     /// Never zoom in closer than this across the free rect's short side.
     static let minimumSpanMeters: Double = 120
     /// Floor for `boundingRegion` spans (~55 m).
@@ -101,7 +105,7 @@ enum HoleFraming {
                     heading: CLLocationDirection, padding: CGFloat = HoleFraming.padding) -> HoleFrame? {
         let valid = points.filter(CLLocationCoordinate2DIsValid)
         guard let origin = valid.first, windowSize.width > 0, windowSize.height > 0 else { return nil }
-        let target = padded(usableRect(unobstructedRect, in: windowSize), by: padding)
+        let target = withHeadroom(padded(usableRect(unobstructedRect, in: windowSize), by: padding))
 
         let screen = valid.map { screenMeters(of: $0, origin: origin, heading: heading) }
         let xs = screen.map { $0.x }, us = screen.map { $0.u }
@@ -206,6 +210,13 @@ enum HoleFraming {
     }
 
     // MARK: Projection helpers
+
+    /// `rect` less `markerHeadroom` off the top, unless that leaves too little.
+    private static func withHeadroom(_ rect: CGRect) -> CGRect {
+        guard rect.height > markerHeadroom * 2 else { return rect }
+        return CGRect(x: rect.minX, y: rect.minY + markerHeadroom,
+                      width: rect.width, height: rect.height - markerHeadroom)
+    }
 
     private static func padded(_ rect: CGRect, by padding: CGFloat) -> CGRect {
         let inset = rect.insetBy(dx: padding, dy: padding)

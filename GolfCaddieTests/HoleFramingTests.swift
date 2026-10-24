@@ -98,6 +98,20 @@ final class HoleFramingTests: XCTestCase {
         }
     }
 
+    func testTheGreenMarkerClearsTheTopOfTheRect() throws {
+        // The flag balloon is ~40 pt tall above the green's coordinate.
+        for (layoutName, window, rect) in layouts {
+            for hole in holes {
+                let heading = try XCTUnwrap(HoleFraming.holeUpHeading(tee: hole.tee, green: hole.green))
+                let frame = try XCTUnwrap(HoleFraming.fitHole(
+                    tee: hole.tee, green: hole.green, shots: hole.shots,
+                    unobstructedRect: rect, in: window, heading: heading))
+                let green = HoleFraming.project(hole.green, frame: frame, windowSize: window)
+                XCTAssertGreaterThanOrEqual(green.y - 40, rect.minY + 8, "\(layoutName) / \(hole.name)")
+            }
+        }
+    }
+
     func testUnprojectIsTheInverseOfProject() throws {
         let window = CGSize(width: 466, height: 678)
         let hole = holes[2]
@@ -138,10 +152,12 @@ final class HoleFramingTests: XCTestCase {
             tee: hole.tee, green: hole.green, shots: [], unobstructedRect: rect, in: window, heading: 0))
         let tee = HoleFraming.project(hole.tee, frame: frame, windowSize: window)
         let green = HoleFraming.project(hole.green, frame: frame, windowSize: window)
-        XCTAssertEqual((tee.y + green.y) / 2, rect.midY, accuracy: 1)
+        // Centred in the padded rect below the marker headroom.
+        XCTAssertEqual((tee.y + green.y) / 2, rect.midY + HoleFraming.markerHeadroom / 2, accuracy: 1)
         XCTAssertEqual((tee.x + green.x) / 2, rect.midX, accuracy: 1)
         // Tight: the long axis fills the padded rect.
-        XCTAssertEqual(tee.y - green.y, rect.height - 2 * HoleFraming.padding, accuracy: 1)
+        XCTAssertEqual(tee.y - green.y, rect.height - 2 * HoleFraming.padding - HoleFraming.markerHeadroom,
+                       accuracy: 1)
         // The camera centre itself is the window centre.
         let centre = HoleFraming.project(frame.center, frame: frame, windowSize: window)
         XCTAssertEqual(centre.x, window.width / 2, accuracy: 0.01)
