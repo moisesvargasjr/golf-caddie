@@ -38,17 +38,20 @@ enum AutoHideWiring {
 // MARK: - What the panel shows for the hole on screen
 
 enum HolePanelState: Equatable, Sendable {
-    /// The hole being played (tracking): yardage, shots, + SHOT, Finish.
+    /// The hole being played: yardage, then shots + SHOT (tracking) or the
+    /// round so far (casual), and Finish.
     case live
     /// A finished, tracked hole: its result; pins and clubs stay editable.
     case pastTracked
     /// No tracked shots (before a late start, a skipped hole, a hand-scored
-    /// hole, or the casual live hole): strokes + putts entry.
+    /// hole): strokes + putts entry (tracking) or the score grid (casual).
     case entry
 
+    /// `mode` is kept for PR 7's review mode; tracking and casual resolve alike
+    /// (the casual live hole asks for its score only when Finish is tapped).
     static func resolve(mode: RoundMapMode, isLive: Bool, isTracked: Bool,
                         needsEntry: Bool, isHandScored: Bool) -> HolePanelState {
-        if isLive { return mode.liveHoleIsHandEntry ? .entry : .live }
+        if isLive { return .live }
         if needsEntry || isHandScored || !isTracked { return .entry }
         return .pastTracked
     }
@@ -159,6 +162,12 @@ enum RoundMapFormat {
     static func notTrackedText(holeNumber: Int, startingHole: Int?) -> String {
         guard let startingHole, holeNumber < startingHole else { return "NOT TRACKED" }
         return "NOT TRACKED · YOU STARTED ON HOLE \(startingHole)"
+    }
+
+    /// "PAR 4 · CASUAL": the caption with the mode's tag, if any.
+    static func tagged(_ caption: String, tag: String?) -> String {
+        guard let tag else { return caption }
+        return caption + " · " + tag
     }
 
     /// "PAR 4 · 398 YD" (open) or "PAR 4 · 398 · +1" (compact headers).

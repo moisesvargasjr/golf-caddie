@@ -112,12 +112,28 @@ struct RoundPanelModel {
     var notTrackedText: String
     var entryShowsBackToLive: Bool
 
+    // Casual
+    /// Every scored hole, newest first, with the running total.
+    var roundSoFar: RoundSoFar = .empty
+    /// The score grid's picks (casual Finish, or a casual hole being edited).
+    var scoreDraft: ScoreGridDraft = .empty
+
     // Chrome
     var controlsVisible: Bool
     var compassRotation: Double
     var toast: RoundToast?
 
     var showsClubList: Bool { state != .entry && mode.tracksShots }
+    /// The round so far takes the shot list's / club list's place (casual).
+    var showsRoundSoFar: Bool { mode.showsRoundSoFar }
+    /// The 1–10+ grid is open: casual Finish, or a casual hole entered by hand.
+    var showsScoreGrid: Bool {
+        question == .score || (question == nil && state == .entry && mode.entryUsesScoreGrid)
+    }
+    /// Saving the grid moves the round on (Finish on the live hole).
+    var scoreGridAdvances: Bool { question == .score }
+    /// The panel shows an answer area (putts, grid, entry) instead of the actions.
+    var isAsking: Bool { question == .putts || showsScoreGrid || state == .entry }
     var isLiveHole: Bool { state == .live }
     var backToLiveTitle: String { "Back to hole \(liveHoleNumber ?? holeNumber) ›" }
     /// Short version for narrow buttons.
@@ -148,6 +164,13 @@ struct RoundPanelActions {
     var pickClub: (Club) -> Void = { _ in }
     var deleteSelectedShot: () -> Void = {}
     var doneSelection: () -> Void = {}
+
+    /// Score grid (casual): a score cell, a putts cell, save.
+    var pickScore: (Int) -> Void = { _ in }
+    var pickScorePutts: (Int) -> Void = { _ in }
+    var saveScore: () -> Void = {}
+    /// A hole in the round-so-far list: open it to edit its score.
+    var openRoundHole: (Int) -> Void = { _ in }
 
     var stepEntryStrokes: (Int) -> Void = { _ in }
     var stepEntryPutts: (Int) -> Void = { _ in }
