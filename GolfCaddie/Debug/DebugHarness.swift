@@ -67,6 +67,12 @@ enum DebugHarness {
         // A fresh simulator has no saved bag, which gates the UI on Bag Setup.
         // Seed the recommended default so Home / the active round render.
         seedBagIfRequested()
+        // `-DebugFreshRound 1`: end a round restored from an earlier run first,
+        // so UI tests always start on a fresh tracking hole.
+        if startRound, d.bool(forKey: "DebugFreshRound"), controller.isActive {
+            try? controller.endRound()
+            controller.clearMostRecentlyEndedRound()
+        }
         if startRound, !controller.isActive {
             let startHole = d.integer(forKey: "DebugStartHole")
             // Comma-separated bag ids left home, e.g. -DebugClubsLeftOut threeWood,lobWedge

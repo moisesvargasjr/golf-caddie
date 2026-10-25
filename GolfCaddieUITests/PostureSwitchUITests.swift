@@ -82,7 +82,9 @@ final class PostureSwitchUITests: XCTestCase {
     /// selected (and keeps auto-hide paused) through every pose.
     @MainActor
     func testASelectedShotSurvivesPostureSwitches() throws {
-        let app = launchFolded()
+        // A fresh tracking hole: a round restored from an earlier run may be
+        // on a hole where holding the map adds nothing (casual, score entry).
+        let app = launchFolded(extra: ["-DebugFreshRound", "1"])
         let probe = app.descendants(matching: .any)[ID.probe].firstMatch
         XCTAssertTrue(probe.waitForExistence(timeout: Self.timeout), "round screen never appeared")
         try waitForPose(.closed, probe: probe)
@@ -108,7 +110,7 @@ final class PostureSwitchUITests: XCTestCase {
     /// (the folded sheet and the open panel are different views of it).
     @MainActor
     func testAnOpenPuttsQuestionKeepsItsChoiceAcrossPostures() throws {
-        let app = launchFolded(extra: ["-DebugOpen", "putts"])
+        let app = launchFolded(extra: ["-DebugFreshRound", "1", "-DebugOpen", "putts"])
         let probe = app.descendants(matching: .any)[ID.probe].firstMatch
         XCTAssertTrue(probe.waitForExistence(timeout: Self.timeout), "round screen never appeared")
         try waitForPose(.closed, probe: probe)
