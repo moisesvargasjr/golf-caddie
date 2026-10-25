@@ -7,6 +7,8 @@ struct ShotList: View {
     let actions: RoundPanelActions
     var showsTitle = true
     var rowHeight: CGFloat = 44
+    /// Only as tall as its rows, scrolling once they no longer fit.
+    var fitsContent = false
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -18,28 +20,40 @@ struct ShotList: View {
                     .foregroundStyle(palette.ink)
                     .padding(.bottom, 2)
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(model.shotRows) { row in shotRow(row) }
-                    ForEach(model.penaltyRows) { row in penaltyRow(row) }
-                    if let next = model.nextShotText {
-                        Text(next)
-                            .font(RoundFont.mono(11))
-                            .foregroundStyle(palette.ink2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 12)
-                    } else if model.shotRows.isEmpty, model.penaltyRows.isEmpty {
-                        Text("No shots yet.")
-                            .font(RoundFont.serifItalic(15))
-                            .foregroundStyle(palette.ink3)
-                            .padding(.vertical, 8)
-                    }
+            if fitsContent {
+                ViewThatFits(in: .vertical) {
+                    rows
+                    scrollingRows
                 }
+            } else {
+                scrollingRows
             }
-            .scrollIndicators(.hidden)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(InRoundAccessibilityID.shotList)
+    }
+
+    private var scrollingRows: some View {
+        ScrollView { rows }.scrollIndicators(.hidden)
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(model.shotRows) { row in shotRow(row) }
+            ForEach(model.penaltyRows) { row in penaltyRow(row) }
+            if let next = model.nextShotText {
+                Text(next)
+                    .font(RoundFont.mono(11))
+                    .foregroundStyle(palette.ink2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 12)
+            } else if model.shotRows.isEmpty, model.penaltyRows.isEmpty {
+                Text("No shots yet.")
+                    .font(RoundFont.serifItalic(15))
+                    .foregroundStyle(palette.ink3)
+                    .padding(.vertical, 8)
+            }
+        }
     }
 
     private func shotRow(_ row: ShotRowModel) -> some View {

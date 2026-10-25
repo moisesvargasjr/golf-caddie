@@ -55,13 +55,12 @@ struct OpenWideLayout: View {
     }
 }
 
-/// Fully open, portrait: the same panel on the right, full height — split
-/// into two boxes around the hinge band so nothing sits on the fold. The top
-/// box holds the score row, the yardage, the shots and the club list; the
-/// bottom box the questions, score entry and actions. Nothing across the
-/// bottom. Casual has no board for this pose yet: it reuses the open-wide
-/// casual arrangement — the round so far in the top box, the score grid and
-/// Finish in the bottom one.
+/// Fully open, portrait (canvas Portrait-Compact): two boxes on the right,
+/// one above and one below the hinge band, each only as tall as what it holds
+/// so the map shows between them. The top box holds the score row, the
+/// yardage and the shots; the bottom box the club strip, the questions, score
+/// entry and actions. Either box scrolls once it reaches the hinge. Casual:
+/// the round so far in the top box, the score grid and Finish in the bottom.
 struct OpenPortraitLayout: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -69,7 +68,6 @@ struct OpenPortraitLayout: View {
     let windowSize: CGSize
 
     static let panelWidth: CGFloat = 316
-    static let railWidth: CGFloat = 80
     /// Gap between a box and the hinge keep-out band.
     static let hingeGap: CGFloat = 8
 
@@ -94,20 +92,23 @@ struct OpenPortraitLayout: View {
             .reportsChromeFrame("cluster")
             .pinned(.bottomLeading, insets: insets)
 
-            VStack(spacing: 0) {
+            ZStack {
                 CommandPanel(model: model, actions: actions,
-                             columnStyle: PanelColumn.Style(card: .stacked(hero: 68), spacing: 12),
-                             parts: [.card, .list], railWidth: Self.railWidth) {
+                             columnStyle: PanelColumn.Style(card: .inline(hero: 60), spacing: 10,
+                                                            hugsContent: true),
+                             parts: [.card, .list], showsRail: false) {
                     PanelHeaderRow(model: model, actions: actions)
                 }
-                .frame(height: upperHeight)
                 .reportsChromeFrame("panelTop")
-                Spacer(minLength: 0)
+                .frame(maxHeight: upperHeight, alignment: .top)
+                .frame(maxHeight: .infinity, alignment: .top)
+
                 CommandPanel(model: model, actions: actions,
-                             columnStyle: PanelColumn.Style(spacing: 12, alignment: .bottom),
-                             parts: [.ask, .bottom], showsRail: false)
-                    .frame(height: lowerHeight)
+                             columnStyle: PanelColumn.Style(spacing: 10, hugsContent: true),
+                             parts: [.ask, .bottom], showsRail: false, clubStrip: true)
                     .reportsChromeFrame("panelBottom")
+                    .frame(maxHeight: lowerHeight, alignment: .bottom)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
             }
             .frame(width: Self.panelWidth)
             .padding(insets)
