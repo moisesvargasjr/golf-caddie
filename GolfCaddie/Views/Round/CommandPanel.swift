@@ -15,6 +15,9 @@ struct PanelColumn: View {
         var showsListTitle = true
         /// Where the column's content sits when the box is taller than it.
         var alignment: Alignment = .top
+        /// Size the box to its content instead of filling the height it is
+        /// offered (open portrait); the lists scroll only once they run out.
+        var hugsContent = false
         /// Casual score grid sizes (iPhone landscape is tighter).
         var scoreGrid: ScoreGrid.Metrics = .panel
     }
@@ -47,35 +50,41 @@ struct PanelColumn: View {
             if parts.contains(.bottom) { bottom }
         }
         .padding(style.padding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: style.alignment)
+        .frame(maxWidth: .infinity, maxHeight: style.hugsContent ? nil : .infinity, alignment: style.alignment)
+    }
+
+    /// The gap that pushes a question down to the actions; none when hugging.
+    @ViewBuilder
+    private var askSpacer: some View {
+        if !style.hugsContent { Spacer(minLength: 0) }
     }
 
     @ViewBuilder
     private var middle: some View {
         if model.question == .putts {
             if parts.contains(.ask) {
-                Spacer(minLength: 0)
+                askSpacer
                 PuttsQuestion(model: model, actions: actions)
             }
         } else if model.showsScoreGrid {
             if parts.contains(.ask) {
-                Spacer(minLength: 0)
+                askSpacer
                 ScoreGrid(model: model, actions: actions, metrics: style.scoreGrid)
             }
         } else if model.state == .entry {
             if parts.contains(.ask) {
-                Spacer(minLength: 0)
+                askSpacer
                 HandScoreEntry(model: model, actions: actions)
             }
         } else if parts.contains(.list) {
             if model.showsRoundSoFar {
                 RoundScoresList(roundSoFar: model.roundSoFar, variant: .list, onPick: actions.openRoundHole,
-                                rowHeight: style.shotRowHeight)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                                rowHeight: style.shotRowHeight, fitsContent: style.hugsContent)
+                    .frame(maxHeight: style.hugsContent ? nil : .infinity, alignment: .top)
             } else {
                 ShotList(model: model, actions: actions, showsTitle: style.showsListTitle,
-                         rowHeight: style.shotRowHeight)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                         rowHeight: style.shotRowHeight, fitsContent: style.hugsContent)
+                    .frame(maxHeight: style.hugsContent ? nil : .infinity, alignment: .top)
             }
         }
     }
@@ -121,7 +130,8 @@ struct PanelHeaderRow: View {
     }
 }
 
-/// The paper panel: left column + the club rail down its right edge.
+/// The paper panel: left column + the club rail down its right edge (or, with
+/// `clubStrip`, a sideways club row above the column).
 struct CommandPanel<Header: View>: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -129,15 +139,20 @@ struct CommandPanel<Header: View>: View {
     var parts: PanelColumn.Parts = .all
     var railWidth: CGFloat = 84
     var showsRail = true
+    var clubStrip = false
     @ViewBuilder var header: () -> Header
     @Environment(\.palette) private var palette
 
     var body: some View {
         VStack(spacing: 0) {
             header()
+            if clubStrip, model.showsClubList {
+                ClubList(model: model, actions: actions, axis: .horizontal, cellHeight: 52)
+                    .padding([.horizontal, .top], columnStyle.padding)
+            }
             HStack(spacing: 0) {
                 PanelColumn(model: model, actions: actions, style: columnStyle, parts: parts)
-                if showsRail, model.showsClubList {
+                if showsRail, !clubStrip, model.showsClubList {
                     ClubList(model: model, actions: actions, axis: .vertical(width: railWidth, rowStyle: false))
                         .overlay(alignment: .leading) {
                             Rectangle().fill(palette.ink).frame(width: RoundChromeMetrics.rule)
@@ -153,8 +168,9 @@ struct CommandPanel<Header: View>: View {
 
 extension CommandPanel where Header == EmptyView {
     init(model: RoundPanelModel, actions: RoundPanelActions, columnStyle: PanelColumn.Style = .init(),
-         parts: PanelColumn.Parts = .all, railWidth: CGFloat = 84, showsRail: Bool = true) {
+         parts: PanelColumn.Parts = .all, railWidth: CGFloat = 84, showsRail: Bool = true,
+         clubStrip: Bool = false) {
         self.init(model: model, actions: actions, columnStyle: columnStyle, parts: parts,
-                  railWidth: railWidth, showsRail: showsRail) { EmptyView() }
+                  railWidth: railWidth, showsRail: showsRail, clubStrip: clubStrip) { EmptyView() }
     }
 }

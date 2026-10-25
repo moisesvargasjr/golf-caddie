@@ -12,6 +12,8 @@ struct RoundScoresList: View {
     let onPick: (Int) -> Void
     /// Row height for `.list` (landscape is tighter).
     var rowHeight: CGFloat = 44
+    /// `.list` only as tall as its rows, scrolling once they no longer fit.
+    var fitsContent = false
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -38,13 +40,25 @@ struct RoundScoresList: View {
             }
             .padding(.bottom, 4)
             .overlay(alignment: .bottom) { Rectangle().fill(palette.ink).frame(height: RoundChromeMetrics.rule) }
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(roundSoFar.rows) { row in listRow(row) }
-                    if roundSoFar.isEmpty { emptyText.padding(.vertical, 10) }
+            if fitsContent {
+                ViewThatFits(in: .vertical) {
+                    listRows
+                    scrollingListRows
                 }
+            } else {
+                scrollingListRows
             }
-            .scrollIndicators(.hidden)
+        }
+    }
+
+    private var scrollingListRows: some View {
+        ScrollView { listRows }.scrollIndicators(.hidden)
+    }
+
+    private var listRows: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(roundSoFar.rows) { row in listRow(row) }
+            if roundSoFar.isEmpty { emptyText.padding(.vertical, 10) }
         }
     }
 
