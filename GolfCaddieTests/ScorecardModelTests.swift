@@ -66,6 +66,8 @@ final class ScorecardModelTests: XCTestCase {
         XCTAssertFalse(model.columns[1].girIsManual)
         XCTAssertEqual(model.columns[2].gir, true)
         XCTAssertEqual(model.firCount, 1)
+        XCTAssertEqual(model.firText(nil), "1/1", "par 3s are not answered")
+        XCTAssertNil(ScorecardModel.build(holes: [par5], course: nil).firText(nil), "blank before any answer")
         XCTAssertEqual(model.girCount, 2)
     }
 
