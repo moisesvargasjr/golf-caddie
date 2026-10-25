@@ -109,7 +109,8 @@ struct PhysicalScorecardView: View {
                     .accessibilityIdentifier("scorecard.stat.gross")
                 ScorecardStatBox(title: "PUTTS", value: ScorecardText.number(content.model.total.putts),
                                  valueSize: 34, alignment: .center)
-                ScorecardStatBox(title: "GIR", value: "\(content.model.girCount)", sub: "OF 18",
+                ScorecardStatBox(title: "GIR", value: "\(content.model.girCount)",
+                                 sub: "OF \(content.model.playedCount)",
                                  valueSize: 34, alignment: .center)
             }
             .frame(width: 250)
@@ -136,10 +137,7 @@ struct PhysicalScorecardView: View {
                 .lineLimit(3)
                 .minimumScaleFactor(0.6)
             Spacer(minLength: 4)
-            if let title = content.ctaTitle(pick) {
-                ScorecardFilledButton(title: title, expands: true) { content.onPick(pick) }
-                    .accessibilityIdentifier("scorecard.cta")
-            }
+            ScorecardPickButtons(content: content, pick: pick, expands: true)
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
@@ -169,12 +167,20 @@ struct PhysicalScorecardView: View {
                 }
                 legendText("DBL+")
             }
+            if let note = content.model.notPlayedNote {
+                HStack(spacing: 8) {
+                    NotPlayedMark().frame(width: 26, height: 20)
+                    legendText("NOT PLAYED")
+                }
+                legendText(note)
+            }
             Spacer(minLength: 4)
             signature("SCORER", "Golf Caddie")
             signature("ATTEST", "")
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Circle, birdie. Square, bogey. Double square, double bogey or worse.")
+        .accessibilityLabel("Circle, birdie. Square, bogey. Double square, double bogey or worse."
+                            + (content.model.notPlayedNote.map { " NP, not played. \($0.lowercased())." } ?? ""))
     }
 
     private func legendText(_ text: String) -> some View {

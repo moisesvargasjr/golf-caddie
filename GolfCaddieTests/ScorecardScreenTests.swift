@@ -111,6 +111,31 @@ final class ScorecardScreenTests: XCTestCase {
                        .score(4, .none), "no par, no mark")
     }
 
+    // MARK: Not played
+
+    func testNotPlayedHoleShowsNPAndOffersEntryOrUndo() {
+        var np = column(16)
+        np.isNotPlayed = true
+        XCTAssertEqual(ScorecardCell.resolve(np, currentHole: nil), .notPlayed)
+        XCTAssertEqual(ScorecardPick.resolve(np, currentHole: nil), .notPlayed(16))
+        XCTAssertEqual(ScorecardPick.notPlayed(16).title(variant: .traditional, isFinished: true), "Enter hole 16 score ›")
+        XCTAssertEqual(ScorecardPick.notPlayed(16).secondary, .undoNotPlayed(16))
+        XCTAssertEqual(ScorecardPick.addScore(12).secondary, .markNotPlayed(12))
+        XCTAssertNil(ScorecardPick.openHole(7).secondary)
+        XCTAssertEqual(ScorecardSecondaryPick.markNotPlayed(12).title, "MARK NOT PLAYED")
+        XCTAssertEqual(ScorecardText.accessibilityLabel(np, currentHole: nil), "Hole 16, par 4, not played")
+    }
+
+    func testNotPlayedNote() {
+        var a = column(17), b = column(18)
+        a.isNotPlayed = true
+        b.isNotPlayed = true
+        let card = model([a, b])
+        XCTAssertEqual(card.playedCount, 16)
+        XCTAssertEqual(card.notPlayedNote, "16 OF 18 PLAYED · NP NOT IN TOTALS")
+        XCTAssertNil(model([]).notPlayedNote)
+    }
+
     // MARK: Picks
 
     func testPickActions() {
@@ -120,7 +145,7 @@ final class ScorecardScreenTests: XCTestCase {
                                              currentHole: 8), .editScore(3))
         XCTAssertEqual(ScorecardPick.resolve(column(7, score: 5, confirmed: true, source: .tracked),
                                              currentHole: 8), .openHole(7))
-        XCTAssertEqual(ScorecardPick.resolve(column(12), currentHole: 8), .notPlayed(12))
+        XCTAssertEqual(ScorecardPick.resolve(column(12), currentHole: 8), .notReached(12))
         XCTAssertEqual(ScorecardPick.resolve(column(12, confirmed: true), currentHole: nil), .openHole(12),
                        "a confirmed hole with no shots can still be opened")
         // Finished round, tracking missed on hole 12: type its score straight in.
@@ -136,7 +161,7 @@ final class ScorecardScreenTests: XCTestCase {
         XCTAssertTrue(ScorecardPick.backToHole(8).isAvailable(canOpenHole: false))
         XCTAssertFalse(ScorecardPick.openHole(7).isAvailable(canOpenHole: false), "no callback, no-op")
         XCTAssertTrue(ScorecardPick.openHole(7).isAvailable(canOpenHole: true))
-        XCTAssertFalse(ScorecardPick.notPlayed(12).isAvailable(canOpenHole: true))
+        XCTAssertFalse(ScorecardPick.notReached(12).isAvailable(canOpenHole: true))
     }
 
     func testPickTitles() {
@@ -150,7 +175,7 @@ final class ScorecardScreenTests: XCTestCase {
                        "Review hole 9 on the map ›")
         XCTAssertEqual(ScorecardPick.backToHole(8).title(variant: .traditional, isFinished: false),
                        "Back to hole 8 ›")
-        XCTAssertEqual(ScorecardPick.notPlayed(12).title(variant: .tabs, isFinished: false), "Not played yet")
+        XCTAssertEqual(ScorecardPick.notReached(12).title(variant: .tabs, isFinished: false), "Not played yet")
     }
 
     // MARK: VoiceOver

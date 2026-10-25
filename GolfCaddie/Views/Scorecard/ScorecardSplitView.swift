@@ -52,9 +52,8 @@ struct ScorecardSplitView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
-                if let pick = selectedHole.map(content.pick), let title = content.ctaTitle(pick) {
-                    ScorecardFilledButton(title: title, fontSize: 15) { content.onPick(pick) }
-                        .accessibilityIdentifier("scorecard.cta")
+                if let pick = selectedHole.map(content.pick), content.hasActions(pick) {
+                    ScorecardPickButtons(content: content, pick: pick, fontSize: 15)
                 }
             }
             if let error = content.loadError {
@@ -162,9 +161,8 @@ struct ScorecardLandscapeCard: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
-            if let pick = selectedHole.map(content.pick), let title = content.ctaTitle(pick) {
-                ScorecardFilledButton(title: title) { content.onPick(pick) }
-                    .accessibilityIdentifier("scorecard.cta")
+            if let pick = selectedHole.map(content.pick), content.hasActions(pick) {
+                ScorecardPickButtons(content: content, pick: pick)
             } else {
                 stats
             }

@@ -43,11 +43,14 @@ struct ActiveRoundView: View {
                 )
             }
         }
-        .alert("End Round?", isPresented: $showEndRoundConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("End Round", role: .destructive) { performEndRound() }
-        } message: {
-            Text("Your round will be saved. You can resume it from its card's ··· menu if you change your mind.")
+        // End round asks once: the holes not reached are marked not played
+        // (on by default), or left empty to add later (EndRound-NotPlayed).
+        .sheet(isPresented: $showEndRoundConfirm) {
+            EndRoundSheet(summary: endRoundSummary(), onCancel: { showEndRoundConfirm = false },
+                          onEnd: { holes in
+                              showEndRoundConfirm = false
+                              performEndRound(markingNotPlayed: holes)
+                          })
         }
         // Mid-round link / re-link to a curated course — the recovery for a
         // missed or wrong auto-detect. Routes through the controller so the
@@ -182,7 +185,7 @@ struct ActiveRoundView: View {
     }
 
     #if DEBUG
-    /// `-DebugOpen review|penalty|card|bag|course|grid|casual|casual-finish`
+    /// `-DebugOpen review|penalty|card|bag|course|grid|end|casual|casual-finish`
     /// for screenshots (`review` now opens the putts question that replaced
     /// the review sheet; `casual` is started by `DebugHarness`, and
     /// `casual-finish` also opens its score grid).
@@ -195,6 +198,7 @@ struct ActiveRoundView: View {
         case "bag": showClubsInPlay = true
         case "course": showCoursePicker = true
         case "grid": showHoleGrid = true
+        case "end", "end-round": showEndRoundConfirm = true
         default: break
         }
         if UserDefaults.standard.bool(forKey: "DebugShowHoleGrid") { showHoleGrid = true }
@@ -237,11 +241,37 @@ struct ActiveRoundView: View {
         }
     }
 
-    private func performEndRound() {
+    /// What End round shows: the course, the holes scored so far and their
+    /// total, and the holes still to play (`HoleScoring.remainingUnscored`).
+    private func endRoundSummary() -> EndRoundSummary {
+        let round = controller.currentRound
+        let holes = controller.holesForCurrentRound()
+        var scored: [Int: (score: Int, par: Int?)] = [:]
+        for hole in holes {
+            let counts = hole.confirmedAt != nil || (hole.isHandScored && hole.handStrokes != nil)
+            guard counts else { continue }
+            let shots = (try? ShotRepository.shotsForHole(hole.id)) ?? []
+            let pens = ((try? PenaltyRepository.penaltiesForHole(hole.id)) ?? []).totalStrokes
+            if let score = HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: pens) {
+                scored[hole.holeNumber] = (score, hole.par)
+            }
+        }
+        var started = Set(scored.keys)
+        // The live hole with shots on it was played, just not finished.
+        if let live = controller.currentHole, !controller.currentHoleShots.isEmpty { started.insert(live.holeNumber) }
+        let remaining = controller.currentHole.map {
+            HoleScoring.remainingUnscored(liveHole: $0.holeNumber, startingHole: round?.startingHole,
+                                          scored: started)
+        } ?? []
+        return EndRoundSummary(courseName: round?.courseName, scored: scored.mapValues(\.score),
+                               pars: scored.compactMapValues(\.par), remaining: remaining)
+    }
+
+    private func performEndRound(markingNotPlayed holes: [Int] = []) {
         actionError = nil
         let toReview = controller.currentRound
         do {
-            try controller.endRound()
+            try controller.endRound(markingNotPlayed: holes)
             viewedHole = nil
             question = nil
             endedRoundForReview = toReview
@@ -259,5 +289,163 @@ struct ActiveRoundView: View {
         } catch {
             actionError = "Couldn't resume: \(error.localizedDescription)"
         }
+    }
+}
+
+// MARK: - End round
+
+/// End round's numbers (pure, `EndRoundSheetTests`).
+struct EndRoundSummary: Equatable {
+    var courseName: String?
+    /// Hole number → score, for the holes scored so far.
+    var scored: [Int: Int]
+    /// Hole number → par, where known.
+    var pars: [Int: Int]
+    /// The holes not reached yet, in play order.
+    var remaining: [Int]
+
+    /// "61 (+5)" (to par over the holes with one), "61", or nil before a score.
+    var scoreText: String? {
+        guard !scored.isEmpty else { return nil }
+        let total = scored.values.reduce(0, +)
+        let rated = scored.filter { pars[$0.key] != nil }
+        guard !rated.isEmpty else { return "\(total)" }
+        let toPar = rated.reduce(0) { $0 + $1.value - (pars[$1.key] ?? 0) }
+        return "\(total) (\(RoundMapFormat.toPar(toPar)))"
+    }
+
+    /// "NATIVE OAKS · 14 HOLES SCORED · 61 (+5)".
+    var headline: String {
+        let holes = "\(scored.count) \(scored.count == 1 ? "HOLE" : "HOLES") SCORED"
+        return [courseName?.uppercased(), holes, scoreText].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// "Mark holes 15–18 not played" / "Mark hole 18 not played".
+    var markTitle: String {
+        "Mark \(remaining.count == 1 ? "hole" : "holes") \(ScorecardText.holeList(remaining)) not played"
+    }
+
+    /// The line over the buttons: "14 OF 18 PLAYED · 61 (+5) · NOT COMPLETE".
+    func footer(marking: Bool) -> String {
+        guard !remaining.isEmpty else { return ["ALL 18 SCORED", scoreText].compactMap { $0 }.joined(separator: " · ") }
+        let parts = marking
+            ? ["\(18 - remaining.count) OF 18 PLAYED", scoreText, "NOT COMPLETE"]
+            : ["\(scored.count) OF 18 SCORED", "\(remaining.count) TO ADD", "NOT COMPLETE"]
+        return parts.compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+/// "End the round?" across the bottom. When holes are left it offers to mark
+/// them not played (NP on the card, out of every total), on by default; off
+/// leaves them empty (ADD) to fill in later.
+struct EndRoundSheet: View {
+    let summary: EndRoundSummary
+    let onCancel: () -> Void
+    let onEnd: ([Int]) -> Void
+    @State private var marking = true
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("End the round?")
+                    .font(RoundFont.serifItalic(28).weight(.bold))
+                    .foregroundStyle(palette.ink)
+                StampLabel(text: summary.headline, size: 10)
+            }
+            if !summary.remaining.isEmpty {
+                markToggle
+                holeStrip
+            }
+            StampLabel(text: summary.footer(marking: marking && !summary.remaining.isEmpty), size: 11,
+                       color: palette.ink)
+            Text("You can resume the round from its card's ··· menu.")
+                .font(RoundFont.serifItalic(13))
+                .foregroundStyle(palette.ink2)
+            HStack(spacing: 8) {
+                OutlineActionButton(title: "CANCEL", fontSize: 11, minHeight: 56, action: onCancel)
+                    .frame(width: 120)
+                PrimaryActionButton(title: "End round", fontSize: 20, minHeight: 56) {
+                    onEnd(marking ? summary.remaining : [])
+                }
+                .accessibilityIdentifier("endRound.confirm")
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents(summary.remaining.count > 6 ? [.large] : [.medium, .large])
+        .presentationBackground(palette.paper)
+        .accessibilityIdentifier("endRound.sheet")
+    }
+
+    private var markToggle: some View {
+        Button { marking.toggle() } label: {
+            HStack(spacing: 12) {
+                Text(marking ? "✓" : "")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(palette.paper)
+                    .frame(width: 30, height: 30)
+                    .background(marking ? palette.ink : Color.clear, ignoresSafeAreaEdges: [])
+                    .overlay { if !marking { Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule) } }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(summary.markTitle)
+                        .font(RoundFont.serif(18))
+                        .foregroundStyle(palette.ink)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Text(marking ? "Shown as NP on the card and left out of every total."
+                                 : "Left empty: you can add their scores later.")
+                        .font(RoundFont.serifItalic(13))
+                        .foregroundStyle(palette.ink2)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(minHeight: 64)
+            .overlay(Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(marking ? [.isButton, .isSelected] : .isButton)
+        .accessibilityIdentifier("endRound.markNotPlayed")
+    }
+
+    /// The holes left, NP struck through (marking) or ADD.
+    private var holeStrip: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: min(6, summary.remaining.count))
+        return LazyVGrid(columns: columns, spacing: 0) {
+            ForEach(summary.remaining, id: \.self) { n in
+                VStack(spacing: 2) {
+                    StampLabel(text: "HOLE \(n)", size: 9)
+                    if marking {
+                        Text("NP").font(RoundFont.mono(13)).foregroundStyle(palette.ink2)
+                    } else {
+                        Text("ADD").font(RoundFont.mono(13)).foregroundStyle(palette.red)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background {
+                    if marking {
+                        GeometryReader { geo in
+                            Path { p in
+                                p.move(to: CGPoint(x: 0, y: geo.size.height))
+                                p.addLine(to: CGPoint(x: geo.size.width, y: 0))
+                            }
+                            .stroke(palette.ink.opacity(0.5), lineWidth: 1.5)
+                        }
+                    }
+                }
+                .overlay(Rectangle().strokeBorder(palette.rule, lineWidth: 0.5))
+            }
+        }
+        .overlay(Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule))
+        .accessibilityHidden(true)
     }
 }

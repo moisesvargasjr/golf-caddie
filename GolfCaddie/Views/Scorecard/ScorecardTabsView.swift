@@ -204,11 +204,8 @@ struct ScorecardTabsView: View {
 
     @ViewBuilder
     private var bottom: some View {
-        if let pick = selectedHole.map(content.pick), let title = content.ctaTitle(pick) {
-            ScorecardFilledButton(title: title, fontSize: 18, minHeight: 52, expands: true) {
-                content.onPick(pick)
-            }
-            .accessibilityIdentifier("scorecard.cta")
+        if let pick = selectedHole.map(content.pick), content.hasActions(pick) {
+            ScorecardPickButtons(content: content, pick: pick, fontSize: 18, minHeight: 52, expands: true)
         } else {
             HStack(spacing: 6) {
                 inlineStat("TOTAL", ScorecardText.number(content.model.total.score))

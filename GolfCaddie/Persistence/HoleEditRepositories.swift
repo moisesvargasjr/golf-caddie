@@ -41,6 +41,38 @@ extension HoleRepository {
     }
 }
 
+extension HoleRepository {
+    /// Marks holes not played (NP on the card, out of every total), creating
+    /// rows for holes that have none; `false` undoes it (back to an empty
+    /// hole: ADD on a finished card). Never touches a hole with a score: a
+    /// scored hole was played.
+    static func setNotPlayed(_ notPlayed: Bool, roundID: UUID, holeNumbers: [Int]) throws {
+        for n in holeNumbers where !HoleScoring.holeRange.contains(n) { throw HoleEditError.invalidHoleNumber(n) }
+        try Database.shared.write { db in
+            for n in holeNumbers {
+                let existing = try Hole
+                    .filter(Column("roundID") == roundID && Column("holeNumber") == n)
+                    .fetchOne(db)
+                if notPlayed {
+                    if let existing, try existing.isHandScored
+                        || Shot.filter(Column("holeID") == existing.id && Column("excludedAt") == nil).fetchCount(db) > 0 {
+                        continue
+                    }
+                    var hole = existing ?? Hole(id: UUID(), roundID: roundID, holeNumber: n,
+                                                par: nil, confirmedAt: nil)
+                    hole.scoreSource = .notPlayed
+                    hole.handStrokes = nil
+                    hole.handPutts = nil
+                    if existing == nil { try hole.insert(db) } else { try hole.update(db) }
+                } else if var hole = existing, hole.isNotPlayed {
+                    hole.scoreSource = nil
+                    try hole.update(db)
+                }
+            }
+        }
+    }
+}
+
 extension ShotRepository {
     /// Inserts a hand-placed shot at `coordinate` on a hole, numbered by its
     /// position along the hole (`ShotInsertOrdering`). The pin snaps to the

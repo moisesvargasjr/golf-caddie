@@ -59,9 +59,12 @@ enum ScorecardCell: Equatable {
     case add
     /// The live hole, not finished yet.
     case now
+    /// Marked not played: NP with a diagonal strike.
+    case notPlayed
     case blank
 
     static func resolve(_ column: ScorecardColumn, currentHole: Int?) -> ScorecardCell {
+        if column.isNotPlayed { return .notPlayed }
         if column.needsEntry { return .add }
         if let score = column.score { return .score(score, .mark(toPar: column.toPar)) }
         if column.number == currentHole { return .now }
@@ -79,10 +82,14 @@ enum ScorecardPick: Equatable {
     /// jumps to that hole.
     case openHole(Int)
     case backToHole(Int)
+    /// A live round's hole not reached yet: nothing to do.
+    case notReached(Int)
+    /// Marked not played: Enter score ›, or undo the mark.
     case notPlayed(Int)
 
     static func resolve(_ column: ScorecardColumn, currentHole: Int?) -> ScorecardPick {
         let n = column.number
+        if column.isNotPlayed { return .notPlayed(n) }
         if column.needsEntry { return .addScore(n) }
         if n == currentHole { return .backToHole(n) }
         if column.scoreSource == .hand { return .editScore(n) }
@@ -90,12 +97,13 @@ enum ScorecardPick: Equatable {
         // A finished round's unscored hole (tracking was missed): type the
         // score straight in. In a live round it is a hole not reached yet.
         if currentHole == nil { return .addScore(n) }
-        return .notPlayed(n)
+        return .notReached(n)
     }
 
     var holeNumber: Int {
         switch self {
-        case let .addScore(n), let .editScore(n), let .openHole(n), let .backToHole(n), let .notPlayed(n):
+        case let .addScore(n), let .editScore(n), let .openHole(n), let .backToHole(n), let .notReached(n),
+             let .notPlayed(n):
             return n
         }
     }
@@ -104,9 +112,19 @@ enum ScorecardPick: Equatable {
     /// the CTA hides.
     func isAvailable(canOpenHole: Bool) -> Bool {
         switch self {
-        case .addScore, .editScore, .backToHole: return true
+        case .addScore, .editScore, .backToHole, .notPlayed: return true
         case .openHole: return canOpenHole
-        case .notPlayed: return false
+        case .notReached: return false
+        }
+    }
+
+    /// The outlined second choice beside the CTA: an empty hole can be marked
+    /// not played (Scorecard-NotPlayed-Open), and a marked one undone.
+    var secondary: ScorecardSecondaryPick? {
+        switch self {
+        case let .addScore(n): return .markNotPlayed(n)
+        case let .notPlayed(n): return .undoNotPlayed(n)
+        default: return nil
         }
     }
 
@@ -118,7 +136,34 @@ enum ScorecardPick: Equatable {
             if isFinished { return "Review hole \(n) on the map ›" }
             return variant == .traditional ? "Open hole \(n) on the map ›" : "Open hole \(n) ›"
         case let .backToHole(n): return "Back to hole \(n) ›"
-        case .notPlayed: return "Not played yet"
+        case let .notPlayed(n): return "Enter hole \(n) score ›"
+        case .notReached: return "Not played yet"
+        }
+    }
+}
+
+/// MARK NOT PLAYED / UNDO NOT PLAYED beside a hole's CTA.
+enum ScorecardSecondaryPick: Equatable {
+    case markNotPlayed(Int)
+    case undoNotPlayed(Int)
+
+    var holeNumber: Int {
+        switch self {
+        case let .markNotPlayed(n), let .undoNotPlayed(n): return n
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .markNotPlayed: return "MARK NOT PLAYED"
+        case .undoNotPlayed: return "UNDO NOT PLAYED"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case let .markNotPlayed(n): return "Mark hole \(n) not played"
+        case let .undoNotPlayed(n): return "Undo not played on hole \(n)"
         }
     }
 }
@@ -147,6 +192,7 @@ enum ScorecardText {
             if let p = column.putts { parts.append(putts(p)) }
             if column.scoreSource == .hand { parts.append("entered by hand") }
         case .now: parts.append("in progress")
+        case .notPlayed: parts.append("not played")
         case .add: parts.append("no score, add score")
         case .blank: parts.append("not played yet")
         }
@@ -197,6 +243,8 @@ enum ScorecardText {
             return "Not tracked\(start). Add the score you kept."
         case .now:
             return "You are here. Finish the hole to fill it in."
+        case .notPlayed:
+            return "Not played. Left out of every total."
         case .blank:
             return "Not played yet."
         case let .score(score, _):
@@ -250,6 +298,13 @@ extension ScorecardModel {
         let answered = (nine.map { self.columns($0) } ?? columns).filter { $0.teeShot != nil }
         guard !answered.isEmpty else { return nil }
         return "\(answered.filter { $0.teeShot == .fairway }.count)/\(answered.count)"
+    }
+
+    /// "16 OF 18 PLAYED · NP NOT IN TOTALS"; nil when every hole counts.
+    var notPlayedNote: String? {
+        let np = notPlayedHoles.count
+        guard np > 0 else { return nil }
+        return "\(playedCount) OF 18 PLAYED · NP NOT IN TOTALS"
     }
 
     /// Holes with a score on the card (ADD holes and unplayed holes excluded).
