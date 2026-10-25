@@ -251,3 +251,52 @@ enum HoleFraming {
         return CLLocationCoordinate2D(latitude: lat, longitude: lng)
     }
 }
+
+// MARK: - Glide
+
+/// How the camera moves to a new hole (or from the course into a hole, and
+/// back): never a cut. A short hop is one eased move that also turns the map
+/// to the new hole-up; a long one pulls back over both holes first, then
+/// settles in, so the golfer sees where the next hole is.
+struct HoleGlide: Equatable {
+    struct Step: Equatable {
+        let center: CLLocationCoordinate2D
+        let distance: CLLocationDistance
+        let heading: CLLocationDirection
+        let duration: TimeInterval
+
+        static func == (a: Step, b: Step) -> Bool {
+            a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude
+                && a.distance == b.distance && a.heading == b.heading && a.duration == b.duration
+        }
+    }
+
+    let steps: [Step]
+
+    /// Single move for hops up to this many target view widths.
+    static let shortHopWidths: Double = 0.6
+    static let singleDuration: TimeInterval = 0.8
+    static let outDuration: TimeInterval = 0.55
+    static let inDuration: TimeInterval = 0.75
+    /// The pull-back never climbs past this many times the higher camera.
+    static let maxPullBack: Double = 4
+
+    /// `fromWidth` / `toWidth`: metres across the view at each camera.
+    static func plan(from: MKMapCamera, fromWidth: Double, to: MKMapCamera, toWidth: Double) -> HoleGlide {
+        let target = Step(center: to.centerCoordinate, distance: to.centerCoordinateDistance,
+                          heading: to.heading, duration: singleDuration)
+        let hop = Distance.meters(from: from.centerCoordinate, to: to.centerCoordinate)
+        let width = max(fromWidth, toWidth, 1)
+        guard hop > shortHopWidths * width else { return HoleGlide(steps: [target]) }
+        let high = max(from.centerCoordinateDistance, to.centerCoordinateDistance)
+        // Enough height that both holes fit across the view on the way.
+        let pullBack = min(maxPullBack, max(1.2, (hop + width) / width))
+        let mid = CLLocationCoordinate2D(latitude: (from.centerCoordinate.latitude + to.centerCoordinate.latitude) / 2,
+                                         longitude: (from.centerCoordinate.longitude + to.centerCoordinate.longitude) / 2)
+        return HoleGlide(steps: [
+            Step(center: mid, distance: high * pullBack, heading: to.heading, duration: outDuration),
+            Step(center: to.centerCoordinate, distance: to.centerCoordinateDistance, heading: to.heading,
+                 duration: inDuration),
+        ])
+    }
+}

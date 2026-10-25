@@ -130,20 +130,30 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             return
         }
         // After this layout pass, so the camera is fitted to the NEW bounds.
+        // A new hole (or course ⇄ hole) glides there; a soft change eases.
         let animated = hasFramed && !sizeChanged
+        let glide = animated && hardChanged
         Task { @MainActor [weak self, weak map] in
             guard let self, let map else { return }
-            self.reframe(map, animated: animated)
+            self.reframe(map, animated: animated, glide: glide)
         }
     }
 
-    func reframe(_ map: MKMapView, animated: Bool, resettingHeading: Bool = false) {
+    func reframe(_ map: MKMapView, animated: Bool, resettingHeading: Bool = false, glide: Bool = false) {
         let fallback = resettingHeading ? 0 : map.camera.heading
+        let fromWidth = glide ? (metersPerPoint(map) ?? 0) * Double(map.bounds.width) : 0
         guard let frame = currentFrame(map, fallbackHeading: fallback),
               var measured = calibration(map, near: frame) else { return }
         if parent.mode == .live { lastFrameUserCoord = userCoordinate(map) }
         hasFramed = true
         let size = map.bounds.size
+        if glide {
+            let target = camera(for: frame, measured, size: size)
+            run(HoleGlide.plan(from: map.camera, fromWidth: fromWidth,
+                               to: target, toWidth: frame.metersPerPoint * Double(size.width)),
+                on: map, landingOn: frame)
+            return
+        }
         map.setCamera(camera(for: frame, measured, size: size), animated: animated)
         guard !animated else {
             animatingTo = frame
@@ -159,6 +169,29 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             map.setCamera(camera(for: frame, measured, size: size), animated: false)
         }
         logFrame(frame, map: map)
+    }
+
+    /// Plays a glide's steps as timed camera animations; the last step's
+    /// end is snapped onto `frame` when it lands (`settleAnimatedFrame`).
+    private func run(_ glide: HoleGlide, on map: MKMapView, landingOn frame: HoleFrame) {
+        var steps = glide.steps[...]
+        func next() {
+            guard let step = steps.popFirst() else { return }
+            let isLast = steps.isEmpty
+            animatingTo = isLast ? frame : nil
+            let camera = MKMapCamera(lookingAtCenter: step.center, fromDistance: step.distance,
+                                     pitch: 0, heading: step.heading)
+            UIView.animate(withDuration: step.duration, delay: 0,
+                           options: [isLast ? .curveEaseOut : .curveEaseIn, .allowUserInteraction]) {
+                map.setCamera(camera, animated: false)
+            } completion: { [weak self] finished in
+                // A pan or pinch mid-glide stops it where the golfer took over.
+                guard finished, let self, self.parent.controller.isAutoFraming else { return }
+                next()
+            }
+        }
+        logFrame(frame, map: map, animated: true)
+        next()
     }
 
     private func camera(for frame: HoleFrame, _ measured: Calibration, size: CGSize) -> MKMapCamera {
