@@ -186,11 +186,14 @@ struct ActiveRoundView: View {
     }
 
     #if DEBUG
-    /// `-DebugOpen review|penalty|card|bag|course|grid` for screenshots
-    /// (`review` now opens the putts question that replaced the review sheet).
+    /// `-DebugOpen review|penalty|card|bag|course|grid|casual|casual-finish`
+    /// for screenshots (`review` now opens the putts question that replaced
+    /// the review sheet; `casual` is started by `DebugHarness`, and
+    /// `casual-finish` also opens its score grid).
     private func openDebugScreen() {
         switch DebugHarness.openScreen {
         case "review", "finish", "putts": question = .putts
+        case "casual-finish", "score": question = .score
         case "penalty": question = .penalty
         case "card": showScorecard = true
         case "bag": showClubsInPlay = true

@@ -35,6 +35,14 @@ enum InRoundAccessibilityID {
     static let showControls = "round.showControls"
     static let card = "round.card"
     static let more = "round.more"
+
+    // Casual
+    static let scoreGrid = "round.scoreGrid"
+    static let saveScore = "round.saveScore"
+    static let roundScores = "round.roundScores"
+    static func scoreCell(_ strokes: Int) -> String { "round.scoreGrid.score.\(strokes)" }
+    static func puttsCell(_ putts: Int) -> String { "round.scoreGrid.putts.\(putts)" }
+    static func roundScoreHole(_ hole: Int) -> String { "round.roundScores.hole.\(hole)" }
 }
 
 /// One vocabulary for the in-round actions.

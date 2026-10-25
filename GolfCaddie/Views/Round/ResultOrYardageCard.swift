@@ -8,7 +8,8 @@ enum YardageCardStyle: Equatable {
 }
 
 /// Top of every panel: TO PIN yardage on the live hole, the result on a
-/// finished hole, or "NOT TRACKED" on a hole that needs its score entered.
+/// finished hole, or "NOT TRACKED" on a hole that needs its score entered
+/// (casual: the hole's current score while the grid edits it).
 struct ResultOrYardageCard<Accessory: View>: View {
     typealias Style = YardageCardStyle
 
@@ -33,9 +34,11 @@ struct ResultOrYardageCard<Accessory: View>: View {
     @ViewBuilder
     private var content: some View {
         if model.viewingLive {
-            yardage // the casual live hole too: its score is entered below
+            yardage // casual too: every casual board shows the yardage card
         } else if model.state == .pastTracked {
             result
+        } else if model.showsRoundSoFar {
+            casualEdit
         } else {
             notTracked
         }
@@ -125,7 +128,9 @@ struct ResultOrYardageCard<Accessory: View>: View {
         }
     }
 
-    private var showsNotTracked: Bool { !model.viewingLive && model.state == .entry }
+    private var showsNotTracked: Bool {
+        !model.viewingLive && model.state == .entry && !model.showsRoundSoFar
+    }
 
     private var isStacked: Bool {
         if case .stacked = style { return true }
@@ -149,6 +154,24 @@ struct ResultOrYardageCard<Accessory: View>: View {
                         .foregroundStyle(palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+            Spacer(minLength: 0)
+            accessory()
+        }
+        .padding(10)
+    }
+
+    // MARK: Casual hole being edited
+
+    private var casualEdit: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                StampLabel(text: "HOLE \(model.holeNumber) · EDITING")
+                Text(model.resultText)
+                    .font(RoundFont.serif(isStacked ? 30 : 26))
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
             Spacer(minLength: 0)
             accessory()

@@ -15,6 +15,8 @@ struct PanelColumn: View {
         var showsListTitle = true
         /// Where the column's content sits when the box is taller than it.
         var alignment: Alignment = .top
+        /// Casual score grid sizes (iPhone landscape is tighter).
+        var scoreGrid: ScoreGrid.Metrics = .panel
     }
 
     let model: RoundPanelModel
@@ -26,9 +28,9 @@ struct PanelColumn: View {
     struct Parts: OptionSet {
         let rawValue: Int
         static let card = Parts(rawValue: 1)
-        /// The shot list.
+        /// The shot list (tracking) or the round so far (casual).
         static let list = Parts(rawValue: 2)
-        /// Putts question / score entry (they take the list's place).
+        /// Putts question / score grid / score entry (they take the list's place).
         static let ask = Parts(rawValue: 4)
         /// Penalty question, selected shot, or the actions.
         static let bottom = Parts(rawValue: 8)
@@ -54,21 +56,32 @@ struct PanelColumn: View {
                 Spacer(minLength: 0)
                 PuttsQuestion(model: model, actions: actions)
             }
+        } else if model.showsScoreGrid {
+            if parts.contains(.ask) {
+                Spacer(minLength: 0)
+                ScoreGrid(model: model, actions: actions, metrics: style.scoreGrid)
+            }
         } else if model.state == .entry {
             if parts.contains(.ask) {
                 Spacer(minLength: 0)
                 HandScoreEntry(model: model, actions: actions)
             }
         } else if parts.contains(.list) {
-            ShotList(model: model, actions: actions, showsTitle: style.showsListTitle,
-                     rowHeight: style.shotRowHeight)
-                .frame(maxHeight: .infinity, alignment: .top)
+            if model.showsRoundSoFar {
+                RoundScoresList(roundSoFar: model.roundSoFar, variant: .list, onPick: actions.openRoundHole,
+                                rowHeight: style.shotRowHeight)
+                    .frame(maxHeight: .infinity, alignment: .top)
+            } else {
+                ShotList(model: model, actions: actions, showsTitle: style.showsListTitle,
+                         rowHeight: style.shotRowHeight)
+                    .frame(maxHeight: .infinity, alignment: .top)
+            }
         }
     }
 
     @ViewBuilder
     private var bottom: some View {
-        if model.question == .putts || model.state == .entry {
+        if model.isAsking {
             EmptyView()
         } else if model.question == .penalty {
             PenaltyQuestion(model: model, actions: actions)
