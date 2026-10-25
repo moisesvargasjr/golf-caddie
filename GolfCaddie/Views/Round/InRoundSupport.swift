@@ -17,6 +17,7 @@ enum InRoundAccessibilityID {
     static let map = "round.map"
     static func puttsOption(_ putts: Int) -> String { "round.putts.\(putts)" }
     static let teeShotQuestion = "round.teeShot"
+    static let editClubs = "round.clubs.edit"
     static func teeShotOption(_ result: TeeShotResult) -> String { "round.teeShot.\(result.rawValue)" }
     static let reviewTeeGir = "round.review.teeGir"
     static func reviewTeeShot(_ result: TeeShotResult) -> String { "round.review.teeShot.\(result.rawValue)" }
