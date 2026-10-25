@@ -8,8 +8,13 @@ import SwiftUI
 /// hole — returns to the card. The round actions (share, resume, course,
 /// delete) live in the review's ···.
 ///
-/// PR 8 adds the card's MAP: `FinishedRoundRoute` gains `.course`, and the
-/// card → hole step glides the same map in instead of swapping screens.
+/// PR 8: the card's MAP opens the course map (`.course`): the whole course
+/// on the round map, every hole's shots, hole badges with scores. The map
+/// branch below stays the SAME view while the route moves between `.course`
+/// and `.hole(n)`, so the one `RoundMapScreen` — its `HoleMap`, MKMapView and
+/// `HoleMapController` — lives on and a hole tap, Next hole › or COURSE MAP
+/// is a camera glide, not a new screen. The card ⇄ map step still swaps
+/// (the card is a full screen of paper; nothing of the map shows through).
 struct FinishedRoundScreen: View {
     let bag: [Club]
     /// A live round is on: no resume, no delete (normally unreachable — the
@@ -25,6 +30,9 @@ struct FinishedRoundScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var round: Round
     @State private var route: FinishedRoundRoute
+    /// The course map's outlines and header; loaded on appear and refreshed
+    /// whenever the course map or the card comes back (edits in a review).
+    @State private var courseMap: CourseMapContent?
     @State private var question: RoundMapQuestion?
     @State private var curatedCourses: [CuratedCourse] = []
     @State private var showCoursePicker = false
@@ -32,11 +40,13 @@ struct FinishedRoundScreen: View {
     @State private var sharing: ShareItems?
     @State private var actionError: String?
 
-    /// `initialHole` opens straight on that hole's review (DEBUG launches).
-    init(round: Round, bag: [Club], initialHole: Int? = nil, liveRoundActive: Bool = false,
-         onResume: (() -> Void)? = nil, onClose: (() -> Void)? = nil, onDeleted: (() -> Void)? = nil) {
+    /// `initialHole` opens straight on that hole's review and `opensCourseMap`
+    /// on the course map (DEBUG launches).
+    init(round: Round, bag: [Club], initialHole: Int? = nil, opensCourseMap: Bool = false,
+         liveRoundActive: Bool = false, onResume: (() -> Void)? = nil, onClose: (() -> Void)? = nil,
+         onDeleted: (() -> Void)? = nil) {
         _round = State(initialValue: round)
-        _route = State(initialValue: .initial(hole: initialHole))
+        _route = State(initialValue: .initial(hole: initialHole, courseMap: opensCourseMap))
         self.bag = bag
         self.liveRoundActive = liveRoundActive
         self.onResume = onResume
@@ -48,7 +58,10 @@ struct FinishedRoundScreen: View {
         content
             .toolbar(.hidden, for: .navigationBar)
             // `onAppear`, not `.task`: GRDB's sync reads trap in a `.task`.
-            .onAppear { curatedCourses = (try? CourseDataRepository.allCourses()) ?? [] }
+            .onAppear {
+                curatedCourses = (try? CourseDataRepository.allCourses()) ?? []
+                reloadCourseMap()
+            }
             .sheet(isPresented: $showCoursePicker) { coursePicker }
             .sheet(item: $sharing) { ShareSheet(items: $0.items) }
             .alert("Delete this round?", isPresented: $showDeleteConfirm) {
@@ -64,17 +77,11 @@ struct FinishedRoundScreen: View {
             }
     }
 
+    /// One `if` branch for the map whether it shows the course or a hole:
+    /// SwiftUI keeps its identity, so the map is never rebuilt between them.
     @ViewBuilder
     private var content: some View {
-        switch route.screen {
-        case .card:
-            ScorecardScreen(round: round, currentHoleNumber: nil, curatedCourseId: round.curatedCourseId,
-                            live: nil, onDismiss: close,
-                            onOpenHole: { number in route = route.openingHole(number) },
-                            roundMenu: AnyView(CardRoundActionsButton(availability: availability,
-                                                                      title: menuTitle,
-                                                                      handlers: actionHandlers)))
-        case .hole:
+        if route.showsMap, !waitingForCourseMap {
             RoundMapScreen(
                 mode: .review,
                 roundID: round.id,
@@ -84,9 +91,42 @@ struct FinishedRoundScreen: View {
                 clubs: ClubsInPlay.resolve(bag: bag, leftOut: round.clubsLeftOut ?? []),
                 host: host,
                 viewedHole: viewedHole,
-                question: $question
+                question: $question,
+                course: roundMapCourse
             )
+        } else if route.showsMap {
+            // `-DebugOpen course-map` before the first load: nothing to draw yet.
+            Color(uiColor: HoleMapColors.ink).ignoresSafeArea()
+        } else {
+            ScorecardScreen(round: round, currentHoleNumber: nil, curatedCourseId: round.curatedCourseId,
+                            live: nil, onDismiss: close,
+                            onOpenHole: { number in route = route.openingHole(number) },
+                            onOpenCourseMap: cardMapAction,
+                            roundMenu: AnyView(CardRoundActionsButton(availability: availability,
+                                                                      title: menuTitle,
+                                                                      handlers: actionHandlers)))
         }
+    }
+
+    /// The card's MAP: only when the round has something to put on the map.
+    private var cardMapAction: (() -> Void)? {
+        guard courseMap?.hasContent == true else { return nil }
+        return { openCourseMap() }
+    }
+
+    /// The course pose can't draw before its content is loaded.
+    private var waitingForCourseMap: Bool { route.showsCourse && courseMap == nil }
+
+    /// The map's course pose: while the route is `.course`, and in a hole's
+    /// review whenever the round has something to draw (COURSE MAP).
+    private var roundMapCourse: RoundMapCourse? {
+        guard let courseMap, courseMap.hasContent || route.showsCourse else { return nil }
+        return RoundMapCourse(
+            content: courseMap,
+            isShowing: route.showsCourse,
+            openHole: { number in route = route.openingHole(number) },
+            showCourse: openCourseMap
+        )
     }
 
     /// The map screen's hole is the route's; ‹ › and Next hole move the route.
@@ -165,6 +205,19 @@ struct FinishedRoundScreen: View {
     private func backToCard() {
         question = nil
         route = route.backToCard()
+        reloadCourseMap()
+    }
+
+    /// MAP on the card, COURSE MAP in a review: the course map, re-read so
+    /// edits made in a hole's review (pins, putts, penalties) show.
+    private func openCourseMap() {
+        question = nil
+        reloadCourseMap()
+        route = route.openingCourse()
+    }
+
+    private func reloadCourseMap() {
+        courseMap = CourseMapLoader.load(round: round, courseName: linkedCourseName ?? round.courseName)
     }
 
     private func close() {
@@ -174,6 +227,7 @@ struct FinishedRoundScreen: View {
     private func setCourse(_ id: String?) {
         do {
             round = try FinishedRoundActions.settingCourse(id, on: round, courses: curatedCourses)
+            reloadCourseMap()
         } catch {
             actionError = "Couldn't set the course: \(error.localizedDescription)"
         }

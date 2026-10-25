@@ -34,6 +34,8 @@ struct RoundMapHost {
 ///   owns it so the hole grid and the card can open any hole.
 /// - `question`: the open question; a binding so the host can open one
 ///   (DEBUG `-DebugOpen review|penalty|casual-finish`).
+/// - `course`: the course pose (PR 8) — the whole course on this same map;
+///   a tapped hole glides in and becomes its review.
 ///
 /// Posture changes only swap the chrome: the map, the session and all state
 /// here survive fold / unfold / book / rotate.
@@ -49,6 +51,9 @@ struct RoundMapScreen: View {
     let host: RoundMapHost
     @Binding var viewedHole: Int?
     @Binding var question: RoundMapQuestion?
+    /// PR 8: a finished round's course map (nil elsewhere). While it is
+    /// showing, this same map draws every hole (`RoundMapScreen+Course`).
+    var course: RoundMapCourse? = nil
 
     @Environment(\.displayContext) var display
     @AppStorage("units") var unitsRaw: String = Units.yards.rawValue
@@ -150,22 +155,27 @@ struct RoundMapScreen: View {
 
     private var holeMap: some View {
         let shots = session?.shots ?? []
+        let onCourse = isShowingCourse
         return HoleMap(
-            mode: isViewingLive ? .live : .hole,
+            mode: mapMode,
             controller: mapController,
-            holeID: session?.hole?.id,
-            tee: GlassesStateMapper.teeCoordinate(courseId: curatedCourseId, holeNumber: holeNumber),
-            green: GlassesStateMapper.greenCoordinate(courseId: curatedCourseId, holeNumber: holeNumber),
+            holeID: onCourse ? nil : session?.hole?.id,
+            tee: onCourse ? nil
+                : GlassesStateMapper.teeCoordinate(courseId: curatedCourseId, holeNumber: holeNumber),
+            green: onCourse ? nil
+                : GlassesStateMapper.greenCoordinate(courseId: curatedCourseId, holeNumber: holeNumber),
             shots: shots,
             clubLabels: Self.clubLabels(for: shots),
             selectedShotID: selectedShotID,
             trail: trail,
+            courseHoles: course?.content.outlines ?? [],
             unobstructedRect: ChromeFrames.unobstructedRect(display: display, frames: chromeBook.frames,
                                                             mapFrame: mapFrame, safeRect: safeRect),
             onMoveShot: { id, coordinate in moveShot(id, to: coordinate) },
             onLongPress: { coordinate in holdToAdd(at: coordinate) },
             onSelectShot: { id in toggleSelection(id) },
             onTapMap: { autoHide?.tapMap() },
+            onSelectHole: { number in openCourseHole(number) },
             onDragChanged: { dragging in isDragging = dragging }
         )
         .accessibilityIdentifier(InRoundAccessibilityID.map)
@@ -184,7 +194,9 @@ struct RoundMapScreen: View {
     @ViewBuilder
     private func chrome(layout: RoundMapLayout, model: RoundPanelModel, actions: RoundPanelActions,
                         insets: EdgeInsets) -> some View {
-        if model.controlsVisible {
+        if let course, course.isShowing {
+            courseChrome(course, layout: layout, insets: insets)
+        } else if model.controlsVisible {
             Group {
                 switch layout {
                 case .openWide:
@@ -232,7 +244,7 @@ struct RoundMapScreen: View {
 
     /// A change re-creates the session (another hole, or the live hole moved on).
     private var sessionKey: String {
-        "\(roundID.uuidString)|\(holeNumber)|\(live?.currentHole?.id.uuidString ?? "-")"
+        "\(roundID.uuidString)|\(holeNumber)|\(live?.currentHole?.id.uuidString ?? "-")|\(isShowingCourse)"
     }
 
     var desiredPauseReasons: Set<AutoHidePauseReason> {
@@ -258,6 +270,15 @@ struct RoundMapScreen: View {
 
     /// Opens a session for the hole on screen (closing the previous one).
     func syncSession() {
+        guard !isShowingCourse else {
+            // The course pose has no hole on screen.
+            session?.close()
+            session = nil
+            selectedShotID = nil
+            isDragging = false
+            trail = []
+            return
+        }
         let isFirst = session == nil
         session?.close()
         let next = HoleSession(roundID: roundID, holeNumber: holeNumber, live: live,

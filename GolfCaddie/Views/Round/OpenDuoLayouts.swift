@@ -31,6 +31,9 @@ struct OpenWideLayout: View {
                 if !casual, let score = model.roundScoreText {
                     RoundScoreChip(text: score).padding(.leading, 6)
                 }
+                if model.offersCourseMap {
+                    CourseMapButton(actions: actions)
+                }
                 CardButton(actions: actions, title: model.cardTitle)
                 RoundOverflowMenu(model: model, actions: actions)
             }
@@ -80,9 +83,12 @@ struct OpenPortraitLayout: View {
                 .reportsChromeFrame("title")
                 .pinned(.topLeading, insets: insets)
 
-            VStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 6) {
                 CompassChromeButton(model: model, actions: actions)
                 HideControlsButton(actions: actions)
+                if model.offersCourseMap {
+                    CourseMapButton(actions: actions)
+                }
             }
             .fixedSize()
             .reportsChromeFrame("cluster")
@@ -131,9 +137,12 @@ struct BookLayout: View {
                 .reportsChromeFrame("title")
                 .pinned(.topLeading, insets: insets)
 
-            VStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 6) {
                 CompassChromeButton(model: model, actions: actions)
                 HideControlsButton(actions: actions)
+                if model.offersCourseMap {
+                    CourseMapButton(actions: actions)
+                }
             }
             .fixedSize()
             .reportsChromeFrame("cluster")

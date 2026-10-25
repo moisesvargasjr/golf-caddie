@@ -87,7 +87,8 @@ extension RoundMapScreen {
             reviewToParLabel: ReviewText.toParLabel(score: session?.score, par: par),
             putts: session?.putts,
             roundActions: roundActions,
-            roundActionsTitle: roundActionsTitle
+            roundActionsTitle: roundActionsTitle,
+            offersCourseMap: offersCourseMap
         )
     }
 
