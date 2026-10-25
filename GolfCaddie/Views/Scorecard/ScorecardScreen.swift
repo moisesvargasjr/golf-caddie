@@ -97,7 +97,7 @@ struct ScorecardScreen: View {
             currentHole: currentHoleNumber, variant: variant,
             canOpenHole: onOpenHole != nil, loadError: loadError,
             onDismiss: onDismiss, onOpenCourseMap: onOpenCourseMap, onPick: perform,
-            roundMenu: roundMenu)
+            onSecondary: performSecondary, roundMenu: roundMenu)
     }
 
     private var loadingOrError: some View {
@@ -117,7 +117,7 @@ struct ScorecardScreen: View {
 
     private func perform(_ pick: ScorecardPick) {
         switch pick {
-        case .addScore, .editScore:
+        case .addScore, .editScore, .notPlayed:
             if let column = snapshot.model.column(pick.holeNumber) {
                 entry = CardScoreDraft(column: column)
             }
@@ -125,8 +125,18 @@ struct ScorecardScreen: View {
             onOpenHole?(n)
         case .backToHole:
             onDismiss()
-        case .notPlayed:
+        case .notReached:
             break
+        }
+    }
+
+    private func performSecondary(_ pick: ScorecardSecondaryPick) {
+        let notPlayed: Bool = if case .markNotPlayed = pick { true } else { false }
+        do {
+            try HoleRepository.setNotPlayed(notPlayed, roundID: round.id, holeNumbers: [pick.holeNumber])
+            reload()
+        } catch {
+            loadError = "Couldn't change hole \(pick.holeNumber): \(error.localizedDescription)"
         }
     }
 
@@ -164,6 +174,8 @@ struct ScorecardContent {
     let onDismiss: () -> Void
     let onOpenCourseMap: (() -> Void)?
     let onPick: (ScorecardPick) -> Void
+    /// MARK NOT PLAYED / UNDO NOT PLAYED.
+    var onSecondary: (ScorecardSecondaryPick) -> Void = { _ in }
     /// ··· with the round actions (finished rounds); nil = none.
     var roundMenu: AnyView? = nil
 
@@ -182,6 +194,9 @@ struct ScorecardContent {
     func accessibilityLabel(_ n: Int) -> String {
         ScorecardText.accessibilityLabel(column(n), currentHole: currentHole)
     }
+
+    /// The picked hole has a CTA or a second choice to show.
+    func hasActions(_ pick: ScorecardPick) -> Bool { ctaTitle(pick) != nil || pick.secondary != nil }
 
     /// The CTA for a picked hole, or nil when it has nothing to do.
     func ctaTitle(_ pick: ScorecardPick) -> String? {

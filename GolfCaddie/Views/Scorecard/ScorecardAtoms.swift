@@ -88,7 +88,7 @@ struct ScoreMarkView: View {
     }
 }
 
-/// One score cell's contents: the marked score, ADD, NOW or nothing.
+/// One score cell's contents: the marked score, ADD, NOW, NP or nothing.
 struct ScorecardScoreGlyph: View {
     let cell: ScorecardCell
     var font: Font = CardInk.serif(18)
@@ -104,6 +104,8 @@ struct ScorecardScoreGlyph: View {
             tag("ADD", color: CardInk.palette.red)
         case .now:
             tag("NOW", color: nowColor)
+        case .notPlayed:
+            NotPlayedMark()
         case .blank:
             Color.clear
         }
@@ -131,6 +133,66 @@ struct ScorecardOutlinedButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// NP struck through corner to corner: not played, distinct from ADD.
+struct NotPlayedMark: View {
+    var body: some View {
+        Text("NP")
+            .font(CardInk.mono(9)).tracking(0.6)
+            .foregroundStyle(CardInk.ink2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                GeometryReader { geo in
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: geo.size.height))
+                        p.addLine(to: CGPoint(x: geo.size.width, y: 0))
+                    }
+                    .stroke(CardInk.ink.opacity(0.6), lineWidth: 1.5)
+                }
+            }
+            .accessibilityLabel("not played")
+    }
+}
+
+/// A picked hole's CTA plus its outlined second choice (MARK NOT PLAYED /
+/// UNDO NOT PLAYED) side by side; nothing when the pick has neither.
+struct ScorecardPickButtons: View {
+    let content: ScorecardContent
+    let pick: ScorecardPick
+    var fontSize: CGFloat = 16
+    var minHeight: CGFloat = 44
+    var expands = false
+
+    var body: some View {
+        let title = content.ctaTitle(pick)
+        let secondary = pick.secondary
+        if title != nil || secondary != nil {
+            HStack(spacing: 8) {
+                if let title {
+                    ScorecardFilledButton(title: title, fontSize: fontSize, minHeight: minHeight,
+                                          expands: expands) { content.onPick(pick) }
+                        .accessibilityIdentifier("scorecard.cta")
+                }
+                if let secondary {
+                    Button { content.onSecondary(secondary) } label: {
+                        Text(secondary.title)
+                            .font(CardInk.mono(10)).tracking(0.8)
+                            .foregroundStyle(CardInk.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 10)
+                            .frame(maxWidth: expands ? .infinity : nil, minHeight: minHeight)
+                            .overlay(Rectangle().strokeBorder(CardInk.ink, lineWidth: CardInk.border))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(secondary.accessibilityLabel)
+                    .accessibilityIdentifier("scorecard.secondary")
+                }
+            }
+        }
     }
 }
 

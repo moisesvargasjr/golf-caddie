@@ -27,6 +27,8 @@ struct ScorecardColumn: Equatable, Identifiable {
     var teeShot: TeeShotResult? = nil
     /// `gir` is the golfer's own answer (set in review), not worked out.
     var girIsManual: Bool = false
+    /// Marked not played: NP, no score, out of every total.
+    var isNotPlayed: Bool = false
     var id: Int { number }
 
     /// Score relative to par, when both are known.
@@ -74,6 +76,9 @@ struct ScorecardModel: Equatable {
     var total: ScorecardTotals { Self.totals(columns) }
 
     var girCount: Int { columns.filter { $0.gir == true }.count }
+    /// Holes not marked not played ("16 OF 18 PLAYED").
+    var playedCount: Int { columns.filter { !$0.isNotPlayed }.count }
+    var notPlayedHoles: [Int] { columns.filter(\.isNotPlayed).map(\.number) }
     var firCount: Int { columns.filter { $0.teeShot == .fairway }.count }
 
     /// Hole numbers the scorecard shows ADD for.
@@ -146,10 +151,11 @@ struct ScorecardModel: Equatable {
         let shots = input?.shots ?? []
         let pens = input?.penaltyStrokes ?? 0
         let isHand = hole?.isHandScored ?? false
+        let isNotPlayed = hole?.isNotPlayed ?? false
         let confirmed = hole?.confirmedAt != nil
         // A confirmed tracked hole with no shots has nothing to score (skipped /
         // not tracked): leave score, putts and GIR blank.
-        let tracked = !isHand && confirmed && !shots.isEmpty
+        let tracked = !isHand && !isNotPlayed && confirmed && !shots.isEmpty
         let scored = isHand || tracked
         let needsEntry = HoleScoring.needsEntry(
             holeNumber: number, startingHole: startingHole, hole: hole, hasTrackedData: tracked)
@@ -160,15 +166,18 @@ struct ScorecardModel: Equatable {
             strokeIndex: curated?.strokeIndex,
             score: scored ? HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: pens) : nil,
             putts: scored ? HoleScoring.putts(hole: hole, shots: shots) : nil,
-            gir: hole?.girOverride ?? (tracked ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil),
-            penalties: (confirmed && !isHand) ? pens : nil,
-            story: isHand ? "Score entered by hand" : input.map { story(shots: $0.shots, penalties: $0.penaltyStrokes) },
+            gir: isNotPlayed ? nil
+                : hole?.girOverride ?? (tracked ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil),
+            penalties: (confirmed && !isHand && !isNotPlayed) ? pens : nil,
+            story: isNotPlayed ? "Not played. Left out of every total."
+                : isHand ? "Score entered by hand" : input.map { story(shots: $0.shots, penalties: $0.penaltyStrokes) },
             holeID: hole?.id,
             isConfirmed: confirmed || isHand,
             needsEntry: needsEntry,
             scoreSource: hole?.effectiveScoreSource,
-            teeShot: TeeShotResult.isAsked(par: par) ? hole?.teeShot : nil,
-            girIsManual: hole?.girOverride != nil
+            teeShot: TeeShotResult.isAsked(par: par) && !isNotPlayed ? hole?.teeShot : nil,
+            girIsManual: hole?.girOverride != nil && !isNotPlayed,
+            isNotPlayed: isNotPlayed
         )
     }
 

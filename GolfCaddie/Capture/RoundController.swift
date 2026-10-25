@@ -257,8 +257,11 @@ final class RoundController {
         Task { [weak self] in await self?.detectAndApplyCourseName(roundID: roundID) }
     }
 
-    func endRound() throws {
+    /// Ends the round. `markingNotPlayed` (End round's "Mark holes 15–18 not
+    /// played", see `HoleScoring.remainingUnscored`) marks those holes NP first.
+    func endRound(markingNotPlayed holes: [Int] = []) throws {
         guard case let .active(round, _) = state else { return }
+        if !holes.isEmpty { try HoleRepository.setNotPlayed(true, roundID: round.id, holeNumbers: holes) }
         var ended = round
         ended.endedAt = Date()
         try RoundRepository.update(ended)
@@ -800,7 +803,8 @@ final class RoundController {
         resumed.endedAt = nil
         try RoundRepository.update(resumed)
 
-        let holes = try HoleRepository.holesForRound(round.id)
+        // Holes End round marked not played have rows but weren't reached.
+        let holes = try HoleRepository.holesForRound(round.id).filter { !$0.isNotPlayed }
         let hole: Hole
         if let last = holes.last {
             hole = last
@@ -1061,9 +1065,14 @@ final class RoundController {
     func goToHole(_ number: Int) {
         guard case let .active(round, current) = state else { return }
         guard (1...Self.holesPerRound).contains(number), number != current.holeNumber else { return }
-        let hole: Hole
+        var hole: Hole
         if let existing = try? HoleRepository.hole(forRound: round.id, number: number) {
             hole = existing
+            // Playing a hole marked not played (a resumed round): it's played now.
+            if hole.isNotPlayed {
+                hole.scoreSource = nil
+                try? HoleRepository.update(hole)
+            }
         } else {
             let new = Hole(id: UUID(), roundID: round.id, holeNumber: number, par: nil, confirmedAt: nil)
             try? HoleRepository.insert(new)

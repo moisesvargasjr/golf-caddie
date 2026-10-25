@@ -258,4 +258,79 @@ extension HandScoreAndPenaltyTests {
         let next = try await iterator.next()
         XCTAssertNotNil(next)
     }
+
+    // MARK: - Not played
+
+    func testRemainingUnscoredFollowsPlayOrder() {
+        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 15, startingHole: 1, scored: Set(1...14)), [15, 16, 17, 18])
+        // Started on 10: after 18 comes 1 … 9.
+        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 7, startingHole: 10, scored: Set(10...18).union(1...6)),
+                       [7, 8, 9])
+        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 18, startingHole: nil, scored: Set(1...17)), [18])
+        // A late start's earlier holes are ADD, not "remaining".
+        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 16, startingHole: 4, scored: Set(4...15)), [16, 17, 18])
+    }
+
+    func testEndRoundMarksTheRemainingHolesNotPlayed() throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound(mode: .tracking)
+        let round = try XCTUnwrap(controller.currentRound)
+        try controller.setHandScoreOnCurrentHole(strokes: 5, putts: 2)
+        try controller.confirmHoleAndAdvance(par: 4)
+        try controller.endRound(markingNotPlayed: Array(2...18))
+
+        let holes = try HoleRepository.holesForRound(round.id)
+        XCTAssertEqual(holes.filter(\.isNotPlayed).map(\.holeNumber), Array(2...18))
+        let first = try XCTUnwrap(holes.first { $0.holeNumber == 1 })
+        XCTAssertFalse(first.isNotPlayed)
+        XCTAssertNil(HoleScoring.score(hole: holes[1], shots: [], penaltyStrokes: 0))
+        XCTAssertFalse(HoleScoring.needsEntry(holeNumber: 2, startingHole: 5, hole: holes[1], hasTrackedData: false),
+                       "NP is an answer, not ADD")
+
+        // Resume lands on the last played hole, and playing an NP hole clears it.
+        try controller.resumeRound(XCTUnwrap(try RoundRepository.round(id: round.id)))
+        XCTAssertEqual(controller.currentHole?.holeNumber, 1)
+        controller.goToHole(2)
+        XCTAssertFalse(try XCTUnwrap(try HoleRepository.hole(forRound: round.id, number: 2)).isNotPlayed)
+    }
+
+    func testMarkingNotPlayedNeverTouchesAScoredHoleAndUndoes() throws {
+        let round = try TestDatabase.seedRound()
+        try HoleRepository.setHandScore(roundID: round.id, holeNumber: 3, strokes: 4, putts: 2)
+        try HoleRepository.setNotPlayed(true, roundID: round.id, holeNumbers: [3, 4])
+        XCTAssertFalse(try XCTUnwrap(try HoleRepository.hole(forRound: round.id, number: 3)).isNotPlayed)
+        XCTAssertTrue(try XCTUnwrap(try HoleRepository.hole(forRound: round.id, number: 4)).isNotPlayed)
+        try HoleRepository.setNotPlayed(false, roundID: round.id, holeNumbers: [4])
+        let four = try XCTUnwrap(try HoleRepository.hole(forRound: round.id, number: 4))
+        XCTAssertFalse(four.isNotPlayed)
+        XCTAssertNil(four.scoreSource)
+        // Entering a score on an NP hole makes it a hand score.
+        try HoleRepository.setNotPlayed(true, roundID: round.id, holeNumbers: [5])
+        try HoleRepository.setHandScore(roundID: round.id, holeNumber: 5, strokes: 6, putts: 2)
+        XCTAssertEqual(try HoleRepository.hole(forRound: round.id, number: 5)?.scoreSource, .hand)
+    }
+
+    func testNotPlayedHolesStayOutOfTheCardTotals() {
+        let roundID = UUID()
+        let played = Hole(id: UUID(), roundID: roundID, holeNumber: 1, par: 4, confirmedAt: Date(),
+                          scoreSource: .hand, handStrokes: 5, handPutts: 2)
+        let np = Hole(id: UUID(), roundID: roundID, holeNumber: 2, par: 5, confirmedAt: nil, scoreSource: .notPlayed)
+        let card = ScorecardModel.build(holes: [.init(hole: played, shots: [], penaltyStrokes: 0),
+                                                .init(hole: np, shots: [], penaltyStrokes: 0)], course: nil)
+        XCTAssertTrue(card.columns[1].isNotPlayed)
+        XCTAssertNil(card.columns[1].score)
+        XCTAssertEqual(card.total.score, 5)
+        XCTAssertEqual(card.notPlayedHoles, [2])
+    }
+
+    func testEndRoundSummary() {
+        let summary = EndRoundSummary(courseName: "Native Oaks", scored: [1: 5, 2: 4], pars: [1: 4, 2: 4],
+                                      remaining: [3, 4, 5])
+        XCTAssertEqual(summary.headline, "NATIVE OAKS · 2 HOLES SCORED · 9 (+1)")
+        XCTAssertEqual(summary.markTitle, "Mark holes 3–5 not played")
+        XCTAssertEqual(summary.footer(marking: true), "15 OF 18 PLAYED · 9 (+1) · NOT COMPLETE")
+        XCTAssertEqual(summary.footer(marking: false), "2 OF 18 SCORED · 3 TO ADD · NOT COMPLETE")
+        XCTAssertEqual(EndRoundSummary(courseName: nil, scored: [:], pars: [:], remaining: [18]).markTitle,
+                       "Mark hole 18 not played")
+    }
 }

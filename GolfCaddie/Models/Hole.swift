@@ -5,9 +5,13 @@ import GRDB
 /// shots plus penalty strokes; `hand` = the golfer typed the score in (a late
 /// start's earlier holes, or a casual-mode Finish), held in `handStrokes` /
 /// `handPutts`. A NULL column (every pre-v10 row) reads as tracked.
+/// `notPlayed` (after build 134) = the golfer marked the hole not played: NP
+/// on the card, no score, left out of every total. Stored in the same TEXT
+/// column, so it needs no migration.
 enum HoleScoreSource: String, Codable, CaseIterable {
     case tracked
     case hand
+    case notPlayed
 }
 
 struct Hole: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable {
@@ -37,4 +41,6 @@ struct Hole: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
 extension Hole {
     var effectiveScoreSource: HoleScoreSource { scoreSource ?? .tracked }
     var isHandScored: Bool { effectiveScoreSource == .hand }
+    /// Marked not played: no score, left out of every total.
+    var isNotPlayed: Bool { scoreSource == .notPlayed }
 }

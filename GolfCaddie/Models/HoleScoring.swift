@@ -12,16 +12,16 @@ enum HoleScoring {
 
     /// Gross score for a hole: the hand score when it was entered by hand,
     /// otherwise strokes logged + penalty strokes. nil when there is no hole
-    /// row, or a hand-scored row has no strokes.
+    /// row, a hand-scored row has no strokes, or the hole was marked not played.
     static func score(hole: Hole?, shots: [Shot], penaltyStrokes: Int) -> Int? {
-        guard let hole else { return nil }
+        guard let hole, !hole.isNotPlayed else { return nil }
         if hole.isHandScored { return hole.handStrokes }
         return shots.count + penaltyStrokes
     }
 
     /// Putts: the hand count for a hand-scored hole, else the putt-flagged shots.
     static func putts(hole: Hole?, shots: [Shot]) -> Int? {
-        guard let hole else { return nil }
+        guard let hole, !hole.isNotPlayed else { return nil }
         if hole.isHandScored { return hole.handPutts }
         return shots.filter(\.isPutt).count
     }
@@ -30,9 +30,24 @@ enum HoleScoring {
     /// scorecard shows ADD and leaves it out of the totals (Decision 2).
     static func needsEntry(holeNumber: Int, startingHole: Int?, hole: Hole?,
                            hasTrackedData: Bool) -> Bool {
-        guard let startingHole, holeNumber < startingHole else { return false }
+        guard let startingHole, holeNumber < startingHole, hole?.isNotPlayed != true else { return false }
         if let hole, hole.isHandScored, hole.handStrokes != nil { return false }
         return !hasTrackedData
+    }
+
+    /// The holes End round offers to mark not played: from the live hole on,
+    /// in play order up to the starting hole, the ones with no score yet.
+    /// `scored` holds the numbers that have one. Holes before a late start are
+    /// left for ADD (they were played, just not tracked).
+    static func remainingUnscored(liveHole: Int, startingHole: Int?, scored: Set<Int>) -> [Int] {
+        let start = startingHole ?? 1
+        var holes: [Int] = []
+        var n = liveHole
+        repeat {
+            if !scored.contains(n) { holes.append(n) }
+            n = n % holeRange.upperBound + 1
+        } while n != start && holes.count < holeRange.count
+        return holes
     }
 
     /// Throws unless `strokes`/`putts` are a plausible hand score.
