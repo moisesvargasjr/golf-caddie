@@ -5,7 +5,7 @@ import Observation
 /// "The hole on screen" (Duo v2, Architecture B): one editor for the live hole,
 /// a past hole in this round, or a hole in a finished round. Replaces the
 /// private state + repository writes inside `HoleDetailView` and
-/// `HoleReviewSheet` (those views are removed in later PRs).
+/// `HoleReviewSheet` (removed in PR 4; `HoleDetailView` goes in PR 7).
 ///
 /// Routing: when the hole is the live round's current hole, writes go through
 /// `LiveHoleEditing` (`RoundController`) so its observable lists, the watch and
@@ -35,7 +35,10 @@ final class HoleSession {
 
     private let live: LiveHoleEditing?
     private let store: HoleStore
-    private let anchors: HolePathAnchors
+    /// Orders hold-to-add shots along the hole. Replaced when the round's
+    /// course link changes, so a correction applies without rebuilding the
+    /// session (and losing the selection or an open question).
+    var anchors: HolePathAnchors
     @ObservationIgnored private var registeredHoleID: UUID? = nil
 
     /// `store` nil = the GRDB-backed `RepositoryHoleStore` (built here, not as a

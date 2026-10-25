@@ -26,8 +26,8 @@ final class SafeChromeTests: XCTestCase {
         XCTAssertEqual(SafeChrome.cornerInset, 36)
         XCTAssertEqual(SafeChrome.minTapTarget, 44)
         XCTAssertEqual(SafeChrome.minTapTarget, InRoundMetrics.minTouch)
-        // The band reuses the existing hinge gutter on each side.
-        XCTAssertEqual(SafeChrome.hingeBandWidth, RoundStageGeometry.hingeGutter * 2)
+        // The band is the hinge gutter on each side.
+        XCTAssertEqual(SafeChrome.hingeBandWidth, SafeChrome.hingeGutter * 2)
     }
 
     // MARK: Hinge exclusion

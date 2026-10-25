@@ -1,0 +1,201 @@
+import CoreLocation
+import SwiftUI
+
+// Everything the controls and the map do. Every write goes through the
+// `HoleSession` (live vs past routing lives there) except the round-level
+// moves that only the live round can make (log a shot, finish, skip ahead).
+extension RoundMapScreen {
+    func panelActions() -> RoundPanelActions {
+        RoundPanelActions(
+            previousHole: { go(HoleNavigation.previous(viewing: holeNumber, live: liveHoleNumber)) },
+            nextHole: { go(HoleNavigation.next(viewing: holeNumber, live: liveHoleNumber)) },
+            openHoleGrid: host.openHoleGrid,
+            backToLive: { go(.live) },
+            addShot: logShot,
+            askPenalty: { open(.penalty) },
+            finishHole: askPutts,
+            pickPutts: { puttsChoice = $0 },
+            confirmFinish: confirmFinish,
+            pickPenalty: addPenalty,
+            cancelQuestion: { question = nil },
+            selectShot: toggleSelection,
+            removePenalty: { id in perform("remove the penalty") { try session?.removePenalty(id) } },
+            pickClub: pickClub,
+            deleteSelectedShot: deleteSelectedShot,
+            doneSelection: { selectedShotID = nil },
+            stepEntryStrokes: { entryDraft = entryDraft.steppingStrokes(by: $0) },
+            stepEntryPutts: { entryDraft = entryDraft.steppingPutts(by: $0) },
+            saveEntry: saveEntry,
+            hideControls: hideControls,
+            showControls: { autoHide?.setManuallyHidden(false) },
+            resetCompass: { mapController.resetToHoleUp() },
+            noteInteraction: { autoHide?.noteInteraction() },
+            openCard: host.openCard,
+            openBag: host.openBag,
+            linkCourse: host.linkCourse,
+            unlinkCourse: host.unlinkCourse,
+            toggleCasual: host.toggleCasual,
+            endRound: host.endRound
+        )
+    }
+
+    // MARK: Navigation
+
+    func go(_ step: HoleNavigation.Step?) {
+        guard let step else { return }
+        switch step {
+        case let .view(number): viewedHole = number
+        case .live: viewedHole = nil
+        case .skipAhead:
+            viewedHole = nil
+            live?.stepHole(by: 1)
+        }
+    }
+
+    // MARK: Live hole
+
+    private func logShot() {
+        guard let live, !isMarking else { return }
+        isMarking = true
+        Task { @MainActor in
+            do {
+                try await live.markShot()
+                let number = live.currentHoleShots.count
+                toast = RoundToast(text: "Shot \(number) · \(live.currentClub?.shortName ?? "no club") logged here")
+            } catch {
+                toast = RoundToast(text: "Couldn't log the shot: \(error.localizedDescription)", kind: .error)
+            }
+            isMarking = false
+        }
+    }
+
+    private func askPutts() {
+        let logged = (session?.shots ?? []).filter(\.isPutt).count
+        puttsChoice = PuttsQuestionModel.initialChoice(loggedPutts: logged)
+        open(.putts)
+    }
+
+    /// Putts → the score (full shots + penalties + putts) → confirm and move
+    /// on, through the same reconciliation as the watch's Finish.
+    private func confirmFinish() {
+        guard let live, let session, session.isLive else { return }
+        let number = holeNumber
+        let fullShots = session.shots.filter { !$0.isPutt }.count
+        let score = PuttsQuestionModel.score(fullShots: fullShots, penaltyStrokes: session.penaltyStrokes,
+                                             putts: puttsChoice)
+        let par = session.par
+        perform("finish the hole") {
+            try live.finishHole(putts: puttsChoice, score: score)
+            question = nil
+            viewedHole = nil
+            let result = RoundMapFormat.resultLine(score: score, par: par, putts: puttsChoice)
+            toast = RoundToast(text: "Hole \(number) saved · \(result)")
+        }
+    }
+
+    // MARK: Questions
+
+    private func open(_ next: RoundMapQuestion) {
+        selectedShotID = nil
+        question = next
+    }
+
+    private func addPenalty(_ type: PenaltyType) {
+        let number = holeNumber
+        perform("add the penalty") {
+            try session?.addPenalty(type)
+            question = nil
+            toast = RoundToast(text: PenaltyOption.addedText(type, holeNumber: number))
+            refreshRoundScore()
+        }
+    }
+
+    private func saveEntry() {
+        guard let session else { return }
+        let number = holeNumber
+        let draft = entryDraft
+        let advances = session.isLive
+        perform("save the score") {
+            try session.setHandScore(strokes: draft.strokes, putts: draft.putts)
+            if advances, let live {
+                try live.confirmHoleAndAdvance(par: session.par)
+                viewedHole = nil
+            }
+            let toPar = draft.summary(par: session.par ?? curatedPar(number))
+            toast = RoundToast(text: "Hole \(number) saved · \(draft.strokes)" + (toPar.isEmpty ? "" : " (\(toPar))"))
+            refreshRoundScore()
+        }
+    }
+
+    // MARK: Shots
+
+    func toggleSelection(_ id: UUID) {
+        question = nil
+        selectedShotID = selectedShotID == id ? nil : id
+        autoHide?.noteInteraction()
+    }
+
+    private func pickClub(_ club: Club) {
+        if let id = selectedShotID {
+            perform("change the club") { try session?.setClub(club, forShot: id) }
+        } else if isViewingLive {
+            live?.setCurrentClub(club)
+        }
+    }
+
+    private func deleteSelectedShot() {
+        guard let id = selectedShotID else { return }
+        perform("delete the shot") {
+            try session?.deleteShot(id)
+            selectedShotID = nil
+        }
+    }
+
+    func moveShot(_ id: UUID, to coordinate: CLLocationCoordinate2D) {
+        perform("move the shot") { try session?.moveShot(id, to: coordinate) }
+    }
+
+    /// Hold the map: a shot where the finger is, numbered by its place along
+    /// the hole, selected so the next club tap sets its club.
+    func holdToAdd(at coordinate: CLLocationCoordinate2D) {
+        guard mode.allowsHoldToAdd, let session, panelState(for: session) != .entry else { return }
+        perform("add the shot") {
+            let shot = try session.insertShot(at: coordinate)
+            question = nil
+            selectedShotID = shot.id
+            if let tip = HoldToAddTip().consume() {
+                toast = RoundToast(text: tip, kind: .tip)
+            } else {
+                toast = RoundToast(text: "Shot \(shot.sequenceNumber) added · pick its club")
+            }
+        }
+    }
+
+    // MARK: Chrome
+
+    private func hideControls() {
+        selectedShotID = nil
+        question = nil
+        autoHide?.setManuallyHidden(true)
+    }
+
+    /// The glasses finished a hole (and moved the live hole on).
+    func noteGlassesFinish() {
+        guard let live, let hole = live.mostRecentlyConfirmedHoleFromGlasses else { return }
+        toast = RoundToast(text: "Hole \(hole.holeNumber) finished on the glasses · ‹ to review it")
+        live.clearMostRecentlyConfirmedHoleFromGlasses()
+        refreshRoundScore()
+    }
+
+    /// Runs a write; a failure shows as a red toast.
+    /// Runs a write; on success the round's totals re-read straight away (the
+    /// scoring observation also catches it, a moment later).
+    func perform(_ what: String, _ body: () throws -> Void) {
+        do {
+            try body()
+            refreshRoundScore()
+        } catch {
+            toast = RoundToast(text: "Couldn't \(what): \(error.localizedDescription)", kind: .error)
+        }
+    }
+}

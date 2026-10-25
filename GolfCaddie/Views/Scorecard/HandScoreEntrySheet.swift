@@ -6,14 +6,14 @@ import SwiftUI
 struct HandScoreEntrySheet: View {
     let startingHole: Int?
     /// Saves the draft; returns an error message to show, or nil on success.
-    let onSave: (HandScoreDraft) -> String?
+    let onSave: (CardScoreDraft) -> String?
     let onCancel: () -> Void
 
-    @State private var draft: HandScoreDraft
+    @State private var draft: CardScoreDraft
     @State private var errorText: String?
 
-    init(draft: HandScoreDraft, startingHole: Int?,
-         onSave: @escaping (HandScoreDraft) -> String?, onCancel: @escaping () -> Void) {
+    init(draft: CardScoreDraft, startingHole: Int?,
+         onSave: @escaping (CardScoreDraft) -> String?, onCancel: @escaping () -> Void) {
         self.startingHole = startingHole
         self.onSave = onSave
         self.onCancel = onCancel

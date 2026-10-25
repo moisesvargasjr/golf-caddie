@@ -36,8 +36,11 @@ final class HoleSessionTests: XCTestCase {
         func updateShotClub(id: UUID, club: Club?) throws { calls.append("setClub") }
         func removeShot(id: UUID) throws { calls.append("removeShot") }
         func moveShotOnCurrentHole(id: UUID, to coordinate: CLLocationCoordinate2D) throws { calls.append("moveShot") }
+        private(set) var insertAnchors: [HolePathAnchors] = []
+
         func insertShot(at coordinate: CLLocationCoordinate2D, club: Club?, anchors: HolePathAnchors) throws -> Shot {
             calls.append("insertShot")
+            insertAnchors.append(anchors)
             return Shot(id: UUID(), holeID: currentHole?.id ?? UUID(), sequenceNumber: 1, timestamp: Date(),
                         latitude: coordinate.latitude, longitude: coordinate.longitude, gpsAccuracy: nil,
                         hadGPS: true, club: nil, source: .manual, notes: nil)
@@ -214,5 +217,22 @@ final class HoleSessionTests: XCTestCase {
         XCTAssertEqual(session.shots.map(\.id), [shots[0].id, inserted.id, shots[1].id, shots[2].id])
         XCTAssertEqual(session.shots.map(\.sequenceNumber), [1, 2, 3, 4])
         XCTAssertEqual(inserted.source, .manual)
+    }
+
+    func testACourseRelinkOnTheSameHoleOrdersNewShotsByTheNewCourse() throws {
+        // Course A's tee/green, then the round is re-linked to course B while
+        // hole 1 stays on screen: hold-to-add must use B's anchors.
+        let round = try TestDatabase.seedRound()
+        let (hole, _) = try seedPlayedHole(1, roundID: round.id)
+        let live = FakeLive(currentHole: hole)
+        let courseA = HolePathAnchors(tee: CLLocationCoordinate2D(latitude: 33.0, longitude: lon),
+                                      green: CLLocationCoordinate2D(latitude: 33.003, longitude: lon))
+        let courseB = HolePathAnchors(tee: CLLocationCoordinate2D(latitude: 34.0, longitude: lon),
+                                      green: CLLocationCoordinate2D(latitude: 34.003, longitude: lon))
+        let session = HoleSession(hole: hole, live: live, anchors: courseA)
+        session.anchors = courseB
+        _ = try session.insertShot(at: CLLocationCoordinate2D(latitude: 34.001, longitude: lon))
+        XCTAssertEqual(live.insertAnchors.map(\.tee?.latitude), [34.0])
+        XCTAssertEqual(live.insertAnchors.map(\.green?.latitude), [34.003])
     }
 }

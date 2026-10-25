@@ -31,7 +31,7 @@ enum ScorecardLoader {
     /// Writes the draft through `HoleSession`, so the live hole (if it is the
     /// one) goes through `RoundController` and any other hole through the
     /// repositories — creating its row only now (no empty pre-start rows).
-    static func saveHandScore(_ draft: HandScoreDraft, roundID: UUID, live: LiveHoleEditing?) throws {
+    static func saveHandScore(_ draft: CardScoreDraft, roundID: UUID, live: LiveHoleEditing?) throws {
         let session = HoleSession(roundID: roundID, holeNumber: draft.holeNumber, live: live)
         try session.setHandScore(strokes: draft.strokes, putts: draft.putts)
     }
@@ -40,7 +40,7 @@ enum ScorecardLoader {
 /// The strokes / putts being entered for a hole that wasn't tracked. Each
 /// step returns a new draft; the values always pass
 /// `HoleScoring.validateHandScore` (strokes 1…30, putts 0…strokes).
-struct HandScoreDraft: Equatable, Identifiable {
+struct CardScoreDraft: Equatable, Identifiable {
     let holeNumber: Int
     let par: Int?
     let isEdit: Bool
@@ -76,8 +76,8 @@ struct HandScoreDraft: Equatable, Identifiable {
         min(max(n, HoleScoring.strokeRange.lowerBound), HoleScoring.strokeRange.upperBound)
     }
 
-    private func with(strokes: Int? = nil, putts: Int? = nil) -> HandScoreDraft {
-        HandScoreDraft(holeNumber: holeNumber, par: par, isEdit: isEdit,
+    private func with(strokes: Int? = nil, putts: Int? = nil) -> CardScoreDraft {
+        CardScoreDraft(holeNumber: holeNumber, par: par, isEdit: isEdit,
                        strokes: Self.clampStrokes(strokes ?? self.strokes), putts: putts ?? self.putts)
     }
 
@@ -86,11 +86,11 @@ struct HandScoreDraft: Equatable, Identifiable {
     var canIncrementPutts: Bool { putts < min(strokes, HoleScoring.puttRange.upperBound) }
     var canDecrementPutts: Bool { putts > HoleScoring.puttRange.lowerBound }
 
-    func incrementingStrokes() -> HandScoreDraft { with(strokes: strokes + 1) }
+    func incrementingStrokes() -> CardScoreDraft { with(strokes: strokes + 1) }
     /// Putts follow strokes down so they never exceed them.
-    func decrementingStrokes() -> HandScoreDraft { with(strokes: strokes - 1) }
-    func incrementingPutts() -> HandScoreDraft { canIncrementPutts ? with(putts: putts + 1) : self }
-    func decrementingPutts() -> HandScoreDraft { with(putts: putts - 1) }
+    func decrementingStrokes() -> CardScoreDraft { with(strokes: strokes - 1) }
+    func incrementingPutts() -> CardScoreDraft { canIncrementPutts ? with(putts: putts + 1) : self }
+    func decrementingPutts() -> CardScoreDraft { with(putts: putts - 1) }
 
     /// "PAR", "+1", "-1"; the stroke count when the hole has no par.
     var summary: String {

@@ -9,6 +9,8 @@ final class PostureSwitchUITests: XCTestCase {
         static let holeNumber = "round.holeNumber"
         static let nextHole = "round.nextHole"
         static let probe = "debug.roundProbe"
+        static let map = "round.map"
+        static func putts(_ n: Int) -> String { "round.putts.\(n)" }
     }
 
     private enum Pose: String {
@@ -25,9 +27,9 @@ final class PostureSwitchUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchFolded() -> XCUIApplication {
+    private func launchFolded(extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [
+        app.launchArguments = extra + [
             "-DebugStartRound", "1",
             "-DebugSeedBag", "1",
             "-DebugStartHole", "3",
@@ -35,6 +37,9 @@ final class PostureSwitchUITests: XCTestCase {
             "-DebugLayoutClass", "compact",
             "-DebugPosture", "closed",
             "-DebugPostureControls", "1",
+            // Keep the controls up on the folded pose (auto-hide would hide
+            // round.nextHole after 5 s).
+            "-DebugAutoHide", "off",
         ]
         app.launch()
         dismissLocationPromptIfShown()
@@ -73,7 +78,68 @@ final class PostureSwitchUITests: XCTestCase {
         }
     }
 
+    /// A selected shot belongs to the screen, not a layout branch: it stays
+    /// selected (and keeps auto-hide paused) through every pose.
+    @MainActor
+    func testASelectedShotSurvivesPostureSwitches() throws {
+        // A fresh tracking hole: a round restored from an earlier run may be
+        // on a hole where holding the map adds nothing (casual, score entry).
+        let app = launchFolded(extra: ["-DebugFreshRound", "1"])
+        let probe = app.descendants(matching: .any)[ID.probe].firstMatch
+        XCTAssertTrue(probe.waitForExistence(timeout: Self.timeout), "round screen never appeared")
+        try waitForPose(.closed, probe: probe)
+
+        // Hold the map left of the boxes: a shot drops there, selected.
+        let map = app.descendants(matching: .any)[ID.map].firstMatch
+        XCTAssertTrue(map.waitForExistence(timeout: Self.timeout))
+        map.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.45)).press(forDuration: 1.2)
+        XCTAssertTrue(waitFor(probe, valueMatches: "selected=[0-9A-F-]{36};"),
+                      "hold-to-add selected nothing; probe=\(probe.value ?? "nil")")
+        let selected = try field("selected", of: probe)
+        XCTAssertTrue(try field("paused", of: probe).contains("selection"))
+
+        for pose in [Pose.open, .halfOpen, .closed] {
+            post(pose)
+            try waitForPose(pose, probe: probe)
+            XCTAssertEqual(try field("selected", of: probe), selected, "selection lost after \(pose)")
+            XCTAssertTrue(try field("paused", of: probe).contains("selection"), "pause lost after \(pose)")
+        }
+    }
+
+    /// An open putts question keeps a non-default choice through every pose
+    /// (the folded sheet and the open panel are different views of it).
+    @MainActor
+    func testAnOpenPuttsQuestionKeepsItsChoiceAcrossPostures() throws {
+        let app = launchFolded(extra: ["-DebugFreshRound", "1", "-DebugOpen", "putts"])
+        let probe = app.descendants(matching: .any)[ID.probe].firstMatch
+        XCTAssertTrue(probe.waitForExistence(timeout: Self.timeout), "round screen never appeared")
+        try waitForPose(.closed, probe: probe)
+        XCTAssertTrue(waitFor(probe, valueContains: "question=putts;"), "putts never opened")
+
+        let three = app.buttons[ID.putts(3)].firstMatch
+        XCTAssertTrue(three.waitForExistence(timeout: Self.timeout))
+        three.tap()
+        XCTAssertTrue(waitFor(probe, valueContains: "putts=3;"), "choice not taken; probe=\(probe.value ?? "nil")")
+
+        for pose in [Pose.open, .halfOpen, .closed] {
+            post(pose)
+            try waitForPose(pose, probe: probe)
+            XCTAssertEqual(try field("question", of: probe), "putts", "question closed after \(pose)")
+            XCTAssertEqual(try field("putts", of: probe), "3", "choice reset after \(pose)")
+            XCTAssertTrue(try field("paused", of: probe).contains("question"), "pause lost after \(pose)")
+            XCTAssertTrue(app.buttons[ID.putts(3)].firstMatch.waitForExistence(timeout: Self.timeout),
+                          "no putts question drawn after \(pose)")
+        }
+    }
+
     // MARK: Helpers
+
+    @MainActor
+    private func waitFor(_ element: XCUIElement, valueMatches pattern: String) -> Bool {
+        let predicate = NSPredicate(format: "value MATCHES %@", ".*\(pattern).*")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: Self.timeout) == .completed
+    }
 
     private func post(_ pose: Pose) {
         let name = CFNotificationName((Self.darwinPrefix + pose.rawValue) as CFString)

@@ -98,6 +98,52 @@ final class HoleFramingTests: XCTestCase {
         }
     }
 
+    func testTheGreenMarkerClearsTheTopOfTheRect() throws {
+        // The flag balloon is ~40 pt tall above the green's coordinate.
+        for (layoutName, window, rect) in layouts {
+            for hole in holes {
+                let heading = try XCTUnwrap(HoleFraming.holeUpHeading(tee: hole.tee, green: hole.green))
+                let frame = try XCTUnwrap(HoleFraming.fitHole(
+                    tee: hole.tee, green: hole.green, shots: hole.shots,
+                    unobstructedRect: rect, in: window, heading: heading))
+                let green = HoleFraming.project(hole.green, frame: frame, windowSize: window)
+                XCTAssertGreaterThanOrEqual(green.y - 40, rect.minY + 8, "\(layoutName) / \(hole.name)")
+            }
+        }
+    }
+
+    func testUnprojectIsTheInverseOfProject() throws {
+        let window = CGSize(width: 466, height: 678)
+        let hole = holes[2]
+        let frame = try XCTUnwrap(HoleFraming.fitHole(
+            tee: hole.tee, green: hole.green, shots: hole.shots,
+            unobstructedRect: CGRect(x: 0, y: 88, width: 278, height: 484), in: window, heading: 37))
+        for point in [CGPoint(x: 10, y: 20), CGPoint(x: 233, y: 339), CGPoint(x: 400, y: 650)] {
+            let coordinate = HoleFraming.coordinate(at: point, frame: frame, windowSize: window)
+            let back = HoleFraming.project(coordinate, frame: frame, windowSize: window)
+            XCTAssertEqual(back.x, point.x, accuracy: 0.05)
+            XCTAssertEqual(back.y, point.y, accuracy: 0.05)
+        }
+    }
+
+    func testRecenteringForAnOffsetCameraCentre() throws {
+        // If the map draws its camera centre `offset` points away from the
+        // view centre, the camera must look at what the frame puts there.
+        let window = CGSize(width: 466, height: 678)
+        let hole = holes[0]
+        let frame = try XCTUnwrap(HoleFraming.fitHole(
+            tee: hole.tee, green: hole.green, shots: [],
+            unobstructedRect: CGRect(origin: .zero, size: window), in: window, heading: 0))
+        let offset = CGVector(dx: 0, dy: 23)
+        let shifted = frame.recentered(forCameraCentreOffset: offset, windowSize: window)
+        XCTAssertEqual(shifted.metersPerPoint, frame.metersPerPoint)
+        XCTAssertEqual(shifted.heading, frame.heading)
+        let at = HoleFraming.project(shifted.center, frame: frame, windowSize: window)
+        XCTAssertEqual(at.x, window.width / 2, accuracy: 0.05)
+        XCTAssertEqual(at.y, window.height / 2 + 23, accuracy: 0.05)
+        XCTAssertEqual(frame.recentered(forCameraCentreOffset: .zero, windowSize: window), frame)
+    }
+
     func testTheHoleIsCentredInTheRectNotTheWindow() throws {
         let window = CGSize(width: 402, height: 874)
         let rect = CGRect(x: 0, y: 0, width: 402, height: 574) // bottom panel 300 tall
@@ -106,10 +152,12 @@ final class HoleFramingTests: XCTestCase {
             tee: hole.tee, green: hole.green, shots: [], unobstructedRect: rect, in: window, heading: 0))
         let tee = HoleFraming.project(hole.tee, frame: frame, windowSize: window)
         let green = HoleFraming.project(hole.green, frame: frame, windowSize: window)
-        XCTAssertEqual((tee.y + green.y) / 2, rect.midY, accuracy: 1)
+        // Centred in the padded rect below the marker headroom.
+        XCTAssertEqual((tee.y + green.y) / 2, rect.midY + HoleFraming.markerHeadroom / 2, accuracy: 1)
         XCTAssertEqual((tee.x + green.x) / 2, rect.midX, accuracy: 1)
         // Tight: the long axis fills the padded rect.
-        XCTAssertEqual(tee.y - green.y, rect.height - 2 * HoleFraming.padding, accuracy: 1)
+        XCTAssertEqual(tee.y - green.y, rect.height - 2 * HoleFraming.padding - HoleFraming.markerHeadroom,
+                       accuracy: 1)
         // The camera centre itself is the window centre.
         let centre = HoleFraming.project(frame.center, frame: frame, windowSize: window)
         XCTAssertEqual(centre.x, window.width / 2, accuracy: 0.01)
@@ -155,6 +203,22 @@ final class HoleFramingTests: XCTestCase {
                                                   unobstructedRect: CGRect(origin: .zero, size: window),
                                                   in: window, heading: 0))
         XCTAssertEqual(a, b)
+    }
+
+    func testASliverRectFallsBackToTheWholeWindow() throws {
+        // A rect a few points wide (mismatched coordinate spaces) must not
+        // zoom the map out to the whole county.
+        let window = CGSize(width: 951, height: 669)
+        XCTAssertEqual(HoleFraming.usableRect(CGRect(x: 400, y: 0, width: 3, height: 669), in: window),
+                       CGRect(origin: .zero, size: window))
+        let hole = holes[0]
+        let sliver = try XCTUnwrap(HoleFraming.fitHole(tee: hole.tee, green: hole.green, shots: [],
+                                                       unobstructedRect: CGRect(x: 400, y: 0, width: 3, height: 669),
+                                                       in: window, heading: 0))
+        let whole = try XCTUnwrap(HoleFraming.fitHole(tee: hole.tee, green: hole.green, shots: [],
+                                                      unobstructedRect: CGRect(origin: .zero, size: window),
+                                                      in: window, heading: 0))
+        XCTAssertEqual(sliver, whole)
     }
 
     // MARK: Insets
@@ -204,6 +268,28 @@ final class HoleFramingTests: XCTestCase {
         // Too close to orient by, or nothing at all.
         XCTAssertNil(HoleFraming.holeUpHeading(tee: first, green: .init(latitude: 33.00002, longitude: -117)))
         XCTAssertNil(HoleFraming.holeUpHeading(tee: nil, green: nil, shots: [first]))
+    }
+
+    func testAWideFreeRectLaysTheHoleLeftToRight() throws {
+        // iPhone landscape: the free rect is much wider than tall, so the
+        // hole runs tee-left → green-right (canvas iPhone-Landscape).
+        XCTAssertEqual(HoleFraming.screenHeading(holeUp: 30, freeRect: CGSize(width: 526, height: 260)), 300)
+        // Portrait or near-square rects keep the green straight up.
+        XCTAssertEqual(HoleFraming.screenHeading(holeUp: 30, freeRect: CGSize(width: 218, height: 432)), 30)
+        XCTAssertEqual(HoleFraming.screenHeading(holeUp: 30, freeRect: CGSize(width: 527, height: 501)), 30)
+        XCTAssertEqual(HoleFraming.screenHeading(holeUp: 30, freeRect: .zero), 30)
+
+        let window = CGSize(width: 874, height: 402)
+        let rect = CGRect(x: 24, y: 80, width: 500, height: 240)
+        let hole = holes[0]
+        let up = try XCTUnwrap(HoleFraming.holeUpHeading(tee: hole.tee, green: hole.green))
+        let heading = HoleFraming.screenHeading(holeUp: up, freeRect: rect.size)
+        let frame = try XCTUnwrap(HoleFraming.fitHole(tee: hole.tee, green: hole.green, shots: [],
+                                                      unobstructedRect: rect, in: window, heading: heading))
+        let tee = HoleFraming.project(hole.tee, frame: frame, windowSize: window)
+        let green = HoleFraming.project(hole.green, frame: frame, windowSize: window)
+        XCTAssertLessThan(tee.x, green.x)
+        XCTAssertEqual(tee.y, green.y, accuracy: 1)
     }
 
     func testRotationFromHoleUpIsSignedAndWrapped() {
