@@ -252,7 +252,7 @@ struct RoundMapScreen: View {
         let state = session.map { panelState(for: $0) } ?? .live
         return AutoHideWiring.pauseReasons(questionOpen: question != nil, entryOpen: state == .entry,
                                            shotSelected: selectedShotID != nil, dragging: isDragging,
-                                           modeAllowsAutoHide: mode.allowsAutoHide)
+                                           modeAllowsAutoHide: mode.allowsAutoHide(on: .resolve(display)))
     }
 
     private func setUp() {

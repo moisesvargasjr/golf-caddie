@@ -14,6 +14,8 @@ final class RoundReviewTests: XCTestCase {
         XCTAssertTrue(review.tracksShots, "pins, the shot list and the club list stay editable")
         XCTAssertFalse(review.showsYardage, "the result card replaces the yardage")
         XCTAssertFalse(review.allowsAutoHide)
+        XCTAssertTrue(review.allowsAutoHide(on: .folded), "Review-Folded-v2-Clear: folded review auto-hides")
+        XCTAssertFalse(review.allowsAutoHide(on: .openWide))
         XCTAssertTrue(review.allowsHoldToAdd)
         XCTAssertFalse(review.entryUsesScoreGrid, "untracked holes get the strokes / putts entry")
         XCTAssertFalse(review.showsRoundSoFar)
