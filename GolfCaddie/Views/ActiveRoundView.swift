@@ -125,16 +125,20 @@ struct ActiveRoundView: View {
                     onDone: { showClubsInPlay = false }
                 )
             }
-            // One presentation for both widths, so folding/unfolding while the
-            // card is open swaps its body instead of dismissing it. (PR 6
-            // replaces the card itself.)
+            // One presentation for every layout, so folding/unfolding while the
+            // card is open swaps the card variant instead of dismissing it.
+            // Opening a hole from the card goes there on the round map (a
+            // finished hole is viewed; an unplayed one becomes the live hole).
             .fullScreenCover(isPresented: $showScorecard) {
                 AdaptiveScorecardPresentation(
                     round: round,
                     currentHoleNumber: controller.currentHole?.holeNumber ?? 1,
-                    bag: bag,
                     curatedCourseId: controller.curatedCourseId,
-                    onStrokeMoved: { controller.refreshCurrentHoleShots(ifActiveHoleIn: $0) },
+                    live: controller,
+                    onOpenHole: { number in
+                        pickFromGrid(number, round: round)
+                        showScorecard = false
+                    },
                     onDismiss: { showScorecard = false }
                 )
             }
