@@ -83,18 +83,64 @@ struct HomeSettingsButton: View {
     }
 }
 
-/// "CADDIE · NO. 14" bordered stamp.
-struct HomeNumberStamp: View {
-    let roundCount: Int
+/// The player's name, boxed, → Profile (replaces the "CADDIE · NO. n"
+/// stamp; the round count moved into the Logbook button).
+struct HomeProfileButton: View {
+    @AppStorage(PlayerProfile.nameKey) private var name = ""
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        NavigationLink {
+            ProfileView()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "person")
+                    .font(.system(size: 15, weight: .medium))
+                HomeMonoLabel(text: PlayerProfile.buttonTitle(name: name), size: 11, tracking: 1,
+                              color: palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(palette.ink)
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
+            .frame(minHeight: SafeChrome.minTapTarget)
+            .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(PlayerProfile.trimmed(name).isEmpty ? "Profile: add your name" : "Profile: \(name)")
+        .accessibilityIdentifier(HomeID.profile)
+    }
+}
+
+/// A boxed navigation row (Controls guide): title, optional sub-line, ›.
+struct HomeNavBox: View {
+    let title: String
+    var subtitle: String?
+    var minHeight: CGFloat = 48
 
     @Environment(\.palette) private var palette
 
     var body: some View {
-        HomeMonoLabel(text: "CADDIE · NO. \(roundCount)", size: 10, tracking: 1.2, color: palette.ink)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
-            .fixedSize()
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                HomeMonoLabel(text: title, size: 11, tracking: 1, color: palette.ink)
+                if let subtitle { HomeMonoLabel(text: subtitle, size: 9, tracking: 0.6) }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            Spacer(minLength: 4)
+            Text("›")
+                .font(.custom(AppFont.serifName, size: 20).weight(.bold))
+                .foregroundStyle(palette.ink)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: minHeight)
+        .background(palette.paper, ignoresSafeAreaEdges: [])
+        .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+        .contentShape(Rectangle())
     }
 }
 
@@ -150,10 +196,10 @@ struct HomeLastEntryCard: View {
         HomePanel(padding: style == .open ? 13 : 11) {
             VStack(alignment: .leading, spacing: style == .open ? 8 : 6) {
                 HStack(alignment: .firstTextBaseline) {
-                    HomeMonoLabel(text: "LAST ENTRY · TAP TO REVIEW", tracking: 1)
+                    HomeMonoLabel(text: "LAST ENTRY · " + (style == .open ? entry.dateAndDurationText
+                                                                            : entry.dateText), tracking: 1)
                     Spacer(minLength: 8)
-                    HomeMonoLabel(text: style == .open ? entry.dateAndDurationText : entry.dateText,
-                                  tracking: 0)
+                    HomeMonoLabel(text: "REVIEW ›", size: 10, tracking: 1, color: palette.ink)
                 }
                 HStack(alignment: .lastTextBaseline) {
                     Text(entry.courseTitle)
@@ -244,22 +290,26 @@ struct HomeEmptyEntry: View {
     }
 }
 
-/// "LOGBOOK ›" link, 44 pt tall.
+/// LOGBOOK · n ROUNDS ›, a boxed navigation row.
 struct HomeLogbookLink: View {
     let bag: [Club]
-
-    @Environment(\.palette) private var palette
+    let roundCount: Int
+    /// Title and count on one line (the open Duo's section header).
+    var inline = false
 
     var body: some View {
         NavigationLink {
             RoundListView(bag: bag)
         } label: {
-            HomeMonoLabel(text: "LOGBOOK ›", size: 10, tracking: 1, color: palette.ink)
-                .frame(minHeight: SafeChrome.minTapTarget)
-                .contentShape(Rectangle())
+            if inline {
+                HomeNavBox(title: "LOGBOOK · \(HomeViewModel.roundsText(roundCount))", minHeight: SafeChrome.minTapTarget)
+                    .fixedSize()
+            } else {
+                HomeNavBox(title: "LOGBOOK", subtitle: HomeViewModel.roundsText(roundCount))
+            }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Logbook")
+        .accessibilityLabel("Logbook, \(HomeViewModel.roundsText(roundCount).lowercased())")
         .accessibilityIdentifier(HomeID.logbook)
     }
 }

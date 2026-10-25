@@ -181,7 +181,8 @@ final class HomeViewModelTests: XCTestCase {
 
     func testBagCopy() {
         XCTAssertEqual(HomeViewModel.bagInPlayText(inPlay: 11, total: 14), "11 OF 14 IN PLAY")
-        XCTAssertEqual(HomeViewModel.bagButtonText(total: 14), "THE BAG · 14 CLUBS")
+        XCTAssertEqual(HomeViewModel.roundsText(16), "16 ROUNDS")
+        XCTAssertEqual(HomeViewModel.roundsText(1), "1 ROUND")
         XCTAssertEqual(HomeViewModel.clubsRowText(inPlay: 11, total: 14), "11/14")
         XCTAssertEqual(HomeViewModel.bagAccessibilityLabel(inPlay: 11, total: 14),
                        "The bag: 11 of 14 clubs in play. Change the clubs in play.")

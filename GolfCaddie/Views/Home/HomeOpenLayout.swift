@@ -84,14 +84,18 @@ struct HomeOpenLayout: View {
                     HomeMonoLabel(text: HomeViewModel.bagInPlayText(inPlay: content.inPlayCount,
                                                                     total: content.bagCount),
                                   size: 11, tracking: 0.8, color: palette.ink)
-                    Text("Tap to see the clubs you're carrying today.")
-                        .font(.custom(AppFont.serifName, size: 13).italic())
-                        .foregroundStyle(palette.ink2)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
+                Text("›")
+                    .font(.custom(AppFont.serifName, size: 30).weight(.bold))
+                    .foregroundStyle(palette.ink)
+                    .padding(.trailing, 14)
             }
             .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 190, alignment: .leading)
+            .background(palette.paper, ignoresSafeAreaEdges: [])
+            .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+            .compositingGroup()
+            .shadow(color: palette.cardShadow.color, radius: 0, x: 3, y: 3)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -132,7 +136,7 @@ struct HomeOpenLayout: View {
     private var rightPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                HomeNumberStamp(roundCount: content.snapshot.roundCount)
+                HomeProfileButton()
                 Spacer(minLength: 8)
                 HomeMonoLabel(text: HomeViewModel.dateStrip(Date(), style: .open), size: 10, tracking: 1)
             }
@@ -151,9 +155,8 @@ struct HomeOpenLayout: View {
                     .foregroundStyle(palette.ink)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                HomeLogbookLink(bag: content.bag)
+                HomeLogbookLink(bag: content.bag, roundCount: content.snapshot.roundCount, inline: true)
             }
-            .overlay(alignment: .bottom) { Rectangle().fill(palette.ink).frame(height: 1.5) }
             ForEach(content.snapshot.earlierRounds) { entry in
                 HomeRoundLink(round: entry.round, bag: content.bag, onDeleted: actions.refresh) {
                     earlierRow(entry)
@@ -174,12 +177,17 @@ struct HomeOpenLayout: View {
             Text(entry.score > 0 ? "\(entry.score)" : "—")
                 .font(.custom(AppFont.serifName, size: 18).weight(.bold))
                 .tabularNumerals()
-                .frame(width: 54, alignment: .trailing)
+                .frame(width: 40, alignment: .trailing)
+            Text("›")
+                .font(.custom(AppFont.serifName, size: 18).weight(.bold))
+                .accessibilityHidden(true)
         }
         .foregroundStyle(palette.ink)
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 12)
         .frame(minHeight: SafeChrome.minTapTarget)
-        .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+        .background(palette.paper, ignoresSafeAreaEdges: [])
+        .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+        .padding(.top, 6)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }

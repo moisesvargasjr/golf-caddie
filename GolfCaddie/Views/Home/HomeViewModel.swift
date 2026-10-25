@@ -199,9 +199,8 @@ enum HomeViewModel {
         "\(inPlay) OF \(total) IN PLAY"
     }
 
-    static func bagButtonText(total: Int) -> String {
-        "THE BAG · \(total) CLUBS"
-    }
+    /// "16 ROUNDS" / "1 ROUND".
+    static func roundsText(_ count: Int) -> String { count == 1 ? "1 ROUND" : "\(count) ROUNDS" }
 
     static func clubsRowText(inPlay: Int, total: Int) -> String {
         "\(inPlay)/\(total)"

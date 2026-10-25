@@ -43,3 +43,33 @@ enum HomeData {
         return HomeRoundEntry.make(round: round, holes: holes)
     }
 }
+
+/// The player (Profile, after build 134): a name for the card's PLAYER line
+/// and Home's profile button, plus an optional home course and handicap
+/// index. Device-local settings, like the theme and units.
+enum PlayerProfile {
+    static let nameKey = "profile.name"
+    static let homeCourseKey = "profile.homeCourseId"
+    static let handicapKey = "profile.handicapIndex"
+
+    static var name: String { trimmed(UserDefaults.standard.string(forKey: nameKey) ?? "") }
+
+    static func trimmed(_ name: String) -> String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// "MOISES ›", or "YOUR NAME ›" before one is set.
+    static func buttonTitle(name: String) -> String {
+        let clean = trimmed(name)
+        return (clean.isEmpty ? "YOUR NAME" : clean.uppercased()) + " ›"
+    }
+
+    /// A handicap index as typed ("12.4", "+1.2"), or nil when it isn't one.
+    /// WHS indexes run from +10.0 down to 54.0.
+    static func handicapIndex(_ text: String) -> Double? {
+        let clean = trimmed(text).replacingOccurrences(of: ",", with: ".")
+        guard !clean.isEmpty else { return nil }
+        let plus = clean.hasPrefix("+")
+        guard let value = Double(plus ? String(clean.dropFirst()) : clean) else { return nil }
+        let index = plus ? -value : value
+        return (-10...54).contains(index) ? index : nil
+    }
+}
