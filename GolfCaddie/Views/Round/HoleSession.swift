@@ -89,6 +89,15 @@ final class HoleSession {
 
     /// Before the starting hole with no score: show "not tracked" + entry; the
     /// scorecard shows ADD and the totals leave it out.
+    /// GIR worked out from the shots (tracked holes); nil for a hand score.
+    var autoGir: Bool? {
+        isHandScored || needsEntry ? nil
+            : ScorecardModel.greenInRegulation(shots: shots, penalties: penaltyStrokes, par: par)
+    }
+
+    /// GIR as the card shows it: the golfer's override, else worked out.
+    var gir: Bool? { hole?.girOverride ?? autoGir }
+
     var needsEntry: Bool {
         HoleScoring.needsEntry(holeNumber: holeNumber, startingHole: startingHole, hole: hole,
                                hasTrackedData: !shots.isEmpty || !penalties.isEmpty)
@@ -203,6 +212,19 @@ final class HoleSession {
     func setPar(_ par: Int?) throws {
         let id = try existingHoleID()
         if let live { try live.setPar(par, forHole: id) } else { try store.setPar(par, holeID: id) }
+        reload()
+    }
+
+    /// The tee shot's finish (FIR); nil clears it. Review edits a finished
+    /// hole; the live hole gets its answer through Finish hole instead.
+    func setTeeShot(_ teeShot: TeeShotResult?) throws {
+        try store.setTeeShot(teeShot, holeID: try existingHoleID())
+        reload()
+    }
+
+    /// GIR set by hand; nil goes back to worked out from the shots.
+    func setGirOverride(_ gir: Bool?) throws {
+        try store.setGirOverride(gir, holeID: try existingHoleID())
         reload()
     }
 

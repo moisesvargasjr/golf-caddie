@@ -32,6 +32,39 @@ final class RoundMapQuestionsTests: XCTestCase {
         XCTAssertEqual(PenaltyOption.addedText(.wrongBall, holeNumber: 8), "WRONG BALL · +2 on hole 8")
     }
 
+    // MARK: FIR + GIR
+
+    func testTeeShotIsAskedOnPar4sAnd5s() {
+        XCTAssertFalse(TeeShotResult.isAsked(par: 3))
+        XCTAssertTrue(TeeShotResult.isAsked(par: 4))
+        XCTAssertTrue(TeeShotResult.isAsked(par: 5))
+        XCTAssertTrue(TeeShotResult.isAsked(par: nil), "no par yet: most holes are 4s")
+    }
+
+    func testTappingThePickedTeeShotClearsIt() {
+        XCTAssertEqual(FairwayAndGreen.toggled(nil, .fairway), .fairway)
+        XCTAssertEqual(FairwayAndGreen.toggled(.fairway, .left), .left)
+        XCTAssertNil(FairwayAndGreen.toggled(.left, .left))
+    }
+
+    func testGirToggleReturnsToAuto() {
+        // Worked out as a hit: the toggle sets a miss, then back to AUTO.
+        XCTAssertEqual(FairwayAndGreen.toggledGirOverride(shown: true, auto: true), false)
+        XCTAssertNil(FairwayAndGreen.toggledGirOverride(shown: false, auto: true))
+        // Nothing worked out (hand score): — then ● then AUTO.
+        XCTAssertEqual(FairwayAndGreen.toggledGirOverride(shown: nil, auto: nil), true)
+        XCTAssertNil(FairwayAndGreen.toggledGirOverride(shown: true, auto: nil))
+    }
+
+    func testFinishSummaryWithTheTeeShot() {
+        XCTAssertEqual(PuttsQuestionModel.summary(fullShots: 2, penaltyStrokes: 0, putts: 2, par: 4,
+                                                  asksTeeShot: true, teeShot: .fairway),
+                       "4 (E) · 2 SHOTS + 2 PUTTS · FIR ● · GIR ● AUTO")
+        XCTAssertEqual(PuttsQuestionModel.summary(fullShots: 3, penaltyStrokes: 0, putts: 1, par: 4,
+                                                  asksTeeShot: true, teeShot: nil),
+                       "4 (E) · 3 SHOTS + 1 PUTT · NO TEE SHOT · GIR — AUTO")
+    }
+
     // MARK: Putts
 
     func testPuttOptionsAndLabels() {

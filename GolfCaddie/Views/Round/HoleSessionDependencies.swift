@@ -43,6 +43,8 @@ protocol HoleStore {
     @discardableResult
     func setHandScore(roundID: UUID, holeNumber: Int, strokes: Int, putts: Int?) throws -> Hole
     func setPar(_ par: Int?, holeID: UUID) throws
+    func setTeeShot(_ teeShot: TeeShotResult?, holeID: UUID) throws
+    func setGirOverride(_ gir: Bool?, holeID: UUID) throws
 }
 
 struct RepositoryHoleStore: HoleStore {
@@ -82,4 +84,12 @@ struct RepositoryHoleStore: HoleStore {
     }
 
     func setPar(_ par: Int?, holeID: UUID) throws { try HoleRepository.setPar(holeID: holeID, par: par) }
+
+    func setTeeShot(_ teeShot: TeeShotResult?, holeID: UUID) throws {
+        try HoleRepository.setTeeShot(holeID: holeID, teeShot)
+    }
+
+    func setGirOverride(_ gir: Bool?, holeID: UUID) throws {
+        try HoleRepository.setGirOverride(holeID: holeID, gir)
+    }
 }

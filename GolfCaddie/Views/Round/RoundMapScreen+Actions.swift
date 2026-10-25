@@ -15,6 +15,7 @@ extension RoundMapScreen {
             askPenalty: { open(.penalty) },
             finishHole: finishHole,
             pickPutts: { puttsChoice = $0 },
+            pickTeeShot: { teeShotChoice = FairwayAndGreen.toggled(teeShotChoice, $0) },
             confirmFinish: confirmFinish,
             pickPenalty: addPenalty,
             cancelQuestion: { question = nil },
@@ -29,6 +30,8 @@ extension RoundMapScreen {
             openRoundHole: openRoundHole,
             reviewNext: goToReviewNext,
             stepPutts: stepPutts,
+            setReviewTeeShot: setReviewTeeShot,
+            toggleGir: toggleGir,
             stepEntryStrokes: { entryDraft = entryDraft.steppingStrokes(by: $0) },
             stepEntryPutts: { entryDraft = entryDraft.steppingPutts(by: $0) },
             saveEntry: saveEntry,
@@ -55,6 +58,24 @@ extension RoundMapScreen {
         switch ReviewNavigation.next(after: holeNumber, startingHole: session?.startingHole) {
         case let .hole(number): viewedHole = number
         case .backToCard: host.openCard()
+        }
+    }
+
+    /// The result card's TEE row: pick where the tee shot finished, or tap
+    /// the picked one again to clear it.
+    private func setReviewTeeShot(_ tapped: TeeShotResult) {
+        guard let session else { return }
+        perform("save the tee shot") {
+            try session.setTeeShot(FairwayAndGreen.toggled(session.hole?.teeShot, tapped))
+        }
+    }
+
+    /// GIR ● / —: flips what the card shows; flipping back to what the shots
+    /// work out returns it to AUTO.
+    private func toggleGir() {
+        guard let session else { return }
+        perform("save GIR") {
+            try session.setGirOverride(FairwayAndGreen.toggledGirOverride(shown: session.gir, auto: session.autoGir))
         }
     }
 
@@ -115,6 +136,7 @@ extension RoundMapScreen {
     private func askPutts() {
         let logged = (session?.shots ?? []).filter(\.isPutt).count
         puttsChoice = PuttsQuestionModel.initialChoice(loggedPutts: logged)
+        teeShotChoice = session?.hole?.teeShot
         open(.putts)
     }
 
@@ -127,8 +149,9 @@ extension RoundMapScreen {
         let score = PuttsQuestionModel.score(fullShots: fullShots, penaltyStrokes: session.penaltyStrokes,
                                              putts: puttsChoice)
         let par = session.par
+        let teeShot = TeeShotResult.isAsked(par: par) ? teeShotChoice : nil
         perform("finish the hole") {
-            try live.finishHole(putts: puttsChoice, score: score)
+            try live.finishHole(putts: puttsChoice, score: score, teeShot: teeShot)
             question = nil
             viewedHole = nil
             let result = RoundMapFormat.resultLine(score: score, par: par, putts: puttsChoice)

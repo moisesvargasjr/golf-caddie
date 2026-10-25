@@ -216,6 +216,26 @@ enum HoleRepository {
             try hole.update(db)
         }
     }
+
+    /// The tee shot's finish (nil clears it).
+    static func setTeeShot(holeID: UUID, _ teeShot: TeeShotResult?) throws {
+        try Database.shared.write { db in
+            guard var hole = try Hole.filter(Column("id") == holeID).fetchOne(db)
+            else { return }
+            hole.teeShot = teeShot
+            try hole.update(db)
+        }
+    }
+
+    /// GIR set by hand (nil = back to worked out from the shots).
+    static func setGirOverride(holeID: UUID, _ gir: Bool?) throws {
+        try Database.shared.write { db in
+            guard var hole = try Hole.filter(Column("id") == holeID).fetchOne(db)
+            else { return }
+            hole.girOverride = gir
+            try hole.update(db)
+        }
+    }
 }
 
 enum PenaltyRepository {

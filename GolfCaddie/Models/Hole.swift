@@ -27,6 +27,11 @@ struct Hole: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatabl
     var handStrokes: Int? = nil
     /// v10. The hand-entered putt count; nil = not given.
     var handPutts: Int? = nil
+    /// v11. The tee shot's finish (FIR); nil = not given.
+    var teeShot: TeeShotResult? = nil
+    /// v11. The golfer's GIR when they changed it in review; nil = worked out
+    /// from the shots (`ScorecardModel.greenInRegulation`).
+    var girOverride: Bool? = nil
 }
 
 extension Hole {

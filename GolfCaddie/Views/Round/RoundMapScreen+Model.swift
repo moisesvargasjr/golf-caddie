@@ -63,9 +63,12 @@ extension RoundMapScreen {
             clubsEnabled: selected != nil || isViewingLive,
             question: question,
             puttsChoice: puttsChoice,
+            teeShotChoice: teeShotChoice,
+            asksTeeShot: asksTeeShot,
             puttsSummary: PuttsQuestionModel.summary(fullShots: shots.filter { !$0.isPutt }.count,
                                                      penaltyStrokes: session?.penaltyStrokes ?? 0,
-                                                     putts: puttsChoice, par: par),
+                                                     putts: puttsChoice, par: par,
+                                                     asksTeeShot: asksTeeShot, teeShot: teeShotChoice),
             finishConfirmTitle: PuttsQuestionModel.confirmTitle(holeNumber: holeNumber),
             entry: entryDraft,
             entryTitle: "Score for hole \(holeNumber)",
@@ -86,10 +89,20 @@ extension RoundMapScreen {
             reviewScore: session?.score,
             reviewToParLabel: ReviewText.toParLabel(score: session?.score, par: par),
             putts: session?.putts,
+            reviewTeeShot: session?.hole?.teeShot,
+            reviewAsksTeeShot: TeeShotResult.isAsked(par: par),
+            reviewGir: session?.gir,
+            reviewGirIsManual: session?.hole?.girOverride != nil,
             roundActions: roundActions,
             roundActionsTitle: roundActionsTitle,
             offersCourseMap: offersCourseMap
         )
+    }
+
+    /// Tracking Finish asks the tee shot on a par 4 or 5 (casual's score grid
+    /// doesn't; review can add it).
+    private var asksTeeShot: Bool {
+        mode.finishQuestion == .putts && TeeShotResult.isAsked(par: session?.par)
     }
 
     // MARK: Review

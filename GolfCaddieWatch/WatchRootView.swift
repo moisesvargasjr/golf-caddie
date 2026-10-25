@@ -657,10 +657,13 @@ private struct ActionsScreen: View {
 
 // MARK: - Finish Hole (the one check per hole)
 
-/// Putts → confirm the score → done. The score is pre-filled from what was
-/// tracked (full shots + the putts just given + penalties) and is what the
+/// Tee shot (par 4s and 5s) → putts → confirm the score → done — the same
+/// questions as the phone's Finish hole, so a watch-only round records the
+/// same data. The tee shot sits hole-up like the phone (LEFT · FAIRWAY ·
+/// RIGHT, SHORT below) and can be skipped. The score is pre-filled from what
+/// was tracked (full shots + the putts just given + penalties) and is what the
 /// phone reconciles the hole to, so a wrong pre-fill costs one or two taps on
-/// − / +, never a blank to fill in.
+/// − / +, never a blank to fill in. GIR is worked out on the phone.
 private struct FinishHoleSheet: View {
     /// Called after the hole is sent (return to the yardage).
     let done: () -> Void
@@ -670,9 +673,17 @@ private struct FinishHoleSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var putts: Int?
     @State private var score = 0
+    /// The tee step was answered (or skipped); par 3s start at putts.
+    @State private var teeAnswered = false
+    @State private var teeShot: TeeShotResult?
 
     private let cols = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6),
                         GridItem(.flexible(), spacing: 6)]
+
+    /// The par of the hole being finished (the phone's, unless the watch has
+    /// stepped ahead of it).
+    private var par: Int? { YardageReadout(caddie: caddie, phone: session.phoneState).par }
+    private var asksTeeShot: Bool { TeeShotResult.isAsked(par: par) }
 
     var body: some View {
         let full = controller.fullShotsForFinish
@@ -688,8 +699,8 @@ private struct FinishHoleSheet: View {
                     stepKey("plus") { score += 1 }
                 }
                 .frame(maxHeight: .infinity)
-                Text("\(full) shot\(full == 1 ? "" : "s") + \(putts) putt\(putts == 1 ? "" : "s")" + (pens > 0 ? " + \(pens) pen" : ""))
-                    .font(WT.mono(10)).foregroundStyle(WT.ink3).lineLimit(1).minimumScaleFactor(0.7)
+                Text(breakdown(full: full, putts: putts, pens: pens))
+                    .font(WT.mono(10)).foregroundStyle(WT.ink3).lineLimit(1).minimumScaleFactor(0.6)
                 HStack(spacing: 6) {
                     Button { self.putts = nil } label: {
                         Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold))
@@ -701,9 +712,38 @@ private struct FinishHoleSheet: View {
                     }
                     .buttonStyle(WatchKeyStyle(fill: WT.accent, ink: WT.onAccent))
                 }
+            } else if asksTeeShot && !teeAnswered {
+                Text("HOLE \(caddie.holeNumber) · TEE SHOT?")
+                    .font(WT.mono(11)).tracking(1.2).foregroundStyle(WT.ink2)
+                Grid(horizontalSpacing: 5, verticalSpacing: 5) {
+                    GridRow {
+                        teeKey(.left)
+                        teeKey(.fairway)
+                        teeKey(.right)
+                    }
+                    GridRow {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        teeKey(.short, height: WT.s(34))
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    }
+                }
+                .frame(maxHeight: .infinity)
+                Button { pickTee(nil) } label: {
+                    Text("SKIP").font(WT.mono(11)).tracking(0.8)
+                }
+                .buttonStyle(WatchKeyStyle(fill: WT.surface, ink: WT.ink2))
             } else {
                 Text("HOLE \(caddie.holeNumber) · PUTTS?")
                     .font(WT.mono(11)).tracking(1.2).foregroundStyle(WT.ink2)
+                if asksTeeShot {
+                    // Back to the tee shot (a mis-tap there moved on).
+                    Button { teeAnswered = false } label: {
+                        Text("TEE: " + (teeShot?.summary ?? "SKIPPED"))
+                            .font(WT.mono(10)).foregroundStyle(WT.ink3).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Change the tee shot")
+                }
                 LazyVGrid(columns: cols, spacing: 6) {
                     ForEach(0..<6, id: \.self) { n in
                         Button {
@@ -724,12 +764,61 @@ private struct FinishHoleSheet: View {
         .background(WT.bg)
         #if DEBUG
         .onAppear {
+            if WatchPreviewDebug.finishStep >= 2 {
+                teeShot = .fairway
+                teeAnswered = true
+            }
             if WatchPreviewDebug.finishStep == 2 {
                 putts = 2
                 score = controller.fullShotsForFinish + 2 + (session.phoneState.holePenaltyStrokes ?? 0)
             }
         }
         #endif
+    }
+
+    private func breakdown(full: Int, putts: Int, pens: Int) -> String {
+        var line = "\(full) shot\(full == 1 ? "" : "s") + \(putts) putt\(putts == 1 ? "" : "s")" + (pens > 0 ? " + \(pens) pen" : "")
+        if asksTeeShot, let teeShot { line += " · " + teeShot.summary }
+        return line
+    }
+
+    /// One tap answers and moves on to putts.
+    private func pickTee(_ result: TeeShotResult?) {
+        teeShot = result
+        teeAnswered = true
+        WKInterfaceDevice.current().play(.click)
+    }
+
+    private func teeKey(_ result: TeeShotResult, height: CGFloat = WT.s(50)) -> some View {
+        let picked = teeAnswered && teeShot == result
+        return Button { pickTee(result) } label: {
+            Group {
+                if result == .short {
+                    HStack(spacing: 4) { teeLabel(result) }
+                } else {
+                    VStack(spacing: 1) { teeLabel(result) }
+                }
+            }
+            .foregroundStyle(picked ? WT.onAccent : WT.ink)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .background(picked ? WT.accent : WT.surface2, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(alignment: .bottom) {
+                if result == .fairway && !picked {
+                    // The fairway's green underline, as on the phone.
+                    Capsule().fill(Color(red: 0.53, green: 0.71, blue: 0.42).opacity(0.7))
+                        .frame(height: 3).padding(.horizontal, 10).padding(.bottom, 3)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(result.accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private func teeLabel(_ result: TeeShotResult) -> some View {
+        Text(result.glyph).font(WT.serif(17))
+        Text(result.title).font(WT.mono(8)).lineLimit(1).minimumScaleFactor(0.6)
     }
 
     private func stepKey(_ symbol: String, action: @escaping () -> Void) -> some View {
@@ -744,7 +833,8 @@ private struct FinishHoleSheet: View {
     }
 
     private func confirm(putts: Int) {
-        WatchSession.shared.send(.command(.finishHole(putts: putts, score: score)))
+        WatchSession.shared.send(.command(.finishHole(putts: putts, score: score,
+                                                      teeShot: asksTeeShot ? teeShot : nil)))
         caddie.holeStepRequested(by: 1)
         WKInterfaceDevice.current().play(.success)
         dismiss()

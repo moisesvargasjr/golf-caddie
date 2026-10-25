@@ -107,6 +107,35 @@ final class HoleFinishReconcilerTests: XCTestCase {
         XCTAssertTrue(controller.currentHoleShots.isEmpty)
     }
 
+    func testFinishHoleFromTheWatchStoresTheTeeShot() async throws {
+        let location = LocationManager()
+        let controller = RoundController(location: location)
+        try controller.startRound()
+        let coordinator = LiveShotCoordinator(debounceInterval: 0.05)
+        coordinator.attach(controller: controller, location: location)
+        let round = try XCTUnwrap(controller.currentRound)
+        _ = try controller.ingestAutoShot(at: nil, accuracy: nil, club: nil, timestamp: Date().addingTimeInterval(-200))
+        _ = try controller.ingestAutoShot(at: nil, accuracy: nil, club: nil, timestamp: Date().addingTimeInterval(-100))
+
+        let command = WatchToPhoneMessage.command(.finishHole(putts: 2, score: 4, teeShot: .left))
+        coordinator.ingest(try WatchToPhoneMessage.decode(command.encoded()))
+        await coordinator.waitUntilIdle()
+
+        let first = try XCTUnwrap(try HoleRepository.holesForRound(round.id).first { $0.holeNumber == 1 })
+        XCTAssertEqual(first.teeShot, .left)
+        XCTAssertNotNil(first.confirmedAt, "the tee shot survives the confirm")
+    }
+
+    func testFinishHoleWireWithoutATeeShotDecodes() throws {
+        // An older watch build sends no teeShot key.
+        let message = WatchToPhoneMessage.command(.finishHole(putts: 1, score: 3))
+        guard case let .finishHole(putts, score, teeShot)? = try WatchToPhoneMessage.decode(message.encoded()).command?.command
+        else { return XCTFail("not a finish command") }
+        XCTAssertEqual(putts, 1)
+        XCTAssertEqual(score, 3)
+        XCTAssertNil(teeShot)
+    }
+
     func testExcludedShotsStayOutOfRoundReads() throws {
         let location = LocationManager()
         let controller = RoundController(location: location)

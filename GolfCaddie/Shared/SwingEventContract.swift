@@ -113,7 +113,64 @@ enum WatchCommand: Codable, Equatable {
     /// The one end-of-hole check (watch "Finish Hole"): the putt count the
     /// golfer gave and the score they confirmed. The phone reconciles the
     /// tracked strokes to that score, confirms the hole and advances.
-    case finishHole(putts: Int, score: Int)
+    /// `teeShot` (after build 134) is the tee shot's finish on a par 4 or 5;
+    /// nil = skipped, a par 3, or an older watch (optional, so additive).
+    case finishHole(putts: Int, score: Int, teeShot: TeeShotResult? = nil)
+}
+
+/// Where the tee shot finished on a par 4 or 5 (FIR), asked at Finish hole on
+/// the phone and the watch and editable in review. Here in Shared so both
+/// targets ask the same question; the phone stores it on `Hole.teeShot` (v11).
+/// On screen the choices sit hole-up: left and right either side of the
+/// fairway, short below it.
+enum TeeShotResult: String, Codable, CaseIterable, Identifiable {
+    case left
+    case fairway
+    case right
+    case short
+
+    var id: String { rawValue }
+
+    /// FIR is asked on par 4s and 5s, and on a hole with no par yet (most are 4s).
+    static func isAsked(par: Int?) -> Bool { (par ?? 4) > 3 }
+
+    var title: String {
+        switch self {
+        case .left: return "LEFT"
+        case .fairway: return "FAIRWAY"
+        case .right: return "RIGHT"
+        case .short: return "SHORT"
+        }
+    }
+
+    /// The arrow (or dot) drawn on the button and on the card's FIR row.
+    var glyph: String {
+        switch self {
+        case .left: return "←"
+        case .fairway: return "●"
+        case .right: return "→"
+        case .short: return "↓"
+        }
+    }
+
+    /// Summary lines: "FIR ●", "MISSED LEFT".
+    var summary: String {
+        switch self {
+        case .left: return "MISSED LEFT"
+        case .fairway: return "FIR ●"
+        case .right: return "MISSED RIGHT"
+        case .short: return "SHORT"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .left: return "Tee shot missed left"
+        case .fairway: return "Fairway hit"
+        case .right: return "Tee shot missed right"
+        case .short: return "Tee shot short of the fairway"
+        }
+    }
 }
 
 /// The penalty kinds the watch offers — raw values LOCKSTEP with the phone's

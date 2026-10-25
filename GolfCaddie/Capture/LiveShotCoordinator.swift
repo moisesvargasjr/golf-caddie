@@ -256,9 +256,9 @@ final class LiveShotCoordinator {
             }
         case .previousHole:
             controller?.stepHole(by: -1)
-        case let .finishHole(putts, score):
+        case let .finishHole(putts, score, teeShot):
             let tapped = identified.sentAt.map(Date.init(timeIntervalSince1970:)) ?? now()
-            _ = try? controller?.finishHole(putts: putts, score: score, at: tapped)
+            _ = try? controller?.finishHole(putts: putts, score: score, teeShot: teeShot, at: tapped)
         case let .addPenalty(kind):
             // Unknown kind (mismatched builds) still costs a stroke — "other".
             let type = PenaltyType(rawValue: kind) ?? .other

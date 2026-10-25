@@ -64,6 +64,7 @@ struct RoundMapScreen: View {
     @State var selectedShotID: UUID?
     @State var isDragging = false
     @State var puttsChoice = PuttsQuestionModel.defaultPutts
+    @State var teeShotChoice: TeeShotResult?
     @State var entryDraft = HandScoreDraft(strokes: 4, putts: PuttsQuestionModel.defaultPutts)
     /// Casual score grid picks (Finish on the live hole, or a hole being edited).
     @State var scoreDraft = ScoreGridDraft.empty

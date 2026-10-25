@@ -10,6 +10,8 @@ struct ScorecardColumn: Equatable, Identifiable {
     /// Strokes incl. penalties; nil until the hole is confirmed.
     let score: Int?
     let putts: Int?
+    /// The golfer's GIR when they set one in review, else worked out from the
+    /// shots (tracked holes only).
     let gir: Bool?
     let penalties: Int?
     /// Club sequence / putts / penalties, e.g. "Dr · 7i · PW · 2 putts".
@@ -21,6 +23,10 @@ struct ScorecardColumn: Equatable, Identifiable {
     var needsEntry: Bool = false
     /// `.hand` when the score was typed in rather than tracked; nil = no row.
     var scoreSource: HoleScoreSource? = nil
+    /// Where the tee shot finished (par 4s and 5s); nil = not given.
+    var teeShot: TeeShotResult? = nil
+    /// `gir` is the golfer's own answer (set in review), not worked out.
+    var girIsManual: Bool = false
     var id: Int { number }
 
     /// Score relative to par, when both are known.
@@ -68,6 +74,7 @@ struct ScorecardModel: Equatable {
     var total: ScorecardTotals { Self.totals(columns) }
 
     var girCount: Int { columns.filter { $0.gir == true }.count }
+    var firCount: Int { columns.filter { $0.teeShot == .fairway }.count }
 
     /// Hole numbers the scorecard shows ADD for.
     var holesNeedingEntry: [Int] { columns.filter(\.needsEntry).map(\.number) }
@@ -153,13 +160,15 @@ struct ScorecardModel: Equatable {
             strokeIndex: curated?.strokeIndex,
             score: scored ? HoleScoring.score(hole: hole, shots: shots, penaltyStrokes: pens) : nil,
             putts: scored ? HoleScoring.putts(hole: hole, shots: shots) : nil,
-            gir: tracked ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil,
+            gir: hole?.girOverride ?? (tracked ? greenInRegulation(shots: shots, penalties: pens, par: par) : nil),
             penalties: (confirmed && !isHand) ? pens : nil,
             story: isHand ? "Score entered by hand" : input.map { story(shots: $0.shots, penalties: $0.penaltyStrokes) },
             holeID: hole?.id,
             isConfirmed: confirmed || isHand,
             needsEntry: needsEntry,
-            scoreSource: hole?.effectiveScoreSource
+            scoreSource: hole?.effectiveScoreSource,
+            teeShot: TeeShotResult.isAsked(par: par) ? hole?.teeShot : nil,
+            girIsManual: hole?.girOverride != nil
         )
     }
 

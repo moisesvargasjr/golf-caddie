@@ -8,8 +8,9 @@ enum QuestionPresentation: Equatable {
     var isSheet: Bool { self == .sheet }
 }
 
-/// Finish hole asks only for putts (0–4+), the same as the watch, then
-/// confirms the score and moves to the next hole. Replaces PUTT +1.
+/// Finish hole asks where the tee shot finished (par 4s and 5s, optional) and
+/// the putts (0–4+), the same as the watch, then confirms the score and moves
+/// to the next hole. Replaces PUTT +1.
 struct PuttsQuestion: View {
     let model: RoundPanelModel
     let actions: RoundPanelActions
@@ -19,8 +20,19 @@ struct PuttsQuestion: View {
     var body: some View {
         let sheet = presentation.isSheet
         VStack(alignment: .leading, spacing: sheet ? 12 : 8) {
+            if model.asksTeeShot {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        StampLabel(text: "TEE SHOT · WHERE DID IT FINISH?", size: 10, color: palette.ink)
+                        Spacer(minLength: 4)
+                        if sheet { StampLabel(text: "OPTIONAL", size: 10) }
+                    }
+                    TeeShotPicker(choice: model.teeShotChoice, pick: actions.pickTeeShot,
+                                  height: sheet ? 56 : 44)
+                }
+            }
             HStack(alignment: .firstTextBaseline) {
-                Text("Putts on hole \(model.holeNumber)?")
+                Text(model.asksTeeShot ? "Putts?" : "Putts on hole \(model.holeNumber)?")
                     .font(RoundFont.serif(sheet ? 24 : 20))
                     .foregroundStyle(palette.ink)
                     .lineLimit(1)
@@ -64,6 +76,65 @@ struct PuttsQuestion: View {
         .accessibilityLabel(putts >= (PuttsQuestionModel.options.last ?? 4) ? "Four or more putts" : "\(putts) putts")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier(InRoundAccessibilityID.puttsOption(putts))
+    }
+}
+
+/// Where the tee shot finished, laid out like the hole (hole-up): LEFT and
+/// RIGHT either side of a wider FAIRWAY, SHORT under the fairway. Tapping the
+/// picked one clears it. The watch draws the same cross.
+struct TeeShotPicker: View {
+    let choice: TeeShotResult?
+    let pick: (TeeShotResult) -> Void
+    var height: CGFloat = 56
+    @Environment(\.palette) private var palette
+
+    /// The fairway's green underline (unpicked).
+    static let fairwayTint = Color(hex: 0x5E8A5A).opacity(0.45)
+
+    var body: some View {
+        // Equal thirds in both rows, so SHORT sits exactly under FAIRWAY.
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                button(.left)
+                button(.fairway)
+                button(.right)
+            }
+            HStack(spacing: 6) {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                button(.short, height: max(RoundChromeMetrics.minTap, height - 12), inline: true)
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(InRoundAccessibilityID.teeShotQuestion)
+    }
+
+    private func button(_ result: TeeShotResult, height: CGFloat? = nil, inline: Bool = false) -> some View {
+        let selected = choice == result
+        let label = Group {
+            Text(result.glyph).font(.custom(AppFont.serifName, size: 16))
+            Text(result.title).font(RoundFont.mono(10)).tracking(0.6)
+        }
+        return Button { pick(result) } label: {
+            Group {
+                if inline { HStack(spacing: 6) { label } } else { VStack(spacing: 2) { label } }
+            }
+            .foregroundStyle(selected ? palette.paper : palette.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity, minHeight: height ?? self.height)
+            .background(selected ? palette.ink : Color.clear, ignoresSafeAreaEdges: [])
+            .overlay(alignment: .bottom) {
+                if result == .fairway && !selected { Rectangle().fill(Self.fairwayTint).frame(height: 4) }
+            }
+            .overlay { if !selected { Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule) } }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(result.accessibilityLabel)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(InRoundAccessibilityID.teeShotOption(result))
     }
 }
 

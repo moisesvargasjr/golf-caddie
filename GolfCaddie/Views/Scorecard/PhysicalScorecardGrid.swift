@@ -47,6 +47,10 @@ struct PhysicalScorecardGrid: View {
             }
             scoreRow
             puttsRow
+            // ● fairway hit; a miss shows its arrow; par 3s stay blank. The
+            // total is hits / holes answered ("7/10"), blank before any.
+            textRow("FIR", height: 26, font: .system(size: 12),
+                    value: { $0.teeShot?.glyph }, total: firTotal)
             textRow("GIR", height: 26, font: .system(size: 12),
                     value: { $0.gir == true ? "●" : nil }, total: { "\(girTotal($0))" })
             textRow("PEN", height: 26, rowRule: .none, font: CardInk.mono(11), color: CardInk.palette.red,
@@ -210,6 +214,15 @@ struct PhysicalScorecardGrid: View {
         case .inn: return model.girCount(.back)
         default: return model.girCount
         }
+    }
+
+    private func firTotal(_ slot: Slot) -> String? {
+        let nine: ScorecardNine? = switch slot {
+        case .out: .front
+        case .inn: .back
+        default: nil
+        }
+        return model.firText(nine)
     }
 
     private func slotTitle(_ slot: Slot) -> String {

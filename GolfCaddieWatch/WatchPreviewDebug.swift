@@ -17,8 +17,9 @@ enum WatchPreviewDebug {
     }
     /// Force the club selector into its armed (crown-active) state for screenshots.
     static var armClub: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewArmClub") }
-    /// `-WatchPreviewFinish 1` opens the Finish Hole sheet at PUTTS?; `2` at the
-    /// score confirm (2 putts chosen). Use with `-WatchPreviewActions 1`.
+    /// `-WatchPreviewFinish 1` opens the Finish Hole sheet at its first step
+    /// (TEE SHOT? on a par 4 or 5); `2` at the score confirm (fairway, 2 putts);
+    /// `3` at PUTTS? (fairway picked). Use with `-WatchPreviewActions 1`.
     static var finishStep: Int { isActive ? UserDefaults.standard.integer(forKey: "WatchPreviewFinish") : 0 }
     /// Force the wrist-down (always-on) glance for screenshots.
     static var dim: Bool { isActive && UserDefaults.standard.bool(forKey: "WatchPreviewDim") }

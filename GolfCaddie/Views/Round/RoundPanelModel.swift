@@ -101,6 +101,10 @@ struct RoundPanelModel {
     // Questions
     var question: RoundMapQuestion?
     var puttsChoice: Int
+    /// Finish hole's tee-shot pick (par 4s and 5s); nil = none yet.
+    var teeShotChoice: TeeShotResult? = nil
+    /// Finish hole asks where the tee shot finished (par 4s and 5s).
+    var asksTeeShot: Bool = false
     var puttsSummary: String
     var finishConfirmTitle: String
 
@@ -134,6 +138,14 @@ struct RoundPanelModel {
     var reviewToParLabel: String = ""
     /// The hole's putts (the result card's stepper).
     var putts: Int? = nil
+    /// The result card's TEE row: the tee shot's finish (par 4s and 5s).
+    var reviewTeeShot: TeeShotResult? = nil
+    /// The hole is a par 4 or 5, so the TEE row offers the four choices.
+    var reviewAsksTeeShot: Bool = false
+    /// GIR as the card shows it (the golfer's, else worked out); nil = unknown.
+    var reviewGir: Bool? = nil
+    /// `reviewGir` is the golfer's own answer (YOU), not worked out (AUTO).
+    var reviewGirIsManual: Bool = false
     /// ··· items for a finished round; nil in the live round.
     var roundActions: RoundActionsAvailability? = nil
     /// The ··· section header ("NATIVE OAKS · OCT 23 · 79 (+7)").
@@ -178,6 +190,8 @@ struct RoundPanelModel {
     var showsReviewResult: Bool {
         reviewNext != nil && (state == .pastTracked || (state == .entry && reviewScore != nil))
     }
+    /// The result card's TEE + GIR row: any scored hole in review.
+    var showsTeeGirRow: Bool { showsReviewResult }
 }
 
 struct RoundPanelActions {
@@ -191,6 +205,8 @@ struct RoundPanelActions {
     var finishHole: () -> Void = {}
 
     var pickPutts: (Int) -> Void = { _ in }
+    /// Finish hole's tee shot (tapping the picked one clears it).
+    var pickTeeShot: (TeeShotResult) -> Void = { _ in }
     var confirmFinish: () -> Void = {}
     var pickPenalty: (PenaltyType) -> Void = { _ in }
     var cancelQuestion: () -> Void = {}
@@ -211,6 +227,9 @@ struct RoundPanelActions {
     /// Review: Next hole › (or Back to card ›), and the result card's putts.
     var reviewNext: () -> Void = {}
     var stepPutts: (Int) -> Void = { _ in }
+    /// Review: the TEE row (tapping the picked one clears it) and GIR toggle.
+    var setReviewTeeShot: (TeeShotResult) -> Void = { _ in }
+    var toggleGir: () -> Void = {}
 
     var stepEntryStrokes: (Int) -> Void = { _ in }
     var stepEntryPutts: (Int) -> Void = { _ in }
