@@ -102,22 +102,38 @@ struct PhysicalScorecardView: View {
     private var footer: some View {
         HStack(alignment: .top, spacing: 12) {
             selectedPanel
-            HStack(spacing: 6) {
-                ScorecardStatBox(title: "GROSS", value: ScorecardText.number(content.model.total.score),
-                                 sub: content.model.grossToPar.map { ScorecardText.toPar($0) },
-                                 subColor: CardInk.palette.red, valueSize: 34, alignment: .center)
-                    .accessibilityIdentifier("scorecard.stat.gross")
-                ScorecardStatBox(title: "PUTTS", value: ScorecardText.number(content.model.total.putts),
-                                 valueSize: 34, alignment: .center)
-                ScorecardStatBox(title: "GIR", value: "\(content.model.girCount)",
-                                 sub: "OF \(content.model.playedCount)",
-                                 valueSize: 34, alignment: .center)
+            // GROSS · PUTTS over GIR · FIR (Round-Open-History).
+            Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                GridRow {
+                    ScorecardStatBox(title: "GROSS", value: ScorecardText.number(content.model.total.score),
+                                     sub: content.model.grossToPar.map { ScorecardText.toPar($0) },
+                                     subColor: CardInk.palette.red, valueSize: 30, alignment: .center)
+                        .accessibilityIdentifier("scorecard.stat.gross")
+                    ScorecardStatBox(title: "PUTTS", value: ScorecardText.number(content.model.total.putts),
+                                     valueSize: 30, alignment: .center)
+                }
+                GridRow {
+                    ScorecardStatBox(title: "GIR", value: "\(content.model.girCount)",
+                                     sub: "OF \(content.model.playedCount)",
+                                     valueSize: 30, alignment: .center)
+                    ScorecardStatBox(title: "FIR", value: content.model.firHits.map(String.init) ?? "—",
+                                     sub: content.model.firAnswered.map { "OF \($0)" },
+                                     valueSize: 30, alignment: .center)
+                }
             }
-            .frame(width: 250)
+            .frame(width: 196)
             .frame(minHeight: 110, maxHeight: .infinity)
-            legend
-                .frame(width: 200)
-                .frame(minHeight: 110, maxHeight: .infinity)
+            VStack(alignment: .leading, spacing: 6) {
+                legend
+                if !content.history.isEmpty { CourseHistoryTable(rows: content.history, onOpen: content.onOpenRound) }
+                Spacer(minLength: 0)
+                HStack(alignment: .bottom, spacing: 10) {
+                    signature("SCORER", "Golf Caddie")
+                    signature("ATTEST", "")
+                }
+            }
+            .frame(width: 300)
+            .frame(minHeight: 110, maxHeight: .infinity)
         }
     }
 
@@ -166,6 +182,8 @@ struct PhysicalScorecardView: View {
                     Rectangle().stroke(ink, lineWidth: 1.5).frame(width: 12, height: 12)
                 }
                 legendText("DBL+")
+                Text("●").font(.system(size: 10)).foregroundStyle(ink)
+                legendText("HIT")
             }
             if let note = content.model.notPlayedNote {
                 HStack(spacing: 8) {
@@ -174,12 +192,9 @@ struct PhysicalScorecardView: View {
                 }
                 legendText(note)
             }
-            Spacer(minLength: 4)
-            signature("SCORER", "Golf Caddie")
-            signature("ATTEST", "")
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Circle, birdie. Square, bogey. Double square, double bogey or worse."
+        .accessibilityLabel("Circle, birdie. Square, bogey. Double square, double bogey or worse. Dot, hit."
                             + (content.model.notPlayedNote.map { " NP, not played. \($0.lowercased())." } ?? ""))
     }
 
@@ -196,5 +211,57 @@ struct PhysicalScorecardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .bottom) { Rectangle().fill(ink).frame(height: 1) }
         }
+    }
+}
+
+/// AT THIS COURSE: your best earlier rounds here; each row opens its card.
+struct CourseHistoryTable: View {
+    let rows: [CourseHistoryRow]
+    let onOpen: ((Round) -> Void)?
+    private let ink = CardInk.ink
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("AT THIS COURSE").tracking(1)
+                Spacer()
+                Text("YOUR BEST \(rows.count)").font(CardInk.mono(8))
+            }
+            .font(CardInk.mono(9))
+            .foregroundStyle(CardInk.palette.paper)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(ink, ignoresSafeAreaEdges: [])
+            .accessibilityAddTraits(.isHeader)
+            ForEach(rows) { row in
+                Button { onOpen?(row.round) } label: { label(row) }
+                    .buttonStyle(.plain)
+                    .disabled(onOpen == nil)
+                    .accessibilityLabel(row.accessibilityLabel)
+                    .accessibilityIdentifier("scorecard.history.row")
+            }
+        }
+        .background(CardInk.palette.paper, ignoresSafeAreaEdges: [])
+        .overlay(Rectangle().strokeBorder(ink, lineWidth: 1.5))
+    }
+
+    private func label(_ row: CourseHistoryRow) -> some View {
+        HStack(spacing: 8) {
+            Text(row.dateText).font(CardInk.mono(10)).foregroundStyle(CardInk.ink2).frame(width: 48, alignment: .leading)
+            Text(row.note).font(CardInk.mono(8)).tracking(0.6)
+                .foregroundStyle(row.isComplete ? CardInk.ink2 : CardInk.palette.red)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(row.score)").font(CardInk.serif(18)).foregroundStyle(ink)
+            Text(row.toParText ?? "").font(CardInk.mono(10)).foregroundStyle(ink).frame(width: 30, alignment: .trailing)
+            if onOpen != nil {
+                Text("›").font(CardInk.serif(16)).foregroundStyle(ink)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 44)
+        .background(row.isComplete ? Color.clear : ink.opacity(0.05), ignoresSafeAreaEdges: [])
+        .overlay(alignment: .top) { Rectangle().fill(ink.opacity(0.2)).frame(height: 1) }
+        .contentShape(Rectangle())
     }
 }

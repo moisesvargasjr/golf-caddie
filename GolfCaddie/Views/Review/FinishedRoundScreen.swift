@@ -39,6 +39,8 @@ struct FinishedRoundScreen: View {
     @State private var showDeleteConfirm = false
     @State private var sharing: ShareItems?
     @State private var actionError: String?
+    /// An AT THIS COURSE row: that round's card, pushed on top.
+    @State private var historyRound: PushedRound?
 
     /// `initialHole` opens straight on that hole's review and `opensCourseMap`
     /// on the course map (DEBUG launches).
@@ -63,6 +65,9 @@ struct FinishedRoundScreen: View {
                 reloadCourseMap()
             }
             .sheet(isPresented: $showCoursePicker) { coursePicker }
+            .navigationDestination(item: $historyRound) { other in
+                FinishedRoundScreen(round: other.round, bag: bag)
+            }
             .sheet(item: $sharing) { ShareSheet(items: $0.items) }
             .alert("Delete this round?", isPresented: $showDeleteConfirm) {
                 Button("Cancel", role: .cancel) {}
@@ -104,7 +109,8 @@ struct FinishedRoundScreen: View {
                             onOpenCourseMap: cardMapAction,
                             roundMenu: AnyView(CardRoundActionsButton(availability: availability,
                                                                       title: menuTitle,
-                                                                      handlers: actionHandlers)))
+                                                                      handlers: actionHandlers)),
+                            onOpenRound: { historyRound = PushedRound(round: $0) })
         }
     }
 
@@ -250,4 +256,12 @@ struct FinishedRoundScreen: View {
             actionError = "Delete failed: \(error.localizedDescription)"
         }
     }
+}
+
+/// A round to push (`navigationDestination(item:)` needs Hashable; a round
+/// is identified by its id).
+private struct PushedRound: Hashable {
+    let round: Round
+    static func == (a: Self, b: Self) -> Bool { a.round.id == b.round.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(round.id) }
 }

@@ -136,6 +136,44 @@ final class ScorecardScreenTests: XCTestCase {
         XCTAssertNil(model([]).notPlayedNote)
     }
 
+    // MARK: At this course
+
+    private func historyEntry(_ course: String?, curated: String? = nil, holes: Int, strokes: Int,
+                              daysAgo: Double, ended: Bool = true) -> HomeRoundEntry {
+        let start = Date().addingTimeInterval(-daysAgo * 86_400)
+        var round = Round(id: UUID(), startedAt: start, endedAt: ended ? start.addingTimeInterval(3600) : nil,
+                          courseName: course, notes: nil)
+        round.curatedCourseId = curated
+        let inputs = (1...max(1, holes)).prefix(holes).map {
+            HomeHoleInput(number: $0, par: 4, strokes: strokes, confirmed: true)
+        }
+        return HomeRoundEntry.make(round: round, holes: Array(inputs))
+    }
+
+    func testCourseHistoryCompleteFirstThenMostHoles() {
+        var current = Round(id: UUID(), startedAt: Date(), endedAt: Date(), courseName: "Native Oaks", notes: nil)
+        current.curatedCourseId = "oaks"
+        let best = historyEntry("Native Oaks", curated: "oaks", holes: 18, strokes: 5, daysAgo: 10)      // 90
+        let better = historyEntry("Native Oaks", curated: "oaks", holes: 18, strokes: 4, daysAgo: 20)    // 72
+        let partial = historyEntry("Native Oaks", curated: "oaks", holes: 14, strokes: 4, daysAgo: 5)
+        let shorter = historyEntry("Native Oaks", curated: "oaks", holes: 9, strokes: 3, daysAgo: 6)
+        let elsewhere = historyEntry("Other", curated: "other", holes: 18, strokes: 3, daysAgo: 1)
+        let open = historyEntry("Native Oaks", curated: "oaks", holes: 18, strokes: 3, daysAgo: 2, ended: false)
+        let rows = CourseHistory.rows(for: current, entries: [best, better, partial, shorter, elsewhere, open])
+        XCTAssertEqual(rows.map(\.score), [72, 90, 56])
+        XCTAssertEqual(rows.map(\.isComplete), [true, true, false])
+        XCTAssertEqual(rows[2].note, "NOT COMPLETE · 14 HOLES")
+        XCTAssertEqual(rows[0].toParText, "E")
+    }
+
+    func testSameCourseFallsBackToTheName() {
+        let a = Round(id: UUID(), startedAt: Date(), endedAt: nil, courseName: "Native Oaks ", notes: nil)
+        let b = Round(id: UUID(), startedAt: Date(), endedAt: nil, courseName: "native oaks", notes: nil)
+        let c = Round(id: UUID(), startedAt: Date(), endedAt: nil, courseName: nil, notes: nil)
+        XCTAssertTrue(CourseHistory.isSameCourse(a, b))
+        XCTAssertFalse(CourseHistory.isSameCourse(c, c), "no course, no history")
+    }
+
     // MARK: Picks
 
     func testPickActions() {

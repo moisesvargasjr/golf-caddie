@@ -24,6 +24,8 @@ struct ScorecardScreen: View {
     let onOpenCourseMap: (() -> Void)?
     /// ··· beside the header buttons (a finished round's round actions).
     let roundMenu: AnyView?
+    /// An AT THIS COURSE row: open that round's card. nil = rows don't open.
+    let onOpenRound: ((Round) -> Void)?
 
     @Environment(\.displayContext) private var display
     @State private var snapshot = ScorecardSnapshot(model: ScorecardModel(columns: [], hasStrokeIndex: false),
@@ -35,7 +37,7 @@ struct ScorecardScreen: View {
     init(round: Round, currentHoleNumber: Int?, curatedCourseId: String?,
          live: LiveHoleEditing? = nil, onDismiss: @escaping () -> Void,
          onOpenHole: ((Int) -> Void)? = nil, onOpenCourseMap: (() -> Void)? = nil,
-         roundMenu: AnyView? = nil) {
+         roundMenu: AnyView? = nil, onOpenRound: ((Round) -> Void)? = nil) {
         self.round = round
         self.currentHoleNumber = currentHoleNumber
         self.curatedCourseId = curatedCourseId
@@ -44,6 +46,7 @@ struct ScorecardScreen: View {
         self.onOpenHole = onOpenHole
         self.onOpenCourseMap = onOpenCourseMap
         self.roundMenu = roundMenu
+        self.onOpenRound = onOpenRound
     }
 
     private var variant: ScorecardVariant { .resolve(display) }
@@ -97,7 +100,8 @@ struct ScorecardScreen: View {
             currentHole: currentHoleNumber, variant: variant,
             canOpenHole: onOpenHole != nil, loadError: loadError,
             onDismiss: onDismiss, onOpenCourseMap: onOpenCourseMap, onPick: perform,
-            onSecondary: performSecondary, roundMenu: roundMenu)
+            onSecondary: performSecondary, roundMenu: roundMenu,
+            history: snapshot.history, onOpenRound: onOpenRound)
     }
 
     private var loadingOrError: some View {
@@ -178,6 +182,9 @@ struct ScorecardContent {
     var onSecondary: (ScorecardSecondaryPick) -> Void = { _ in }
     /// ··· with the round actions (finished rounds); nil = none.
     var roundMenu: AnyView? = nil
+    /// AT THIS COURSE rows and where one opens.
+    var history: [CourseHistoryRow] = []
+    var onOpenRound: ((Round) -> Void)? = nil
 
     var isFinished: Bool { round.endedAt != nil || currentHole == nil }
     var dismissTitle: String { ScorecardText.dismissTitle(variant: variant, currentHole: currentHole) }
