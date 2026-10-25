@@ -1,0 +1,5 @@
+duo	open-portrait|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 1 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+duo	open-portrait-hole7|portrait|-DebugStartRound 1 -DebugSeedBag 1 -DebugStartHole 7 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+casual	casual-open-portrait|portrait|-DebugSeedBag 1 -DebugOpen casual -DebugCasualHoles 7 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+casual	casual-finish-open-portrait|portrait|-DebugSeedBag 1 -DebugOpen casual-finish -DebugCasualHoles 7 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
+review	review-open-portrait|portrait|-DebugSeedBag 1 -DebugOpen course-map -DebugReviewHole 12 -DebugWindowSize 669x951 -DebugLayoutClass expanded -DebugPosture open -DebugAutoHide off
