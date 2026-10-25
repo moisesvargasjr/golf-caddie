@@ -13,6 +13,13 @@ struct HoleFrame: Equatable {
 
     /// `distanceFactor` = camera distance ÷ metres per point for this map
     /// view (it depends on the view's height; HoleMap measures it).
+    /// The same view within a metre, a percent of scale and a degree.
+    func isClose(to other: HoleFrame) -> Bool {
+        Distance.meters(from: center, to: other.center) < 1
+            && abs(metersPerPoint / other.metersPerPoint - 1) < 0.01
+            && abs(HoleFraming.normalizedHeading(heading - other.heading + 180) - 180) < 1
+    }
+
     func camera(distanceFactor: Double) -> MKMapCamera {
         MKMapCamera(lookingAtCenter: center, fromDistance: metersPerPoint * distanceFactor,
                     pitch: 0, heading: heading)
