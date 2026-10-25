@@ -124,6 +124,25 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GolfCaddie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GolfCaddie"
+  GolfCaddieUITests:
+    # Drives a DEBUG build through launch args (DebugHarness) and the runtime
+    # posture switch (DebugPostureSwitch, Darwin notifications).
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: GolfCaddieUITests
+    dependencies:
+      - target: GolfCaddie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moisesvargasjr.golfcaddie.uitests
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: XH3PSRWH49
+        TEST_TARGET_NAME: GolfCaddie
 schemes:
   GolfCaddieWatch:
     build:
@@ -136,6 +155,7 @@ schemes:
       targets:
         GolfCaddie: all
         GolfCaddieTests: [test]
+        GolfCaddieUITests: [test]
     run:
       config: Debug
       # Metal API Validation aborts (SIGABRT) on MapKit's satellite renderer
@@ -148,6 +168,7 @@ schemes:
       config: Debug
       targets:
         - GolfCaddieTests
+        - GolfCaddieUITests
     profile:
       config: Release
     analyze:

@@ -23,6 +23,18 @@ enum DebugHarness {
     /// on launch so simulator screenshots don't need taps.
     static var openScreen: String? { UserDefaults.standard.string(forKey: "DebugOpen") }
 
+    /// `-DebugSeedBag 1` (or any harness flag): save the recommended bag when
+    /// none is saved. Idempotent; RootView calls it before loading the bag.
+    static func seedBagIfRequested() {
+        let d = UserDefaults.standard
+        let requested = d.bool(forKey: "DebugSeedBag") || d.bool(forKey: "DebugStartRound")
+            || d.integer(forKey: "DebugInjectSwings") > 0
+        guard requested else { return }
+        if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
+            try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
+        }
+    }
+
     @MainActor
     static func runIfRequested(controller: RoundController, location: LocationManager) {
         let d = UserDefaults.standard
@@ -34,9 +46,7 @@ enum DebugHarness {
         NSLog("[DebugHarness] start (startRound=\(startRound) injectSwings=\(count))")
         // A fresh simulator has no saved bag, which gates the UI on Bag Setup.
         // Seed the recommended default so Home / the active round render.
-        if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
-            try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
-        }
+        seedBagIfRequested()
         if startRound, !controller.isActive {
             let startHole = d.integer(forKey: "DebugStartHole")
             // Comma-separated bag ids left home, e.g. -DebugClubsLeftOut threeWood,lobWedge
