@@ -127,15 +127,21 @@ final class HoleMapLoupe: UIView {
         layer.shadowRadius = 4
         layer.shadowOffset = CGSize(width: 0, height: 2)
 
-        map.frame = bounds
-        map.layer.cornerRadius = Self.size / 2
-        map.clipsToBounds = true
+        // The map is twice the circle and clipped to it, so its logo and
+        // legal link (bottom corners) fall outside what the loupe shows; the
+        // main map shows them.
+        let clip = UIView(frame: bounds)
+        clip.layer.cornerRadius = Self.size / 2
+        clip.clipsToBounds = true
+        clip.isUserInteractionEnabled = false
+        addSubview(clip)
+        map.frame = bounds.insetBy(dx: -Self.size / 2, dy: -Self.size / 2)
         map.preferredConfiguration = MKImageryMapConfiguration()
         map.isUserInteractionEnabled = false
         map.showsCompass = false
         map.showsScale = false
         map.cameraZoomRange = MKMapView.CameraZoomRange(minCenterCoordinateDistance: Self.closestDistance)
-        addSubview(map)
+        clip.addSubview(map)
 
         let ring = CAShapeLayer()
         ring.path = UIBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3)).cgPath
