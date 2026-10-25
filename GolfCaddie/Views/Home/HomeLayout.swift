@@ -55,6 +55,7 @@ enum HomeID {
     static let lastEntry = "home.lastEntry"
     static let noEntry = "home.lastEntry.empty"
     static let logbook = "home.logbook"
+    static let profile = "home.profile"
     static let earlierRound = "home.earlierRound"
     static let startPanel = "home.start"
     static let modeTracking = "home.start.tracking"

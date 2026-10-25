@@ -57,7 +57,7 @@ struct HomeSingleLayout: View {
 
     private var topRow: some View {
         HStack(spacing: 10) {
-            HomeNumberStamp(roundCount: content.snapshot.roundCount)
+            HomeProfileButton()
             Spacer(minLength: 4)
             HomeStatusIndicators(watch: content.watch, glassesEnabled: content.glassesEnabled,
                                  style: .folded)
@@ -65,19 +65,17 @@ struct HomeSingleLayout: View {
         }
     }
 
+    /// THE BAG and LOGBOOK as boxed navigation buttons (Home-Folded-Buttons).
     private var bagAndLogbook: some View {
-        HStack {
+        HStack(spacing: 8) {
             Button(action: actions.editBag) {
-                HomeMonoLabel(text: HomeViewModel.bagButtonText(total: content.bagCount),
-                              size: 10, tracking: 1, color: palette.ink)
-                    .frame(minHeight: SafeChrome.minTapTarget)
-                    .contentShape(Rectangle())
+                HomeNavBox(title: "THE BAG",
+                           subtitle: HomeViewModel.bagInPlayText(inPlay: content.inPlayCount, total: content.bagCount))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("The bag, \(content.bagCount) clubs. Edit the bag.")
+            .accessibilityLabel("The bag, \(content.inPlayCount) of \(content.bagCount) clubs in play. Edit the bag.")
             .accessibilityIdentifier(HomeID.bag)
-            Spacer()
-            HomeLogbookLink(bag: content.bag)
+            HomeLogbookLink(bag: content.bag, roundCount: content.snapshot.roundCount)
         }
     }
 }

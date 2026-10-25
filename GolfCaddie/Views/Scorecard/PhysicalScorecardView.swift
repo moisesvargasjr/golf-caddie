@@ -74,7 +74,7 @@ struct PhysicalScorecardView: View {
             Spacer(minLength: 12)
             handField("DATE", content.round.startedAt.formatted(
                 .dateTime.month(.twoDigits).day(.twoDigits).year(.twoDigits)), minWidth: 84)
-            handField("PLAYER", "", minWidth: 100)
+            handField("PLAYER", PlayerProfile.name, minWidth: 100)
             if let openMap = content.onOpenCourseMap {
                 ScorecardCourseMapButton(action: openMap)
             }
