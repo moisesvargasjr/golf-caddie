@@ -8,7 +8,7 @@ struct ScorecardSplitView: View {
     @Binding var selectedHole: Int?
 
     /// Content keeps this far from the hinge line (same as the round screens).
-    private static let hingeGutter = RoundStageGeometry.hingeGutter
+    private static let hingeGutter = SafeChrome.hingeGutter
     private static let edge: CGFloat = 24
 
     var body: some View {
