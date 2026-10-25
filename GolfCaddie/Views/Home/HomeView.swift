@@ -39,6 +39,7 @@ struct HomeView: View {
     #if DEBUG
     @State private var debugShowLogbook = false
     @State private var debugShowSettings = false
+    @State private var debugRoundCard: Round?
     #endif
 
     private var layout: HomeLayout { HomeLayout.resolve(display) }
@@ -96,6 +97,15 @@ struct HomeView: View {
         #if DEBUG
         .navigationDestination(isPresented: $debugShowLogbook) { RoundListView(bag: bag) }
         .navigationDestination(isPresented: $debugShowSettings) { SettingsView(bag: $bag) }
+        // A finished round's card (PR 7 routes Logbook → card for real).
+        .fullScreenCover(item: $debugRoundCard) { round in
+            AdaptiveScorecardPresentation(
+                round: round,
+                currentHoleNumber: nil,
+                curatedCourseId: round.curatedCourseId,
+                onDismiss: { debugRoundCard = nil }
+            )
+        }
         #endif
     }
 
@@ -198,13 +208,14 @@ struct HomeView: View {
     }
 
     /// `-DebugOpen home` lands here with nothing opened; `logbook`,
-    /// `settings` and `bag` open from Home.
+    /// `settings`, `bag` and `roundcard` (a finished round's card) open from Home.
     private func openDebugScreenIfRequested() {
         #if DEBUG
         switch DebugHarness.openScreen {
         case "logbook": debugShowLogbook = true
         case "settings": debugShowSettings = true
         case "bag": openBag()
+        case "roundcard": debugRoundCard = DebugScorecardSeed.finishedRound()
         default: break
         }
         #endif
