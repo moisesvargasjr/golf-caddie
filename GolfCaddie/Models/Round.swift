@@ -1,6 +1,14 @@
 import Foundation
 import GRDB
 
+/// What kind of round this is, chosen at Begin (v10). `tracking` logs every
+/// shot; `casual` is GPS + a per-hole score. Persisted on the round so a
+/// finished round's review knows which it was.
+enum RoundMode: String, Codable, CaseIterable {
+    case tracking
+    case casual
+}
+
 struct Round: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable {
     static let databaseTableName = "round"
 
@@ -16,4 +24,9 @@ struct Round: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatab
     /// Bag club ids left home for this round (v7); nil/empty = the whole bag
     /// is in play. See `ClubsInPlay`.
     var clubsLeftOut: [String]?
+    /// v10. nil = pre-v10 round (mode lived only in UserDefaults).
+    var mode: RoundMode? = nil
+    /// v10. The hole the round began on; holes before it with no score are
+    /// "not tracked" and the scorecard asks for them (ADD). nil = pre-v10.
+    var startingHole: Int? = nil
 }
