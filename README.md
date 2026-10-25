@@ -135,8 +135,9 @@ open GolfCaddie.xcodeproj
 ```
 
 GPS, the Action button, and swing detection need real hardware, so development
-deploys to a physical iPhone and Apple Watch. Distribution is personal, via
-TestFlight internal testing (`scripts/release-testflight.sh`).
+deploys to a physical iPhone and Apple Watch. Distribution is via TestFlight,
+triggered by release tags: `scripts/release.sh alpha` (just me) or
+`scripts/release.sh beta` (friends). See [`docs/RELEASING.md`](docs/RELEASING.md).
 
 The unit test suite (`GolfCaddieTests/`, ~140 tests) covers reconstruction,
 segmentation, swing detection, migrations, the glasses state mapper, and
