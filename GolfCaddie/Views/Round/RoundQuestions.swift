@@ -92,16 +92,17 @@ struct TeeShotPicker: View {
     static let fairwayTint = Color(hex: 0x5E8A5A).opacity(0.45)
 
     var body: some View {
-        Grid(horizontalSpacing: 6, verticalSpacing: 6) {
-            GridRow {
+        // Equal thirds in both rows, so SHORT sits exactly under FAIRWAY.
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
                 button(.left)
                 button(.fairway)
                 button(.right)
             }
-            GridRow {
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+            HStack(spacing: 6) {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                 button(.short, height: max(RoundChromeMetrics.minTap, height - 12), inline: true)
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
             }
         }
         .accessibilityElement(children: .contain)
@@ -130,7 +131,7 @@ struct TeeShotPicker: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .layoutPriority(result == .fairway ? 1 : 0)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(result.accessibilityLabel)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier(InRoundAccessibilityID.teeShotOption(result))
