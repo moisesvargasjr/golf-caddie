@@ -35,6 +35,20 @@
                ReferencedContainer = "container:GolfCaddie.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B5993BE461978DF73963CFAD"
+               BuildableName = "GolfCaddieUITests.xctest"
+               BlueprintName = "GolfCaddieUITests"
+               ReferencedContainer = "container:GolfCaddie.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -61,6 +75,17 @@
                BlueprintIdentifier = "0F58EFCCAB8DE021A09D8C66"
                BuildableName = "GolfCaddieTests.xctest"
                BlueprintName = "GolfCaddieTests"
+               ReferencedContainer = "container:GolfCaddie.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B5993BE461978DF73963CFAD"
+               BuildableName = "GolfCaddieUITests.xctest"
+               BlueprintName = "GolfCaddieUITests"
                ReferencedContainer = "container:GolfCaddie.xcodeproj">
             </BuildableReference>
          </TestableReference>

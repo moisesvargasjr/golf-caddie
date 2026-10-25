@@ -19,12 +19,26 @@ import Foundation
 /// Launch-arg keys are read straight from UserDefaults (NSUserDefaults maps
 /// `-Key Value` launch arguments automatically).
 enum DebugHarness {
-    /// `-DebugOpen review|card|roundcard|bag|course|logbook|settings` — opens
-    /// one screen on launch so simulator screenshots don't need taps. `card` is
-    /// the live round's scorecard (with `-DebugStartRound 1`; add
+    /// `-DebugOpen review|card|roundcard|bag|course|logbook|settings|home` —
+    /// opens one screen on launch so simulator screenshots don't need taps.
+    /// `card` is the live round's scorecard (with `-DebugStartRound 1`; add
     /// `-DebugStartHole 7` for ADD holes); `roundcard` is a finished round's
     /// card from Home (seeds one if there is none; see `DebugScorecardSeed`).
+    /// `home` lands on Home itself (the idle screen) with a seeded bag, so a
+    /// fresh simulator skips Bag Setup.
     static var openScreen: String? { UserDefaults.standard.string(forKey: "DebugOpen") }
+
+    /// `-DebugSeedBag 1` (or any harness flag): save the recommended bag when
+    /// none is saved. Idempotent; RootView calls it before loading the bag.
+    static func seedBagIfRequested() {
+        let d = UserDefaults.standard
+        let requested = d.bool(forKey: "DebugSeedBag") || d.bool(forKey: "DebugStartRound")
+            || d.integer(forKey: "DebugInjectSwings") > 0 || openScreen == "home"
+        guard requested else { return }
+        if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
+            try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
+        }
+    }
 
     @MainActor
     static func runIfRequested(controller: RoundController, location: LocationManager) {
@@ -37,9 +51,7 @@ enum DebugHarness {
         NSLog("[DebugHarness] start (startRound=\(startRound) injectSwings=\(count))")
         // A fresh simulator has no saved bag, which gates the UI on Bag Setup.
         // Seed the recommended default so Home / the active round render.
-        if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
-            try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
-        }
+        seedBagIfRequested()
         if startRound, !controller.isActive {
             let startHole = d.integer(forKey: "DebugStartHole")
             // Comma-separated bag ids left home, e.g. -DebugClubsLeftOut threeWood,lobWedge

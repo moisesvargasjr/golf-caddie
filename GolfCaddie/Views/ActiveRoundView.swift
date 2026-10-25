@@ -125,7 +125,7 @@ struct ActiveRoundView: View {
     private var idleBody: some View {
         HomeView(
             bag: $bag,
-            onStartRound: { startRound(startingHole: $0, clubsLeftOut: $1) },
+            onStartRound: { startRound($0) },
             actionError: actionError
         )
     }
@@ -163,6 +163,15 @@ struct ActiveRoundView: View {
             stageChrome
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { stageFrame = $0 }
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            if DebugPostureSwitch.shared.controlsEnabled {
+                DebugRoundProbe(holeNumber: currentHoleNumber,
+                                roundID: controller.currentRound?.id,
+                                stage: stageMode)
+            }
+        }
+        #endif
         .onAppear {
             refreshRoundScore()
             reloadHoleTrail()
@@ -425,9 +434,11 @@ struct ActiveRoundView: View {
         HStack(spacing: 4) {
             holeStepChevron("‹") { controller.stepHole(by: -1); mapFollowMode = true }
                 .accessibilityLabel("Previous hole")
+                .accessibilityIdentifier(InRoundAccessibilityID.previousHole)
             holePill
             holeStepChevron("›") { controller.stepHole(by: 1); mapFollowMode = true }
                 .accessibilityLabel("Next hole")
+                .accessibilityIdentifier(InRoundAccessibilityID.nextHole)
         }
     }
 
@@ -465,6 +476,8 @@ struct ActiveRoundView: View {
             }
         }
         .buttonStyle(HitTargetPlainButtonStyle())
+        .accessibilityIdentifier(InRoundAccessibilityID.holeNumber)
+        .accessibilityValue("\(currentHoleNumber)")
     }
 
     private var cardStampButton: some View {
@@ -1272,10 +1285,10 @@ struct ActiveRoundView: View {
         )
     }
 
-    private func startRound(startingHole: Int, clubsLeftOut: [String]) {
+    private func startRound(_ request: HomeStartRequest) {
         actionError = nil
         do {
-            try controller.startRound(startingHole: startingHole, clubsLeftOut: clubsLeftOut)
+            try controller.startRound(request)
             mapFollowMode = true
         } catch {
             actionError = "Couldn't start round: \(error.localizedDescription)"

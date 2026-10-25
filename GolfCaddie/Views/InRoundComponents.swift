@@ -9,6 +9,15 @@ enum InRoundMetrics {
     static let minTouch: CGFloat = 44
 }
 
+/// Accessibility identifiers UI tests look the round screen up by. The same
+/// identifier is used by every layout's copy of a control.
+enum InRoundAccessibilityID {
+    /// The current hole number button; its accessibility value is the number.
+    static let holeNumber = "round.holeNumber"
+    static let nextHole = "round.nextHole"
+    static let previousHole = "round.previousHole"
+}
+
 /// Grows a small control's hit area to >= 44 pt tall without changing its
 /// drawn size or layout (compact stamps are ~22 pt tall). Mostly vertical, so
 /// neighbouring stamps in a row don't steal each other's taps.
@@ -97,6 +106,8 @@ struct HoleStepper: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Hole \(snapshot.holeNumber), show all holes")
+            .accessibilityIdentifier(InRoundAccessibilityID.holeNumber)
+            .accessibilityValue("\(snapshot.holeNumber)")
             chevron("›") { actions.stepHole(1) }
         }
     }
@@ -111,6 +122,8 @@ struct HoleStepper: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(glyph == "‹" ? "Previous hole" : "Next hole")
+        .accessibilityIdentifier(glyph == "‹" ? InRoundAccessibilityID.previousHole
+                                              : InRoundAccessibilityID.nextHole)
     }
 }
 
