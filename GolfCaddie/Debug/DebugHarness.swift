@@ -19,13 +19,15 @@ import Foundation
 /// Launch-arg keys are read straight from UserDefaults (NSUserDefaults maps
 /// `-Key Value` launch arguments automatically).
 enum DebugHarness {
-    /// `-DebugOpen review|card|roundcard|review-round|bag|course|logbook|settings|casual|casual-finish`
+    /// `-DebugOpen review|card|roundcard|review-round|bag|course|logbook|settings|home|casual|casual-finish`
     /// — opens one screen on launch so simulator screenshots don't need taps.
     /// `card` is the live round's scorecard (with `-DebugStartRound 1`; add
     /// `-DebugStartHole 7` for ADD holes); `roundcard` is a finished round's
     /// card from Home (seeds one if there is none; see `DebugScorecardSeed`);
     /// `review-round` opens that round's review on the map, on hole
-    /// `-DebugReviewHole N` (default: its first hole).
+    /// `-DebugReviewHole N` (default: its first hole). `home` lands on Home
+    /// itself (the idle screen) with a seeded bag, so a fresh simulator skips
+    /// Bag Setup.
     static var openScreen: String? { UserDefaults.standard.string(forKey: "DebugOpen") }
 
     /// `-DebugOpen casual` (or `casual-finish`, which also opens the score
@@ -44,7 +46,7 @@ enum DebugHarness {
     static func seedBagIfRequested() {
         let d = UserDefaults.standard
         let requested = d.bool(forKey: "DebugSeedBag") || d.bool(forKey: "DebugStartRound")
-            || d.integer(forKey: "DebugInjectSwings") > 0 || opensCasual
+            || d.integer(forKey: "DebugInjectSwings") > 0 || opensCasual || openScreen == "home"
         guard requested else { return }
         if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
             try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
