@@ -185,7 +185,7 @@ struct ActiveRoundView: View {
     }
 
     #if DEBUG
-    /// `-DebugOpen review|penalty|card|bag|course|grid|casual|casual-finish`
+    /// `-DebugOpen review|penalty|card|bag|course|grid|end|casual|casual-finish`
     /// for screenshots (`review` now opens the putts question that replaced
     /// the review sheet; `casual` is started by `DebugHarness`, and
     /// `casual-finish` also opens its score grid).
@@ -198,6 +198,7 @@ struct ActiveRoundView: View {
         case "bag": showClubsInPlay = true
         case "course": showCoursePicker = true
         case "grid": showHoleGrid = true
+        case "end", "end-round": showEndRoundConfirm = true
         default: break
         }
         if UserDefaults.standard.bool(forKey: "DebugShowHoleGrid") { showHoleGrid = true }
