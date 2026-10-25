@@ -121,7 +121,7 @@ struct HomeOpenLayout: View {
             .overlay(alignment: .top) { Rectangle().fill(palette.ink).frame(height: 1.5) }
             .accessibilityIdentifier(HomeID.bagEditor)
         }
-        .background(palette.paper.opacity(0.98))
+        .background(palette.paper.opacity(0.98), ignoresSafeAreaEdges: [])
         .clipShape(Rectangle())
         .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
         .compositingGroup()
