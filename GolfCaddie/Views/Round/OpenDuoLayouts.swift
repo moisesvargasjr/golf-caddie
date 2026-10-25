@@ -31,7 +31,7 @@ struct OpenWideLayout: View {
                 if !casual, let score = model.roundScoreText {
                     RoundScoreChip(text: score).padding(.leading, 6)
                 }
-                CardButton(actions: actions)
+                CardButton(actions: actions, title: model.cardTitle)
                 RoundOverflowMenu(model: model, actions: actions)
             }
             .fixedSize()

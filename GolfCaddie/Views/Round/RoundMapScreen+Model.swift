@@ -47,7 +47,7 @@ extension RoundMapScreen {
             courseName: courseName,
             needsCourseLink: curatedCourseId == nil,
             yardage: isViewingLive ? yardage : nil,
-            watchDetecting: WatchReachability.isReachable,
+            watchDetecting: mode.showsWatchStatus && WatchReachability.isReachable,
             isMarking: isMarking,
             resultText: RoundMapFormat.resultLine(score: session?.score, par: par, putts: session?.putts),
             shotRows: shotRows(shots, isLive: isViewingLive),
@@ -80,8 +80,40 @@ extension RoundMapScreen {
             scoreDraft: scoreDraft,
             controlsVisible: autoHide?.controlsVisible ?? true,
             compassRotation: mapController.rotationFromHoleUp,
-            toast: toast
+            toast: toast,
+            reviewNext: nextInReview,
+            reviewResultLabel: reviewResultLabel(shots: shots),
+            reviewScore: session?.score,
+            reviewToParLabel: ReviewText.toParLabel(score: session?.score, par: par),
+            putts: session?.putts,
+            roundActions: roundActions,
+            roundActionsTitle: roundActionsTitle
         )
+    }
+
+    // MARK: Review
+
+    /// Next hole › in play order (review only).
+    private var nextInReview: ReviewNavigation.Next? {
+        guard mode.advancesWithNextHole else { return nil }
+        return ReviewNavigation.next(after: holeNumber, startingHole: session?.startingHole)
+    }
+
+    private func reviewResultLabel(shots: [Shot]) -> String {
+        ReviewText.resultLabel(fullShots: shots.filter { !$0.isPutt }.count,
+                               penaltyStrokes: session?.penaltyStrokes ?? 0,
+                               putts: session?.putts ?? 0,
+                               handScored: session?.isHandScored ?? false)
+    }
+
+    private var roundActions: RoundActionsAvailability? {
+        mode == .review ? host.roundActions : nil
+    }
+
+    /// "NATIVE OAKS · OCT 23 · 79 (+7)" over the ··· round actions.
+    private var roundActionsTitle: String {
+        let parts = [courseName?.uppercased(), roundScoreText].compactMap { $0 }
+        return parts.isEmpty ? "THIS ROUND" : parts.joined(separator: " · ")
     }
 
     // MARK: Pieces

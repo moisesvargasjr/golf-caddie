@@ -36,6 +36,11 @@ enum InRoundAccessibilityID {
     static let card = "round.card"
     static let more = "round.more"
 
+    // Review (a finished round)
+    static let reviewResult = "round.review.result"
+    static let reviewPutts = "round.review.putts"
+    static let reviewNext = "round.review.next"
+
     // Casual
     static let scoreGrid = "round.scoreGrid"
     static let saveScore = "round.saveScore"
@@ -50,8 +55,6 @@ enum InRoundLabels {
     static let shot = "+ SHOT"
     static let penalty = "+ PENALTY"
     static let finish = "Finish hole ›"
-    /// Still used by `HoleDetailView` until PR 7 removes it.
-    static let missed = "+ MISSED"
 }
 
 /// The watch app is reachable, so it is detecting swings.

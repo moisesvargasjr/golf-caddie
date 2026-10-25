@@ -40,7 +40,8 @@ struct PanelColumn: View {
     var body: some View {
         VStack(alignment: .leading, spacing: style.spacing) {
             if parts.contains(.card) {
-                ResultOrYardageCard(model: model, style: style.card, linkCourse: actions.linkCourse)
+                ResultOrYardageCard(model: model, style: style.card, linkCourse: actions.linkCourse,
+                                reviewActions: actions)
             }
             middle
             if parts.contains(.bottom) { bottom }
@@ -88,7 +89,7 @@ struct PanelColumn: View {
         } else if model.hasSelection {
             SelectedShotCard(model: model, actions: actions)
         } else {
-            if style.showsHint, model.isLiveHole, model.mode.tracksShots {
+            if style.showsHint, model.showsPanelHint {
                 PanelHint(text: model.hintText)
             }
             ActionRow(model: model, actions: actions,
@@ -111,7 +112,7 @@ struct PanelHeaderRow: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 4)
-            CardButton(actions: actions, frame: .outline)
+            CardButton(actions: actions, title: model.cardTitle, frame: .outline)
             RoundOverflowMenu(model: model, actions: actions, frame: .outline)
         }
         .padding(.horizontal, 10)

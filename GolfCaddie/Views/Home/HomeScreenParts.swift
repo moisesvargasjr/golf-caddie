@@ -27,8 +27,8 @@ struct HomeActions {
     let refresh: () -> Void
 }
 
-/// Pushes a finished round's review (the Logbook → card → hole path lands
-/// with PR 7; today it is `RoundReviewView`).
+/// Pushes a finished round: its card, then a hole's review on the map
+/// (`FinishedRoundScreen`).
 struct HomeRoundLink<Label: View>: View {
     let round: Round
     let bag: [Club]
@@ -37,7 +37,7 @@ struct HomeRoundLink<Label: View>: View {
 
     var body: some View {
         NavigationLink {
-            RoundReviewView(round: round, bag: bag, onDeleted: onDeleted)
+            FinishedRoundScreen(round: round, bag: bag, onDeleted: onDeleted)
         } label: {
             label()
         }

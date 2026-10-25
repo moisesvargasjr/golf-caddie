@@ -11,6 +11,13 @@ struct RoundMapHost {
     var unlinkCourse: () -> Void = {}
     var toggleCasual: () -> Void = {}
     var endRound: () -> Void = {}
+
+    // Review (a finished round; PR 7). `openCard` goes back to its card.
+    /// The round's date, for "OCT 23 · 79 (+7)".
+    var roundDate: Date? = nil
+    /// What ··· offers; nil in the live round (its own menu).
+    var roundActions: RoundActionsAvailability? = nil
+    var roundActionHandlers = RoundActionHandlers()
 }
 
 /// One map screen for every hole (Duo v2, Architecture C): ONE `HoleMap`,
@@ -19,11 +26,12 @@ struct RoundMapHost {
 /// the live hole and a past hole are edited the same way (drag pins, hold to
 /// add, tap a shot then a club, penalties, putts, hand scores).
 ///
-/// - `mode`: `.tracking` / `.casual` now; PR 7 adds `.review` (a finished
-///   round: pass `live: nil` and drive `viewedHole`). The layouts read only
-///   the mode's traits, so `.review` needs no layout changes of its own.
+/// - `mode`: `.tracking` / `.casual` for the live round; `.review` for a
+///   finished round (pass `live: nil` and drive `viewedHole`; the host's
+///   `openCard` goes back to the round's card and ··· shows the round
+///   actions). The layouts read only the mode's traits.
 /// - `viewedHole`: the hole on screen; nil follows the live hole. The host
-///   owns it so the hole grid (and PR 7's card) can open any hole.
+///   owns it so the hole grid and the card can open any hole.
 /// - `question`: the open question; a binding so the host can open one
 ///   (DEBUG `-DebugOpen review|penalty|casual-finish`).
 ///
@@ -32,7 +40,7 @@ struct RoundMapHost {
 struct RoundMapScreen: View {
     let mode: RoundMapMode
     let roundID: UUID
-    /// The live round; nil for a finished round (PR 7).
+    /// The live round; nil for a finished round (review).
     let live: RoundController?
     let curatedCourseId: String?
     let courseName: String?
@@ -230,7 +238,8 @@ struct RoundMapScreen: View {
     var desiredPauseReasons: Set<AutoHidePauseReason> {
         let state = session.map { panelState(for: $0) } ?? .live
         return AutoHideWiring.pauseReasons(questionOpen: question != nil, entryOpen: state == .entry,
-                                           shotSelected: selectedShotID != nil, dragging: isDragging)
+                                           shotSelected: selectedShotID != nil, dragging: isDragging,
+                                           modeAllowsAutoHide: mode.allowsAutoHide)
     }
 
     private func setUp() {
@@ -243,7 +252,7 @@ struct RoundMapScreen: View {
     }
 
     private func applyPauseReasons(_ reasons: Set<AutoHidePauseReason>) {
-        guard let autoHide, mode.allowsAutoHide else { return }
+        guard let autoHide else { return }
         AutoHideWiring.apply(reasons, to: autoHide)
     }
 
@@ -312,7 +321,11 @@ struct RoundMapScreen: View {
         let rows: [(par: Int?, score: Int?)] = scored.map {
             (par: $0.hole.par ?? curatedPar($0.hole.holeNumber), score: $0.score)
         }
-        roundScoreText = RoundMapFormat.roundScoreText(holes: rows)
+        if mode == .review, let date = host.roundDate {
+            roundScoreText = ReviewText.roundText(dateText: ReviewText.dateText(date), holes: rows)
+        } else {
+            roundScoreText = RoundMapFormat.roundScoreText(holes: rows)
+        }
         roundToPar = RoundMapFormat.roundToPar(holes: rows)
         let inputs: [RoundScoreInput] = scored.compactMap { entry in
             entry.score.map { RoundScoreInput(holeNumber: entry.hole.holeNumber,

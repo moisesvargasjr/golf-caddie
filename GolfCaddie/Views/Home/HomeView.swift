@@ -39,7 +39,9 @@ struct HomeView: View {
     #if DEBUG
     @State private var debugShowLogbook = false
     @State private var debugShowSettings = false
-    @State private var debugRoundCard: Round?
+    /// `-DebugOpen roundcard` (the card) / `review-round` (a hole's review).
+    @State private var debugRound: Round?
+    @State private var debugReviewHole: Int?
     #endif
 
     private var layout: HomeLayout { HomeLayout.resolve(display) }
@@ -97,17 +99,32 @@ struct HomeView: View {
         #if DEBUG
         .navigationDestination(isPresented: $debugShowLogbook) { RoundListView(bag: bag) }
         .navigationDestination(isPresented: $debugShowSettings) { SettingsView(bag: $bag) }
-        // A finished round's card (PR 7 routes Logbook → card for real).
-        .fullScreenCover(item: $debugRoundCard) { round in
-            AdaptiveScorecardPresentation(
-                round: round,
-                currentHoleNumber: nil,
-                curatedCourseId: round.curatedCourseId,
-                onDismiss: { debugRoundCard = nil }
-            )
+        // A finished round: its card, or straight into a hole's review.
+        .navigationDestination(isPresented: debugRoundShown) {
+            if let round = debugRound {
+                FinishedRoundScreen(round: round, bag: bag, initialHole: debugReviewHole,
+                                    onDeleted: { refresh() })
+            }
         }
         #endif
     }
+
+    #if DEBUG
+    private var debugRoundShown: Binding<Bool> {
+        Binding(get: { debugRound != nil }, set: { if !$0 { debugRound = nil } })
+    }
+
+    /// `-DebugOpen review-round [-DebugReviewHole N]`: a finished round's
+    /// review on hole N (default: the round's first hole). Seeds a finished
+    /// round when there is none (`DebugScorecardSeed`).
+    private func openDebugReview() {
+        guard let round = DebugScorecardSeed.finishedRound() else { return }
+        let requested = UserDefaults.standard.integer(forKey: "DebugReviewHole")
+        debugReviewHole = HoleScoring.holeRange.contains(requested)
+            ? requested : ReviewNavigation.firstHole(startingHole: round.startingHole)
+        debugRound = round
+    }
+    #endif
 
     // MARK: - Content and actions
 
@@ -208,14 +225,16 @@ struct HomeView: View {
     }
 
     /// `-DebugOpen home` lands here with nothing opened; `logbook`,
-    /// `settings`, `bag` and `roundcard` (a finished round's card) open from Home.
+    /// `settings`, `bag`, `roundcard` (a finished round's card) and `review-round`
+    /// (its review on a hole) open from Home.
     private func openDebugScreenIfRequested() {
         #if DEBUG
         switch DebugHarness.openScreen {
         case "logbook": debugShowLogbook = true
         case "settings": debugShowSettings = true
         case "bag": openBag()
-        case "roundcard": debugRoundCard = DebugScorecardSeed.finishedRound()
+        case "roundcard": debugRound = DebugScorecardSeed.finishedRound()
+        case "review-round": openDebugReview()
         default: break
         }
         #endif

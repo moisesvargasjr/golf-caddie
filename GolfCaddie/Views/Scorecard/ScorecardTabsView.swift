@@ -46,12 +46,43 @@ struct ScorecardTabsView: View {
 
     // MARK: Header and tabs
 
+    @ViewBuilder
     private var header: some View {
+        if content.currentHole == nil {
+            finishedHeader
+        } else {
+            liveHeader
+        }
+    }
+
+    /// A finished round (Round-Folded): ‹ LOGBOOK left and ··· right on top,
+    /// the course name below.
+    private var finishedHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                ScorecardOutlinedButton(title: content.dismissTitle, action: content.onDismiss)
+                    .accessibilityIdentifier("scorecard.dismiss")
+                Spacer(minLength: 8)
+                if let openMap = content.onOpenCourseMap {
+                    ScorecardCourseMapButton(action: openMap)
+                }
+                if let menu = content.roundMenu {
+                    menu
+                }
+            }
+            ScorecardTitleBlock(title: content.courseName, subtitle: content.shortSubtitle)
+        }
+    }
+
+    private var liveHeader: some View {
         HStack(alignment: .center, spacing: 12) {
             ScorecardTitleBlock(title: content.courseName, subtitle: content.shortSubtitle)
             Spacer(minLength: 8)
             if let openMap = content.onOpenCourseMap {
                 ScorecardCourseMapButton(action: openMap)
+            }
+            if let menu = content.roundMenu {
+                menu
             }
             ScorecardOutlinedButton(title: content.dismissTitle, action: content.onDismiss)
                 .accessibilityIdentifier("scorecard.dismiss")
