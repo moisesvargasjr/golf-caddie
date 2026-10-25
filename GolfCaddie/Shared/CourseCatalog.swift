@@ -114,8 +114,35 @@ enum CourseCatalog {
         string: "https://raw.githubusercontent.com/moisesvargasjr/golf-caddie-coursedata/main/data/courses.json"
     )
 
-    /// Same radius the phone uses to link a round to a curated course.
+    /// How far from a course's centre a round already on it stays on it (the
+    /// watch keeps its course while within this).
     static let nearestRadiusMeters: CLLocationDistance = 3000
+    /// "On the course": this close to one of its tees or greens...
+    static let onCourseAnchorMeters: CLLocationDistance = 350
+    /// ...or, for a course without tee/green positions, to its centre.
+    static let onCourseCentreMeters: CLLocationDistance = 900
+
+    /// How far `coord` is from `course` by the on-course rule: the nearest tee
+    /// or green when the course has them, else its centre.
+    static func onCourseDistance(_ course: CuratedCourse, from coord: CLLocationCoordinate2D) -> CLLocationDistance? {
+        let anchors = course.holes.flatMap { [$0.teeAnchor, $0.greenAnchor] }.compactMap { $0 }
+        if anchors.isEmpty {
+            let d = Distance.meters(from: coord, to: course.location.coordinate)
+            return d <= onCourseCentreMeters ? d : nil
+        }
+        let d = anchors.map { Distance.meters(from: coord, to: $0.coordinate) }.min() ?? .infinity
+        return d <= onCourseAnchorMeters ? d : nil
+    }
+
+    /// The course the golfer is standing on, or nil — never one a few miles
+    /// away (auto-detect used to take any course within 3 km, so a round
+    /// started at home linked the nearest club).
+    static func courseUnderfoot(in courses: [CuratedCourse], at coord: CLLocationCoordinate2D) -> CuratedCourse? {
+        courses
+            .compactMap { course in onCourseDistance(course, from: coord).map { (course, $0) } }
+            .min { $0.1 < $1.1 }?
+            .0
+    }
 
     /// Nearest course whose centroid is within `within` metres of the
     /// coordinate, or nil. Tiny dataset → in-Swift haversine is fine.

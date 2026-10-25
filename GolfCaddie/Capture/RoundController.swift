@@ -354,16 +354,17 @@ final class RoundController {
         applyCourseName(name)
     }
 
-    /// Best-effort curated-course match for the active round: nearest cached
-    /// course within 3 km, else a name/alias match against the detected
-    /// `courseName`. Soft-fail (no cache / no match ⇒ nil). Guarded to the
+    /// Best-effort curated-course match for the active round: the cached
+    /// course underfoot (`CourseCatalog.courseUnderfoot`), else a name/alias
+    /// match against the detected `courseName`. Soft-fail (no cache / no match ⇒ nil). Guarded to the
     /// still-active originating round.
     private func resolveCuratedCourse(near coord: CLLocationCoordinate2D, roundID: UUID) {
         // A course already linked by hand (Home's Course row, or an in-round
         // relink before the fix arrived) wins over proximity.
         guard case let .active(round, _) = state, round.id == roundID,
               round.curatedCourseId == nil else { return }
-        if let course = try? CourseDataRepository.nearest(to: coord, within: 3000) {
+        let courses = (try? CourseDataRepository.allCourses()) ?? []
+        if let course = CourseCatalog.courseUnderfoot(in: courses, at: coord) {
             applyCuratedCourseId(course.id)
             return
         }

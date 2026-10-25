@@ -20,9 +20,9 @@ import MapKit
 @MainActor
 enum CourseDetector {
     /// Search radius around the start fix. A golfer who just started a round
-    /// is on or adjacent to the course; this comfortably covers a large
-    /// 36-hole facility + clubhouse without pulling in a course a town over.
-    private static let searchRadiusMeters: CLLocationDistance = 1500
+    /// is on the course; this covers a 36-hole facility's clubhouse and first
+    /// tees without naming a round started at home after the club nearby.
+    private static let searchRadiusMeters: CLLocationDistance = 600
 
     static func detectCourseName(near coordinate: CLLocationCoordinate2D) async -> String? {
         let request = MKLocalPointsOfInterestRequest(
