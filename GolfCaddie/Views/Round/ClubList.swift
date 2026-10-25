@@ -41,6 +41,7 @@ struct ClubList: View {
                         .padding(.vertical, 4)
                         .background(model.clubListHighlighted ? palette.flag : Color.clear, ignoresSafeAreaEdges: [])
                         .fixedSize()
+                    if showsEdit { editButton(compact: true) }
                     ScrollView(.horizontal) {
                         LazyHStack(spacing: 4) {
                             ForEach(model.clubs) { chip in cell(chip, rowStyle: false).frame(width: 52) }
@@ -69,22 +70,48 @@ struct ClubList: View {
                     if let active = model.clubs.first(where: \.isActive) {
                         Text(active.club.shortName).font(RoundFont.mono(11))
                     }
+                    if showsEdit { editButton(compact: false) }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.vertical, showsEdit ? 2 : 6)
             } else {
-                Text(model.clubListTitle)
-                    .font(RoundFont.mono(10))
-                    .tracking(0.6)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 2)
+                VStack(spacing: 2) {
+                    Text(model.clubListTitle)
+                        .font(RoundFont.mono(10))
+                        .tracking(0.6)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, showsEdit ? 6 : 10)
+                        .padding(.horizontal, 2)
+                    if showsEdit { editButton(compact: true).padding(.bottom, 4) }
+                }
             }
         }
         .foregroundStyle(highlighted ? palette.paper : palette.ink2)
         .background(highlighted ? palette.flag : Color.clear, ignoresSafeAreaEdges: [])
         .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+    }
+
+    /// EDIT → Clubs in play, one tap mid-round (Clubs-MidRound-Folded): on
+    /// the live hole with no shot picked.
+    private var showsEdit: Bool {
+        model.isLiveHole && model.reviewNext == nil && !model.hasSelection
+    }
+
+    private func editButton(compact: Bool) -> some View {
+        Button(action: actions.openBag) {
+            Text("EDIT")
+                .font(RoundFont.mono(compact ? 9 : 10))
+                .tracking(0.6)
+                .foregroundStyle(palette.ink)
+                .padding(.horizontal, compact ? 6 : 10)
+                .frame(minWidth: RoundChromeMetrics.minTap, minHeight: RoundChromeMetrics.minTap)
+                .overlay(Rectangle().strokeBorder(palette.ink, lineWidth: RoundChromeMetrics.rule))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Edit the clubs in play")
+        .accessibilityIdentifier(InRoundAccessibilityID.editClubs)
     }
 
     private func cell(_ chip: ClubChipModel, rowStyle: Bool) -> some View {

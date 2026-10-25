@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Paper-styled bag editor. First-launch flow (when the bag is empty) shows
 /// this with no Cancel button; reached from Settings later with Cancel.
+/// EDIT shows drag handles (Bag-Reorder-Folded): drag a club to set its order
+/// everywhere (the round's club list, the watch); Save keeps it.
 struct BagSetupView: View {
     @State private var bag: [Club]
     @State private var saveError: String?
@@ -140,7 +142,12 @@ struct BagSetupView: View {
                         .font(AppFont.metadata)
                         .tracking(1.4)
                         .foregroundStyle(palette.ink)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             } else {
                 Spacer().frame(width: 1)
             }
@@ -148,11 +155,18 @@ struct BagSetupView: View {
             Button {
                 isEditing.toggle()
             } label: {
-                Text(isEditing ? "DONE" : "EDIT")
+                Text(isEditing ? "DONE" : "EDIT · REORDER")
                     .font(AppFont.metadata)
                     .tracking(1.4)
-                    .foregroundStyle(palette.ink)
+                    .foregroundStyle(isEditing ? palette.paper : palette.ink)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(isEditing ? palette.ink : Color.clear, ignoresSafeAreaEdges: [])
+                    .overlay { if !isEditing { Rectangle().stroke(palette.ink, lineWidth: 1.5) } }
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("bag.edit")
         }
     }
 
@@ -193,50 +207,84 @@ struct BagSetupView: View {
                     .foregroundStyle(palette.ink3)
                     .padding(.vertical, 12)
             } else {
-                ForEach(Array(bag.enumerated()), id: \.element) { idx, club in
-                    // The bag can't lose its only putter via the − button; the
-                    // Save gate below is the backstop for editor-side changes.
-                    let isLastPutter = club.kind == .putter
-                        && bag.filter({ $0.kind == .putter }).count == 1
-                    HStack(spacing: 12) {
-                        Button {
-                            editor = .edit(club)
-                        } label: {
-                            HStack(spacing: 12) {
-                                Text("\(idx + 1)")
-                                    .font(.custom(AppFont.monoName, size: 11).weight(.bold))
-                                    .foregroundStyle(palette.ink3)
-                                    .tabularNumerals()
-                                    .frame(width: 28, alignment: .leading)
-                                Text(club.shortName)
-                                    .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
-                                    .foregroundStyle(palette.ink2)
-                                    .frame(width: 36, alignment: .leading)
-                                Text(club.name)
-                                    .font(AppFont.bodyLarge)
-                                    .foregroundStyle(palette.ink)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if isEditing {
-                            Button(role: .destructive) {
-                                bag.removeAll { $0.id == club.id }
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(isLastPutter ? palette.ink3 : palette.flag)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(isLastPutter)
-                        }
+                if isEditing {
+                    reorderList
+                } else {
+                    ForEach(Array(bag.enumerated()), id: \.element) { idx, club in
+                        clubRow(club, index: idx)
+                            .padding(.vertical, 10)
+                            .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
                     }
-                    .padding(.vertical, 10)
-                    .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
                 }
             }
         }
+    }
+
+    /// Edit mode: the system drag handles reorder the bag; − removes a club
+    /// (never the only putter). VoiceOver gets Move up / Move down.
+    private var reorderList: some View {
+        List {
+            ForEach(Array(bag.enumerated()), id: \.element) { idx, club in
+                HStack(spacing: 12) {
+                    let isLastPutter = club.kind == .putter
+                        && bag.filter({ $0.kind == .putter }).count == 1
+                    Button(role: .destructive) {
+                        bag.removeAll { $0.id == club.id }
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .foregroundStyle(isLastPutter ? palette.ink3 : palette.flag)
+                            .frame(width: 32, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLastPutter)
+                    .accessibilityLabel("Remove \(club.name)")
+                    clubRow(club, index: idx)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 8))
+                .accessibilityActions {
+                    if idx > 0 { Button("Move up") { move(from: idx, to: idx - 1) } }
+                    if idx < bag.count - 1 { Button("Move down") { move(from: idx, to: idx + 1) } }
+                }
+            }
+            .onMove { from, to in bag.move(fromOffsets: from, toOffset: to) }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(true)
+        .environment(\.editMode, .constant(.active))
+        .frame(height: CGFloat(bag.count) * 52)
+        .accessibilityIdentifier("bag.reorder")
+    }
+
+    private func move(from: Int, to: Int) {
+        let club = bag.remove(at: from)
+        bag.insert(club, at: to)
+    }
+
+    private func clubRow(_ club: Club, index idx: Int) -> some View {
+        Button {
+            editor = .edit(club)
+        } label: {
+            HStack(spacing: 12) {
+                Text("\(idx + 1)")
+                    .font(.custom(AppFont.monoName, size: 11).weight(.bold))
+                    .foregroundStyle(palette.ink3)
+                    .tabularNumerals()
+                    .frame(width: 28, alignment: .leading)
+                Text(club.shortName)
+                    .font(.custom(AppFont.serifName, size: 16).italic().weight(.bold))
+                    .foregroundStyle(palette.ink2)
+                    .frame(width: 36, alignment: .leading)
+                Text(club.name)
+                    .font(AppFont.bodyLarge)
+                    .foregroundStyle(palette.ink)
+                Spacer()
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var addClubList: some View {
