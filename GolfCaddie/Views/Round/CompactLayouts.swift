@@ -145,21 +145,27 @@ struct FoldedLayout: View {
                     .padding(.top, 8)
                     .overlay(alignment: .top) { Rectangle().fill(palette.rule).frame(height: 1) }
             }
-            HStack(spacing: 8) {
+            // Next hole › keeps its full title; the outlined buttons take
+            // only what they need.
+            HStack(spacing: 6) {
                 if model.offersCourseMap {
                     CourseMapButton(actions: actions, frame: .outline, compact: true)
+                        .fixedSize()
                 }
-                CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 10)
+                CardButton(actions: actions, title: model.cardTitle, frame: .outline, fontSize: 9)
+                    .fixedSize()
                 if model.state == .pastTracked {
-                    OutlineActionButton(title: "+ PEN", isAlert: true, fontSize: 10,
+                    OutlineActionButton(title: "+ PEN", isAlert: true, fontSize: 9,
                                         action: actions.askPenalty)
-                        .frame(width: 72)
+                        .fixedSize()
                         .accessibilityLabel("Add a penalty")
                         .accessibilityIdentifier(InRoundAccessibilityID.addPenalty)
                 }
                 RoundOverflowMenu(model: model, actions: actions, frame: .outline)
+                    .fixedSize()
                 if let next = model.reviewNext {
-                    ReviewNextButton(next: next, actions: actions, fontSize: 19, minHeight: 48)
+                    ReviewNextButton(next: next, actions: actions, fontSize: 18, minHeight: 48)
+                        .layoutPriority(1)
                 }
             }
         }
