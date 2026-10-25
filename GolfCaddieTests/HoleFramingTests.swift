@@ -332,4 +332,18 @@ final class HoleFramingTests: XCTestCase {
         XCTAssertEqual(settle.center.latitude, 33.010, accuracy: 1e-9)
         XCTAssertEqual(settle.distance, 700)
     }
+
+    // MARK: Loupe
+
+    func testTheLoupeSitsAboveThePinAndFlipsBelowNearTheTop() {
+        let bounds = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let above = HoleMapLoupe.position(for: CGPoint(x: 200, y: 500), in: bounds)
+        XCTAssertEqual(above.x, 200)
+        XCTAssertEqual(above.y, 500 - HoleMapLoupe.lift - HoleMapLoupe.size / 2)
+        let below = HoleMapLoupe.position(for: CGPoint(x: 200, y: 120), in: bounds)
+        XCTAssertGreaterThan(below.y, 120, "no room above: below the pin")
+        let edge = HoleMapLoupe.position(for: CGPoint(x: 5, y: 500), in: bounds)
+        XCTAssertEqual(edge.x, HoleMapLoupe.size / 2 + 8, "kept inside the view")
+    }
 }
+

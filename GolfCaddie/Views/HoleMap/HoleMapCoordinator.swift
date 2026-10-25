@@ -29,6 +29,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     /// The frame an animated reframe is gliding to; checked (and snapped
     /// if MapKit ended a few points off) when the animation ends.
     private var animatingTo: HoleFrame?
+    private var loupeTracker: LoupeTracker?
     /// Measured on this map at this size: camera distance ÷ metres-per-point,
     /// and where the camera centre is drawn relative to the view's centre.
     private var calibration: Calibration?
@@ -452,6 +453,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             dragOrigin = annotation.coordinate
             view.dragState = .dragging
             parent.onDragChanged(true)
+            startLoupe(following: view, on: mapView)
         case .ending:
             let snapped = parent.snapper.snappedCoordinate(for: annotation.shot, droppedAt: annotation.coordinate)
             annotation.coordinate = snapped
@@ -471,6 +473,16 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         draggingShotID = nil
         dragOrigin = nil
         parent.onDragChanged(false)
+        loupeTracker?.stop()
+        loupeTracker = nil
+    }
+
+    /// Keeps the loupe on the dragged pin every frame (MapKit moves the pin
+    /// view itself; its coordinate only updates when the drag ends).
+    private func startLoupe(following view: MKAnnotationView, on map: MKMapView) {
+        guard let host = map as? HoleMapView else { return }
+        loupeTracker?.stop()
+        loupeTracker = LoupeTracker(pin: view, host: host)
     }
 
     // MARK: Helpers
@@ -486,3 +498,34 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         return String(format: "%.6f,%.6f", c.latitude, c.longitude)
     }
 }
+
+/// Drives `HoleMapLoupe` from a display link while a pin is dragged.
+@MainActor
+private final class LoupeTracker: NSObject {
+    private weak var pin: MKAnnotationView?
+    private weak var host: HoleMapView?
+    private var link: CADisplayLink?
+
+    init(pin: MKAnnotationView, host: HoleMapView) {
+        self.pin = pin
+        self.host = host
+        super.init()
+        let link = CADisplayLink(target: self, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        self.link = link
+        tick()
+    }
+
+    @objc private func tick() {
+        guard let pin, let host, let container = pin.superview else { return stop() }
+        // Pin views live in MapKit's annotation container: convert to the map.
+        host.loupe.show(at: container.convert(pin.center, to: host), in: host)
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
+        host?.loupe.hide()
+    }
+}
+
