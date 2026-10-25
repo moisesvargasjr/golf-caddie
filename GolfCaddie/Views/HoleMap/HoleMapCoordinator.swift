@@ -29,6 +29,15 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     /// The frame an animated reframe is gliding to; checked (and snapped
     /// if MapKit ended a few points off) when the animation ends.
     private var animatingTo: HoleFrame?
+    private var loupeTracker: LoupeTracker?
+    /// A glide is playing: region reports are mid-flight, don't act on them.
+    private var isGliding = false
+    /// Identifies the glide playing; an older one's completions are ignored.
+    private var glideToken = 0
+    /// Where the playing glide ends.
+    private var glideTarget: HoleFrame?
+    /// The hole (or "course") last framed, for deciding to glide.
+    private var lastShown: String?
     /// Measured on this map at this size: camera distance ÷ metres-per-point,
     /// and where the camera centre is drawn relative to the view's centre.
     private var calibration: Calibration?
@@ -108,13 +117,18 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         } ?? "-"
         let hard: String
         var soft = "\(size)|\(rect)"
+        // What is on screen, for gliding: a hole with its tee and green, or the
+        // course. nil while there is nothing to show yet.
+        let shown: String?
         switch parent.mode {
         case .course:
             hard = "course|\(lastCourseKey ?? "")"
+            shown = "course"
         case .live, .hole:
             hard = "\(parent.mode)|\(parent.holeID?.uuidString ?? "-")|"
                 + "\(Self.key(parent.tee))|\(Self.key(parent.green))"
             if parent.mode == .live { soft += "|\(placedShots.count)" }
+            shown = (parent.tee != nil || parent.green != nil) ? parent.holeID?.uuidString : nil
         }
         let hardChanged = hard != lastHardFrameKey
         guard hardChanged || soft != lastSoftFrameKey else { return }
@@ -130,20 +144,37 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             return
         }
         // After this layout pass, so the camera is fitted to the NEW bounds.
+        // A new hole (or course ⇄ hole) glides there; a soft change eases.
         let animated = hasFramed && !sizeChanged
+        // Only from one real view to another (hole → hole, course ⇄ hole): the
+        // first hole after launch arrives while MapKit's opening move is still
+        // playing, and a glide on top of it stalls.
+        let glide = animated && hardChanged && lastShown != nil && shown != nil && shown != lastShown
+        lastShown = shown
         Task { @MainActor [weak self, weak map] in
             guard let self, let map else { return }
-            self.reframe(map, animated: animated)
+            self.reframe(map, animated: animated, glide: glide)
         }
     }
 
-    func reframe(_ map: MKMapView, animated: Bool, resettingHeading: Bool = false) {
+    func reframe(_ map: MKMapView, animated: Bool, resettingHeading: Bool = false, glide: Bool = false) {
         let fallback = resettingHeading ? 0 : map.camera.heading
+        let fromWidth = glide ? (metersPerPoint(map) ?? 0) * Double(map.bounds.width) : 0
         guard let frame = currentFrame(map, fallbackHeading: fallback),
               var measured = calibration(map, near: frame) else { return }
         if parent.mode == .live { lastFrameUserCoord = userCoordinate(map) }
         hasFramed = true
         let size = map.bounds.size
+        // Already gliding there: a second move would start from MapKit's
+        // camera, which mid-glide is already the end, and stall the glide.
+        if isGliding, let target = glideTarget, target.isClose(to: frame) { return }
+        if glide {
+            let target = camera(for: frame, measured, size: size)
+            run(HoleGlide.plan(from: map.camera, fromWidth: fromWidth,
+                               to: target, toWidth: frame.metersPerPoint * Double(size.width)),
+                on: map, landingOn: frame)
+            return
+        }
         map.setCamera(camera(for: frame, measured, size: size), animated: animated)
         guard !animated else {
             animatingTo = frame
@@ -159,6 +190,48 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             map.setCamera(camera(for: frame, measured, size: size), animated: false)
         }
         logFrame(frame, map: map)
+    }
+
+    /// Plays a glide's steps as timed camera animations, then snaps the end
+    /// onto `frame` (`settleAnimatedFrame`). MapKit reports the region change
+    /// at the start of a UIView-animated camera move, with the end values, so
+    /// the snap must wait for the last step's completion — settling on that
+    /// early report is what made hole changes cut.
+    private func run(_ glide: HoleGlide, on map: MKMapView, landingOn frame: HoleFrame) {
+        var steps = glide.steps[...]
+        animatingTo = nil
+        isGliding = true
+        glideToken &+= 1
+        let token = glideToken
+        glideTarget = frame
+        func land() {
+            isGliding = false
+            glideTarget = nil
+            animatingTo = frame
+            settleAnimatedFrame(map)
+        }
+        func next() {
+            guard let step = steps.popFirst() else { return land() }
+            let camera = MKMapCamera(lookingAtCenter: step.center, fromDistance: step.distance,
+                                     pitch: 0, heading: step.heading)
+            UIView.animate(withDuration: step.duration, delay: 0,
+                           options: [steps.isEmpty ? .curveEaseOut : .curveEaseIn, .allowUserInteraction]) {
+                map.setCamera(camera, animated: false)
+            } completion: { [weak self] finished in
+                // A newer glide took over: it lands.
+                guard let self, token == self.glideToken else { return }
+                // A pan or pinch mid-glide stops it where the golfer took over.
+                guard self.parent.controller.isAutoFraming else {
+                    self.isGliding = false
+                    self.glideTarget = nil
+                    return
+                }
+                // Interrupted by something else (another camera move): land.
+                finished ? next() : land()
+            }
+        }
+        logFrame(frame, map: map, animated: true)
+        next()
     }
 
     private func camera(for frame: HoleFrame, _ measured: Calibration, size: CGSize) -> MKMapCamera {
@@ -366,6 +439,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         parent.controller.mapDidRotate(to: mapView.camera.heading)
+        guard !isGliding else { return }
         if mapView.camera.centerCoordinateDistance <= Self.calibrationMaxDistance { recalibrate(mapView) }
         settleAnimatedFrame(mapView)
     }
@@ -419,6 +493,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
             dragOrigin = annotation.coordinate
             view.dragState = .dragging
             parent.onDragChanged(true)
+            startLoupe(following: view, on: mapView)
         case .ending:
             let snapped = parent.snapper.snappedCoordinate(for: annotation.shot, droppedAt: annotation.coordinate)
             annotation.coordinate = snapped
@@ -438,6 +513,16 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         draggingShotID = nil
         dragOrigin = nil
         parent.onDragChanged(false)
+        loupeTracker?.stop()
+        loupeTracker = nil
+    }
+
+    /// Keeps the loupe on the dragged pin every frame (MapKit moves the pin
+    /// view itself; its coordinate only updates when the drag ends).
+    private func startLoupe(following view: MKAnnotationView, on map: MKMapView) {
+        guard let host = map as? HoleMapView else { return }
+        loupeTracker?.stop()
+        loupeTracker = LoupeTracker(pin: view, host: host)
     }
 
     // MARK: Helpers
@@ -453,3 +538,34 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
         return String(format: "%.6f,%.6f", c.latitude, c.longitude)
     }
 }
+
+/// Drives `HoleMapLoupe` from a display link while a pin is dragged.
+@MainActor
+private final class LoupeTracker: NSObject {
+    private weak var pin: MKAnnotationView?
+    private weak var host: HoleMapView?
+    private var link: CADisplayLink?
+
+    init(pin: MKAnnotationView, host: HoleMapView) {
+        self.pin = pin
+        self.host = host
+        super.init()
+        let link = CADisplayLink(target: self, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        self.link = link
+        tick()
+    }
+
+    @objc private func tick() {
+        guard let pin, let host, let container = pin.superview else { return stop() }
+        // Pin views live in MapKit's annotation container: convert to the map.
+        host.loupe.show(at: container.convert(pin.center, to: host), in: host)
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
+        host?.loupe.hide()
+    }
+}
+

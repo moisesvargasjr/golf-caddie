@@ -150,4 +150,39 @@ final class CourseCatalogTests: XCTestCase {
         let decoded = try PhoneStateUpdate.decode(JSONSerialization.data(withJSONObject: json))
         XCTAssertNil(decoded.curatedCourseId)
     }
+
+    // MARK: On the course
+
+    private func anchored(_ id: String, tee: (Double, Double), green: (Double, Double)) -> CuratedCourse {
+        CuratedCourse(id: id, name: id, aliases: [], location: GeoPoint(lat: tee.0 + 0.004, lng: tee.1),
+                      holes: [CuratedHole(number: 1, par: 4, teeAnchor: GeoPoint(lat: tee.0, lng: tee.1),
+                                          greenAnchor: GeoPoint(lat: green.0, lng: green.1))])
+    }
+
+    func testACourseMilesAwayIsNotUnderfoot() {
+        // Home ~2.5 km from the club: inside the old 3 km radius, not on it.
+        let club = anchored("club", tee: (33.000, -117.000), green: (33.003, -117.000))
+        XCTAssertNil(CourseCatalog.courseUnderfoot(in: [club], at: .init(latitude: 33.025, longitude: -117.000)))
+    }
+
+    func testStandingByATeeOrGreenIsUnderfoot() {
+        let club = anchored("club", tee: (33.000, -117.000), green: (33.003, -117.000))
+        let onTee = CLLocationCoordinate2D(latitude: 33.0015, longitude: -117.000) // ~170 m from the tee
+        XCTAssertEqual(CourseCatalog.courseUnderfoot(in: [club], at: onTee)?.id, "club")
+    }
+
+    func testTheNearerOfTwoNeighbouringCoursesWins() {
+        let oaks = anchored("oaks", tee: (33.000, -117.000), green: (33.003, -117.000))
+        let fountains = anchored("fountains", tee: (33.000, -117.005), green: (33.003, -117.005))
+        let here = CLLocationCoordinate2D(latitude: 33.0005, longitude: -117.0045)
+        XCTAssertEqual(CourseCatalog.courseUnderfoot(in: [oaks, fountains], at: here)?.id, "fountains")
+    }
+
+    func testACourseWithoutAnchorsUsesItsCentre() {
+        let plain = CuratedCourse(id: "plain", name: "plain", aliases: [], location: GeoPoint(lat: 33, lng: -117),
+                                  holes: [CuratedHole(number: 1, par: 4)])
+        XCTAssertEqual(CourseCatalog.courseUnderfoot(in: [plain], at: .init(latitude: 33.007, longitude: -117))?.id,
+                       "plain", "~780 m from the centre")
+        XCTAssertNil(CourseCatalog.courseUnderfoot(in: [plain], at: .init(latitude: 33.010, longitude: -117)))
+    }
 }

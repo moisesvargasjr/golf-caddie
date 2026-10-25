@@ -12,25 +12,29 @@ struct ScorecardSplitView: View {
     private static let edge: CGFloat = 24
 
     var body: some View {
-        GeometryReader { proxy in
-            let insets = proxy.safeAreaInsets
-            let half = proxy.size.height / 2
-            let side = max(Self.edge, insets.leading, insets.trailing)
-            VStack(spacing: 0) {
-                frontPage
-                    .padding(.top, max(Self.edge, insets.top))
-                    .padding(.bottom, Self.hingeGutter)
-                    .padding(.horizontal, side)
-                    .frame(height: half, alignment: .top)
-                    .overlay(alignment: .bottom) { hingeRule }
-                backPage
-                    .padding(.top, Self.hingeGutter + 4)
-                    .padding(.bottom, max(Self.edge, insets.bottom))
-                    .padding(.horizontal, side)
-                    .frame(height: half, alignment: .top)
+        // Insets from a reader that respects the safe area (one that ignores
+        // it reports zero, and the header ran under the status bar).
+        GeometryReader { safe in
+            GeometryReader { proxy in
+                let insets = safe.safeAreaInsets
+                let half = proxy.size.height / 2
+                let side = max(Self.edge, insets.leading, insets.trailing)
+                VStack(spacing: 0) {
+                    frontPage
+                        .padding(.top, max(Self.edge, insets.top))
+                        .padding(.bottom, Self.hingeGutter)
+                        .padding(.horizontal, side)
+                        .frame(height: half, alignment: .top)
+                        .overlay(alignment: .bottom) { hingeRule }
+                    backPage
+                        .padding(.top, Self.hingeGutter + 4)
+                        .padding(.bottom, max(Self.edge, insets.bottom))
+                        .padding(.horizontal, side)
+                        .frame(height: half, alignment: .top)
+                }
             }
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
     }
 
     // MARK: Pages

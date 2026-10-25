@@ -123,6 +123,11 @@ final class ScorecardScreenTests: XCTestCase {
         XCTAssertEqual(ScorecardPick.resolve(column(12), currentHole: 8), .notPlayed(12))
         XCTAssertEqual(ScorecardPick.resolve(column(12, confirmed: true), currentHole: nil), .openHole(12),
                        "a confirmed hole with no shots can still be opened")
+        // Finished round, tracking missed on hole 12: type its score straight in.
+        XCTAssertEqual(ScorecardPick.resolve(column(12), currentHole: nil), .addScore(12))
+        XCTAssertEqual(ScorecardCell.resolve(column(12), currentHole: nil), .add)
+        XCTAssertEqual(ScorecardCell.resolve(column(12, confirmed: true), currentHole: nil), .blank,
+                       "a confirmed hole with no shots is opened, not added")
     }
 
     func testPickAvailability() {

@@ -54,7 +54,8 @@ enum ScorecardNine: String, Equatable, CaseIterable {
 /// What a hole's score cell shows.
 enum ScorecardCell: Equatable {
     case score(Int, ScoreMark)
-    /// Before the starting hole with no score: tap to add (Decision 2).
+    /// No score to show and one can be typed in: before the starting hole
+    /// (Decision 2), or any unscored hole of a finished round.
     case add
     /// The live hole, not finished yet.
     case now
@@ -64,6 +65,8 @@ enum ScorecardCell: Equatable {
         if column.needsEntry { return .add }
         if let score = column.score { return .score(score, .mark(toPar: column.toPar)) }
         if column.number == currentHole { return .now }
+        // A finished round's hole with no score: ADD, like before the start.
+        if currentHole == nil, !column.isConfirmed { return .add }
         return .blank
     }
 }
@@ -84,6 +87,9 @@ enum ScorecardPick: Equatable {
         if n == currentHole { return .backToHole(n) }
         if column.scoreSource == .hand { return .editScore(n) }
         if column.score != nil || column.isConfirmed { return .openHole(n) }
+        // A finished round's unscored hole (tracking was missed): type the
+        // score straight in. In a live round it is a hole not reached yet.
+        if currentHole == nil { return .addScore(n) }
         return .notPlayed(n)
     }
 
@@ -141,7 +147,8 @@ enum ScorecardText {
             if let p = column.putts { parts.append(putts(p)) }
             if column.scoreSource == .hand { parts.append("entered by hand") }
         case .now: parts.append("in progress")
-        case .blank, .add: parts.append("not played yet")
+        case .add: parts.append("no score, add score")
+        case .blank: parts.append("not played yet")
         }
         return parts.joined(separator: ", ")
     }

@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import UIKit
 import XCTest
 @testable import GolfCaddie
@@ -300,4 +301,49 @@ final class HoleFramingTests: XCTestCase {
         XCTAssertEqual(HoleFraming.normalizedHeading(-30), 330, accuracy: 1e-9)
         XCTAssertEqual(HoleFraming.normalizedHeading(720), 0, accuracy: 1e-9)
     }
+
+    // MARK: Glide
+
+    private func camera(_ lat: Double, _ distance: Double, heading: Double) -> MKMapCamera {
+        MKMapCamera(lookingAtCenter: CLLocationCoordinate2D(latitude: lat, longitude: -117),
+                    fromDistance: distance, pitch: 0, heading: heading)
+    }
+
+    func testANearbyHoleIsOneEasedMoveThatTurnsTheMap() {
+        // Next tee ~110 m away, views ~300 m across.
+        let glide = HoleGlide.plan(from: camera(33.000, 800, heading: 10), fromWidth: 300,
+                                   to: camera(33.001, 700, heading: 200), toWidth: 280)
+        XCTAssertEqual(glide.steps.count, 1)
+        XCTAssertEqual(glide.steps[0].heading, 200)
+        XCTAssertEqual(glide.steps[0].distance, 700)
+        XCTAssertEqual(glide.steps[0].duration, HoleGlide.singleDuration)
+    }
+
+    func testAFarHolePullsBackOverBothThenSettlesIn() {
+        // Course map → a hole ~1.1 km away.
+        let glide = HoleGlide.plan(from: camera(33.000, 900, heading: 0), fromWidth: 350,
+                                   to: camera(33.010, 700, heading: 90), toWidth: 300)
+        XCTAssertEqual(glide.steps.count, 2)
+        let out = glide.steps[0], settle = glide.steps[1]
+        XCTAssertGreaterThan(out.distance, 900, "climbs above the higher camera")
+        XCTAssertLessThanOrEqual(out.distance, 900 * HoleGlide.maxPullBack)
+        XCTAssertEqual(out.center.latitude, 33.005, accuracy: 1e-9, "over the midpoint")
+        XCTAssertEqual(out.heading, 90, "turns on the way out")
+        XCTAssertEqual(settle.center.latitude, 33.010, accuracy: 1e-9)
+        XCTAssertEqual(settle.distance, 700)
+    }
+
+    // MARK: Loupe
+
+    func testTheLoupeSitsAboveThePinAndFlipsBelowNearTheTop() {
+        let bounds = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let above = HoleMapLoupe.position(for: CGPoint(x: 200, y: 500), in: bounds)
+        XCTAssertEqual(above.x, 200)
+        XCTAssertEqual(above.y, 500 - HoleMapLoupe.lift - HoleMapLoupe.size / 2)
+        let below = HoleMapLoupe.position(for: CGPoint(x: 200, y: 120), in: bounds)
+        XCTAssertGreaterThan(below.y, 120, "no room above: below the pin")
+        let edge = HoleMapLoupe.position(for: CGPoint(x: 5, y: 500), in: bounds)
+        XCTAssertEqual(edge.x, HoleMapLoupe.size / 2 + 8, "kept inside the view")
+    }
 }
+

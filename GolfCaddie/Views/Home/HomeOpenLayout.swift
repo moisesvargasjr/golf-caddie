@@ -16,22 +16,28 @@ struct HomeOpenLayout: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size
-            ZStack(alignment: .topLeading) {
-                HomeHingeLine(windowSize: size)
-                if let pages = HomeLayout.pages(windowSize: size, safeArea: proxy.safeAreaInsets) {
-                    leftPage
-                        .frame(width: pages.left.width, height: pages.left.height, alignment: .top)
-                        .position(x: pages.left.midX, y: pages.left.midY)
-                    rightPage
-                        .frame(width: pages.right.width, height: pages.right.height, alignment: .top)
-                        .position(x: pages.right.midX, y: pages.right.midY)
+        // The outer reader respects the safe area, so its insets are real (the
+        // status bar's clock on the open Duo); the inner one ignores it for
+        // the whole window. An ignoring reader reports zero insets, which let
+        // the date run under the clock.
+        GeometryReader { safe in
+            GeometryReader { proxy in
+                let size = proxy.size
+                ZStack(alignment: .topLeading) {
+                    HomeHingeLine(windowSize: size)
+                    if let pages = HomeLayout.pages(windowSize: size, safeArea: safe.safeAreaInsets) {
+                        leftPage
+                            .frame(width: pages.left.width, height: pages.left.height, alignment: .top)
+                            .position(x: pages.left.midX, y: pages.left.midY)
+                        rightPage
+                            .frame(width: pages.right.width, height: pages.right.height, alignment: .top)
+                            .position(x: pages.right.midX, y: pages.right.midY)
+                    }
                 }
+                .frame(width: size.width, height: size.height)
             }
-            .frame(width: size.width, height: size.height)
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(HomeID.openWide)
     }
@@ -111,7 +117,7 @@ struct HomeOpenLayout: View {
             .overlay(alignment: .top) { Rectangle().fill(palette.ink).frame(height: 1.5) }
             .accessibilityIdentifier(HomeID.bagEditor)
         }
-        .background(palette.paper.opacity(0.98))
+        .background(palette.paper.opacity(0.98), ignoresSafeAreaEdges: [])
         .clipShape(Rectangle())
         .overlay(Rectangle().stroke(palette.ink, lineWidth: 1.5))
         .compositingGroup()

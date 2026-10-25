@@ -164,7 +164,7 @@ final class WatchCaddie: ObservableObject {
                Distance.meters(from: fix.coordinate, to: current.location.coordinate) <= CourseCatalog.nearestRadiusMeters {
                 return current
             }
-            return CourseCatalog.nearest(in: courses, to: fix.coordinate)
+            return CourseCatalog.courseUnderfoot(in: courses, at: fix.coordinate)
         }()
         if resolved != course { course = resolved }
 
