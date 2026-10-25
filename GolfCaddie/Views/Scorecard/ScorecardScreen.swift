@@ -61,7 +61,6 @@ struct ScorecardScreen: View {
             }
         }
         .environment(\.palette, CardInk.palette)
-        .environment(\.colorScheme, .light)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(variant.accessibilityID)
         .onAppear(perform: reload)

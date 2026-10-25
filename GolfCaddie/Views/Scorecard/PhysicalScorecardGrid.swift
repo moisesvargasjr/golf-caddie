@@ -1,14 +1,39 @@
 import SwiftUI
+import UIKit
 
-/// Ink & graphite for the printed card — always the light "paper" look,
-/// whatever the app theme.
+/// Ink & graphite for the printed card: cream paper by day, night paper in
+/// dark mode (Scorecard-Open-Dark / -Folded-Dark). Every colour resolves
+/// against the view's appearance, so the card follows the app's theme.
 enum CardInk {
-    static let palette = PaletteValues.light
-    static let graphite = Color(hex: 0x2B2B2B)
-    static let innerCard = Color(hex: 0xF3EBD8)
+    static let palette = PaletteValues(
+        paper: .card(light: 0xEFE6D2, dark: 0x22332A),
+        paperDark: .card(light: 0xE5DBC2, dark: 0x141E18),
+        ink: .card(light: 0x1B3A29, dark: 0xE9E1CC),
+        ink2: .card(light: 0x3D5A48, dark: 0xA9B8A6),
+        ink3: .card(light: 0x7A8676, dark: 0x7D8A7B),
+        rule: .card(light: 0x1B3A29, dark: 0xE9E1CC, opacity: 0.15, darkOpacity: 0.18),
+        ruleStrong: .card(light: 0x1B3A29, dark: 0xE9E1CC, opacity: 0.35, darkOpacity: 0.4),
+        red: .card(light: 0xA8392A, dark: 0xEE8A73),
+        flag: .card(light: 0xC24A2D, dark: 0xE0704F),
+        inkRgb: PaletteValues.light.inkRgb,
+        cardShadow: .init(color: .card(light: 0x1B3A29, dark: 0x000000, opacity: 0.18, darkOpacity: 0.45),
+                          x: 3, y: 3))
+    static let graphite = Color.card(light: 0x2B2B2B, dark: 0xD9D4C7)
+    static let innerCard = Color.card(light: 0xF3EBD8, dark: 0x1C2A22)
     static let border: CGFloat = 1.5
     /// System handwriting faces only (no bundled web fonts).
     static func hand(_ size: CGFloat) -> Font { .custom("Noteworthy-Bold", size: size) }
+}
+
+extension Color {
+    /// A card colour that follows the appearance (light / dark).
+    static func card(light: UInt32, dark: UInt32, opacity: Double = 1, darkOpacity: Double? = nil) -> Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(Color(hex: dark, opacity: darkOpacity ?? opacity))
+                : UIColor(Color(hex: light, opacity: opacity))
+        })
+    }
 }
 
 /// The traditional card's 22-column grid (Scorecard-Open / Round-Open

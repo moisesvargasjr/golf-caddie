@@ -83,7 +83,6 @@ struct HandScoreEntrySheet: View {
         .frame(maxWidth: 480, alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(CardInk.palette.paper.ignoresSafeArea())
-        .environment(\.colorScheme, .light)
         .presentationDetents([.height(400), .large])
         .presentationBackground(CardInk.palette.paper)
         .accessibilityElement(children: .contain)

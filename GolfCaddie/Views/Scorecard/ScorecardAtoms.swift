@@ -5,7 +5,7 @@ import SwiftUI
 
 extension CardInk {
     /// The SCORE row's lighter stock on the traditional card.
-    static let scoreRow = Color(hex: 0xFBF6EA)
+    static let scoreRow = Color.card(light: 0xFBF6EA, dark: 0x2E4A3A)
     static var ink: Color { palette.ink }
     static var ink2: Color { palette.ink2 }
 
