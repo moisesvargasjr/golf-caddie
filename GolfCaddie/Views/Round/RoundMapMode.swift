@@ -49,6 +49,10 @@ enum RoundMapMode: Equatable, Sendable {
     /// Auto-hide applies at all (review turns it off — plan rule 12).
     var allowsAutoHide: Bool { self != .review }
 
+    /// Review auto-hides too on the folded Duo (Review-Folded-v2-Clear): its
+    /// one bottom panel covers much of the small screen.
+    func allowsAutoHide(on layout: RoundMapLayout) -> Bool { allowsAutoHide || layout == .folded }
+
     /// Holding the map adds a shot.
     var allowsHoldToAdd: Bool { self != .casual }
 

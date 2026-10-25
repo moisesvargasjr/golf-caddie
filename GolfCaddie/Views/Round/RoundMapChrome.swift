@@ -234,6 +234,8 @@ struct ShowControlsPill: View {
             HStack(spacing: 10) {
                 if let yardage = model.yardage, model.isLiveHole {
                     Text("\(yardage.middle)").font(RoundFont.serif(26)).tabularNumerals()
+                } else if model.reviewNext != nil, model.reviewScore != nil {
+                    Text(model.reviewScoreText).font(RoundFont.serif(26)).tabularNumerals()
                 }
                 Text(label).font(RoundFont.mono(10)).tracking(0.8)
             }
