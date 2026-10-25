@@ -1,44 +1,24 @@
 import SwiftUI
 
-/// The in-round scorecard as ONE presentation whose body follows the width:
-/// the physical card when expanded, the compact card otherwise. Measures its
-/// own window (`adaptiveLayoutRoot`), so a fold/unfold while it's open swaps
-/// the body instead of dismissing the presentation.
+/// The scorecard as ONE full-screen presentation (live CARD and finished
+/// rounds). Measures its own window (`adaptiveLayoutRoot`), so a fold/unfold
+/// while it's open swaps the card variant instead of dismissing it.
 struct AdaptiveScorecardPresentation: View {
     let round: Round
-    let currentHoleNumber: Int
-    let bag: [Club]
+    /// The live hole; nil for a finished round.
+    let currentHoleNumber: Int?
     let curatedCourseId: String?
-    let onStrokeMoved: (Set<UUID>) -> Void
+    var live: LiveHoleEditing? = nil
+    var onOpenHole: ((Int) -> Void)? = nil
+    var onOpenCourseMap: (() -> Void)? = nil
     let onDismiss: () -> Void
 
     var body: some View {
-        ScorecardBody(round: round, currentHoleNumber: currentHoleNumber, bag: bag,
-                      curatedCourseId: curatedCourseId, onStrokeMoved: onStrokeMoved,
-                      onDismiss: onDismiss)
+        ScorecardScreen(round: round, currentHoleNumber: currentHoleNumber,
+                        curatedCourseId: curatedCourseId, live: live, onDismiss: onDismiss,
+                        onOpenHole: onOpenHole, onOpenCourseMap: onOpenCourseMap)
             .adaptiveLayoutRoot()
             .themedRoot()
-    }
-}
-
-private struct ScorecardBody: View {
-    let round: Round
-    let currentHoleNumber: Int
-    let bag: [Club]
-    let curatedCourseId: String?
-    let onStrokeMoved: (Set<UUID>) -> Void
-    let onDismiss: () -> Void
-    @Environment(\.layoutClass) private var layoutClass
-
-    var body: some View {
-        if layoutClass == .expanded {
-            PhysicalScorecardView(round: round, currentHoleNumber: currentHoleNumber, bag: bag,
-                                  curatedCourseId: curatedCourseId, onDismiss: onDismiss)
-        } else {
-            InRoundScorecardSheet(round: round, currentHoleNumber: currentHoleNumber, bag: bag,
-                                  curatedCourseId: curatedCourseId, onStrokeMoved: onStrokeMoved,
-                                  onDismiss: onDismiss)
-        }
     }
 }
 
