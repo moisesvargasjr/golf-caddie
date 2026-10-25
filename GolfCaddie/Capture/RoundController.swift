@@ -608,13 +608,16 @@ final class RoundController {
                            locationSource: at.locationSource, disagreementMeters: at.disagreementMeters)
     }
 
-    /// Watch "Finish Hole": the golfer gave the putt count and confirmed the
-    /// score. Reconcile the tracked strokes to it (see `HoleFinishReconciler`),
+    /// Watch "Finish Hole": the golfer gave the putt count (and, on a par 4 or
+    /// 5, where the tee shot finished) and confirmed the score. Reconcile the tracked strokes to it (see `HoleFinishReconciler`),
     /// then confirm the hole and advance. Excluded strokes stay restorable.
     /// Returns the plan that was applied (nil without an active hole).
     @discardableResult
-    func finishHole(putts: Int, score: Int, at timestamp: Date = Date()) throws -> HoleFinishReconciler.Plan? {
+    func finishHole(putts: Int, score: Int, teeShot: TeeShotResult? = nil,
+                    at timestamp: Date = Date()) throws -> HoleFinishReconciler.Plan? {
         guard case let .active(_, hole) = state else { return nil }
+        // Before the confirm, which re-reads the stored row.
+        if let teeShot { try HoleRepository.setTeeShot(holeID: hole.id, teeShot) }
         let plan = HoleFinishReconciler.plan(
             shots: currentHoleShots, penaltyStrokes: currentHolePenaltyStrokes, putts: putts, score: score)
 

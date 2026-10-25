@@ -56,20 +56,44 @@ enum PuttsQuestionModel {
         fullShots + max(0, penaltyStrokes) + max(0, putts)
     }
 
-    /// "5 (+1) · 2 SHOTS + 1 PEN + 2 PUTTS" — the line under the options.
-    static func summary(fullShots: Int, penaltyStrokes: Int, putts: Int, par: Int?) -> String {
+    /// "5 (+1) · 2 SHOTS + 1 PEN + 2 PUTTS" — the line under the options. When
+    /// the tee shot is asked it adds "· FIR ●" (or the miss) and the GIR the
+    /// card will work out: "· GIR ● AUTO".
+    static func summary(fullShots: Int, penaltyStrokes: Int, putts: Int, par: Int?,
+                        asksTeeShot: Bool = false, teeShot: TeeShotResult? = nil) -> String {
         let total = score(fullShots: fullShots, penaltyStrokes: penaltyStrokes, putts: putts)
         var head = "\(total)"
         if let par { head += " (\(RoundMapFormat.toPar(total - par)))" }
         var parts = ["\(fullShots) \(fullShots == 1 ? "SHOT" : "SHOTS")"]
         if penaltyStrokes > 0 { parts.append("\(penaltyStrokes) PEN") }
         parts.append("\(putts) \(putts == 1 ? "PUTT" : "PUTTS")")
-        return head + " · " + parts.joined(separator: " + ")
+        var line = head + " · " + parts.joined(separator: " + ")
+        if asksTeeShot {
+            line += " · " + (teeShot?.summary ?? "NO TEE SHOT")
+            if let par { line += " · GIR " + (fullShots + max(0, penaltyStrokes) <= par - 2 ? "●" : "—") + " AUTO" }
+        }
+        return line
     }
 
     /// The confirm button: "Save · hole 9 ›" (wrapping 18 → 1).
     static func confirmTitle(holeNumber: Int) -> String {
         "Save · hole \(holeNumber % HoleScoring.holeRange.upperBound + 1) ›"
+    }
+}
+
+// MARK: - FIR + GIR (Finish hole, review)
+
+enum FairwayAndGreen {
+    /// Tapping the picked choice clears it (the question is optional).
+    static func toggled(_ current: TeeShotResult?, _ tapped: TeeShotResult) -> TeeShotResult? {
+        current == tapped ? nil : tapped
+    }
+
+    /// The GIR override after the review's toggle: flipping back to what the
+    /// shots work out clears the override (AUTO again).
+    static func toggledGirOverride(shown: Bool?, auto: Bool?) -> Bool? {
+        let flipped = !(shown ?? false)
+        return flipped == (auto ?? false) ? nil : flipped
     }
 }
 

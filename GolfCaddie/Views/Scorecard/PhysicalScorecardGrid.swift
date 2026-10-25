@@ -49,6 +49,9 @@ struct PhysicalScorecardGrid: View {
             puttsRow
             textRow("GIR", height: 26, font: .system(size: 12),
                     value: { $0.gir == true ? "●" : nil }, total: { "\(girTotal($0))" })
+            // ● fairway hit; a miss shows its arrow; par 3s stay blank.
+            textRow("FIR", height: 26, font: .system(size: 12),
+                    value: { $0.teeShot?.glyph }, total: { "\(firTotal($0))" })
             textRow("PEN", height: 26, rowRule: .none, font: CardInk.mono(11), color: CardInk.palette.red,
                     value: { $0.penalties.flatMap { $0 > 0 ? "\($0)" : nil } },
                     total: { totals($0).penalties.flatMap { $0 > 0 ? "\($0)" : nil } })
@@ -209,6 +212,14 @@ struct PhysicalScorecardGrid: View {
         case .out: return model.girCount(.front)
         case .inn: return model.girCount(.back)
         default: return model.girCount
+        }
+    }
+
+    private func firTotal(_ slot: Slot) -> Int {
+        switch slot {
+        case .out: return model.firCount(.front)
+        case .inn: return model.firCount(.back)
+        default: return model.firCount
         }
     }
 

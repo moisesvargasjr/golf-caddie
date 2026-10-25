@@ -260,6 +260,17 @@ enum Database {
             }
         }
 
+        // FIR + GIR (after build 134): the tee shot's finish on a par 4 or 5
+        // ('left' | 'fairway' | 'right' | 'short', asked at Finish hole) and
+        // a GIR the golfer set by hand in review (NULL = worked out from the
+        // shots). Both nullable/additive.
+        migrator.registerMigration("v11_hole_fir_gir") { db in
+            try db.alter(table: "hole") { t in
+                t.add(column: "teeShot", .text)
+                t.add(column: "girOverride", .boolean)
+            }
+        }
+
         return migrator
     }
 }

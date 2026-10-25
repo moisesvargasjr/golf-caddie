@@ -15,7 +15,7 @@ final class MigrationTests: XCTestCase {
             ["v1_initial_schema", "v2_curated_course", "v3_curated_link_and_anchors",
              "v4_shot_putt_confidence", "v5_custom_clubs", "v6_shot_excluded",
              "v7_round_clubs_left_out", "v8_shot_location_source", "v9_trace_point_source",
-             "v10_hole_score_source"]
+             "v10_hole_score_source", "v11_hole_fir_gir"]
         )
     }
 
@@ -305,6 +305,47 @@ final class MigrationTests: XCTestCase {
             try String.fetchOne(db, sql: "SELECT scoreSource FROM hole WHERE id = ?", arguments: [hole.id])
         }
         XCTAssertEqual(raw, "hand", "stored as the text the plan specifies")
+    }
+
+    // MARK: - v11
+
+    func test_v11_addsTeeShotAndGirOverride_legacyRowsReadAsUnset() throws {
+        let q = try TestDatabase.makeInMemory(upTo: "v10_hole_score_source")
+        let roundID = UUID(), holeID = UUID()
+        try q.write { db in
+            try db.execute(sql: "INSERT INTO round (id, startedAt) VALUES (?, ?)", arguments: [roundID, Date()])
+            try db.execute(sql: "INSERT INTO hole (id, roundID, holeNumber, par) VALUES (?, ?, 1, 4)",
+                           arguments: [holeID, roundID])
+        }
+        try Database.migrator.migrate(q, upTo: "v11_hole_fir_gir")
+        let columns = try q.read { db in try db.columns(in: "hole").map(\.name) }
+        XCTAssertTrue(columns.contains("teeShot"))
+        XCTAssertTrue(columns.contains("girOverride"))
+        let hole = try XCTUnwrap(try q.read { db in try Hole.fetchOne(db, key: holeID) })
+        XCTAssertNil(hole.teeShot)
+        XCTAssertNil(hole.girOverride)
+    }
+
+    func test_v11_teeShotAndGirRoundTrip() throws {
+        let q = try TestDatabase.makeInMemory()
+        TestDatabase.install(q)
+        defer { TestDatabase.restore() }
+        let round = try TestDatabase.seedRound()
+        let hole = try TestDatabase.seedHole(roundID: round.id, holeNumber: 3)
+        try HoleRepository.setTeeShot(holeID: hole.id, .right)
+        try HoleRepository.setGirOverride(holeID: hole.id, false)
+        var fetched = try XCTUnwrap(try HoleRepository.hole(byID: hole.id))
+        XCTAssertEqual(fetched.teeShot, .right)
+        XCTAssertEqual(fetched.girOverride, false)
+        let raw = try q.read { db in
+            try String.fetchOne(db, sql: "SELECT teeShot FROM hole WHERE id = ?", arguments: [hole.id])
+        }
+        XCTAssertEqual(raw, "right")
+        try HoleRepository.setTeeShot(holeID: hole.id, nil)
+        try HoleRepository.setGirOverride(holeID: hole.id, nil)
+        fetched = try XCTUnwrap(try HoleRepository.hole(byID: hole.id))
+        XCTAssertNil(fetched.teeShot)
+        XCTAssertNil(fetched.girOverride)
     }
 
     // MARK: - Idempotence

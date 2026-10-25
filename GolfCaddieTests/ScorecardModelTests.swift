@@ -49,6 +49,33 @@ final class ScorecardModelTests: XCTestCase {
                     Self.shot(h, 3, club: "putter", putt: true)], penalties: 1, par: 4), false)
     }
 
+    func testTeeShotAndGirOverride() {
+        var par4 = Self.input(1, par: 4, full: 2, putts: 2)
+        par4 = .init(hole: { var h = par4.hole; h.teeShot = .fairway; h.girOverride = false; return h }(),
+                     shots: par4.shots, penaltyStrokes: 0)
+        var par3 = Self.input(2, par: 3, full: 1, putts: 2)
+        par3 = .init(hole: { var h = par3.hole; h.teeShot = .left; return h }(),
+                     shots: par3.shots, penaltyStrokes: 0)
+        let par5 = Self.input(3, par: 5, full: 3, putts: 2)
+        let model = ScorecardModel.build(holes: [par4, par3, par5], course: nil)
+        XCTAssertEqual(model.columns[0].teeShot, .fairway)
+        XCTAssertEqual(model.columns[0].gir, false, "the golfer's GIR wins over the worked-out one")
+        XCTAssertTrue(model.columns[0].girIsManual)
+        XCTAssertNil(model.columns[1].teeShot, "par 3s have no FIR")
+        XCTAssertEqual(model.columns[1].gir, true)
+        XCTAssertFalse(model.columns[1].girIsManual)
+        XCTAssertEqual(model.columns[2].gir, true)
+        XCTAssertEqual(model.firCount, 1)
+        XCTAssertEqual(model.girCount, 2)
+    }
+
+    func testGirOverrideOnAHandScoredHole() {
+        let hole = Hole(id: UUID(), roundID: UUID(), holeNumber: 4, par: 4, confirmedAt: Date(),
+                        scoreSource: .hand, handStrokes: 4, handPutts: 2, girOverride: true)
+        let model = ScorecardModel.build(holes: [.init(hole: hole, shots: [], penaltyStrokes: 0)], course: nil)
+        XCTAssertEqual(model.columns[3].gir, true)
+    }
+
     func testConfirmedHoleWithoutShotsIsBlank() {
         let model = ScorecardModel.build(holes: [Self.input(1, par: 4, full: 0, putts: 0)], course: nil)
         XCTAssertNil(model.columns[0].score)

@@ -244,6 +244,7 @@ extension ScorecardModel {
     func columns(_ nine: ScorecardNine) -> [ScorecardColumn] { nine == .front ? front : back }
     func totals(_ nine: ScorecardNine) -> ScorecardTotals { nine == .front ? out : inn }
     func girCount(_ nine: ScorecardNine) -> Int { columns(nine).filter { $0.gir == true }.count }
+    func firCount(_ nine: ScorecardNine) -> Int { columns(nine).filter { $0.teeShot == .fairway }.count }
 
     /// Holes with a score on the card (ADD holes and unplayed holes excluded).
     var scoredCount: Int { columns.filter { $0.score != nil }.count }
