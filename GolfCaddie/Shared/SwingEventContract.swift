@@ -120,7 +120,7 @@ enum WatchCommand: Codable, Equatable {
 /// `PenaltyType` (pinned by a test), kept here so Shared stays free of the
 /// phone's GRDB models.
 enum WatchPenaltyKind: String, CaseIterable, Identifiable {
-    case obOrLost, water, unplayable, other
+    case obOrLost, water, unplayable, wrongBall, other
 
     var id: String { rawValue }
 
@@ -129,6 +129,7 @@ enum WatchPenaltyKind: String, CaseIterable, Identifiable {
         case .obOrLost: return "OB / Lost"
         case .water: return "Water"
         case .unplayable: return "Unplay."
+        case .wrongBall: return "Wrong ball"
         case .other: return "Other"
         }
     }
@@ -138,6 +139,7 @@ enum WatchPenaltyKind: String, CaseIterable, Identifiable {
         case .obOrLost: return "xmark.circle"
         case .water: return "drop"
         case .unplayable: return "tree"
+        case .wrongBall: return "questionmark.circle"
         case .other: return "plus.circle"
         }
     }

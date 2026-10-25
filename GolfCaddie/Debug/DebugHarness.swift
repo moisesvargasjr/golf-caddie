@@ -19,8 +19,10 @@ import Foundation
 /// Launch-arg keys are read straight from UserDefaults (NSUserDefaults maps
 /// `-Key Value` launch arguments automatically).
 enum DebugHarness {
-    /// `-DebugOpen review|card|bag|course|logbook|settings` — opens one screen
-    /// on launch so simulator screenshots don't need taps.
+    /// `-DebugOpen review|card|bag|course|logbook|settings|home` — opens one
+    /// screen on launch so simulator screenshots don't need taps. `home` lands
+    /// on Home itself (the idle screen) with a seeded bag, so a fresh
+    /// simulator skips Bag Setup.
     static var openScreen: String? { UserDefaults.standard.string(forKey: "DebugOpen") }
 
     /// `-DebugSeedBag 1` (or any harness flag): save the recommended bag when
@@ -28,7 +30,7 @@ enum DebugHarness {
     static func seedBagIfRequested() {
         let d = UserDefaults.standard
         let requested = d.bool(forKey: "DebugSeedBag") || d.bool(forKey: "DebugStartRound")
-            || d.integer(forKey: "DebugInjectSwings") > 0
+            || d.integer(forKey: "DebugInjectSwings") > 0 || openScreen == "home"
         guard requested else { return }
         if (try? ClubConfigurationRepository.load().bag.isEmpty) ?? true {
             try? ClubConfigurationRepository.save(ClubConfiguration.recommendedDefault)
