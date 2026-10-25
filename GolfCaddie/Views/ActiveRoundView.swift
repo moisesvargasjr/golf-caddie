@@ -75,7 +75,7 @@ struct ActiveRoundView: View {
     private var idleBody: some View {
         HomeView(
             bag: $bag,
-            onStartRound: { startRound(startingHole: $0, clubsLeftOut: $1) },
+            onStartRound: { startRound($0) },
             actionError: actionError
         )
     }
@@ -226,10 +226,10 @@ struct ActiveRoundView: View {
         )
     }
 
-    private func startRound(startingHole: Int, clubsLeftOut: [String]) {
+    private func startRound(_ request: HomeStartRequest) {
         actionError = nil
         do {
-            try controller.startRound(startingHole: startingHole, clubsLeftOut: clubsLeftOut)
+            try controller.startRound(request)
             viewedHole = nil
             question = nil
         } catch {
