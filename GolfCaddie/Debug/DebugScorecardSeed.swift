@@ -44,8 +44,9 @@ enum DebugScorecardSeed {
         try RoundRepository.insert(round)
         for number in startingHole...18 {
             let index = number - 1
-            let hole = Hole(id: UUID(), roundID: round.id, holeNumber: number, par: pars[index],
+            var hole = Hole(id: UUID(), roundID: round.id, holeNumber: number, par: pars[index],
                             confirmedAt: start.addingTimeInterval(Double(number) * 600))
+            if pars[index] > 3 { hole.teeShot = teeShots[index % teeShots.count] }
             try HoleRepository.insert(hole)
             let full = scores[index] - putts[index]
             let anchors = course?.hole(number)
@@ -62,8 +63,36 @@ enum DebugScorecardSeed {
                     source: .button, notes: nil, isPutt: isPutt))
             }
         }
+        try seedHistory(courseName: round.courseName, curatedCourseId: course?.id)
         NSLog("[DebugScorecardSeed] seeded finished round \(round.id)")
         return round
+    }
+
+    /// FIR answers for the seeded par 4s and 5s (the card's FIR row).
+    private static let teeShots: [TeeShotResult] = [.fairway, .left, .fairway, .right, .fairway, .short]
+
+    /// Two earlier hand-scored rounds at the same course for AT THIS COURSE:
+    /// a complete 18 and one that stopped after 14.
+    private static func seedHistory(courseName: String?, curatedCourseId: String?) throws {
+        for (daysAgo, holes, bump) in [(20.0, 18, 1), (40.0, 14, 0)] {
+            let start = Date().addingTimeInterval(-daysAgo * 86_400)
+            let round = Round(id: UUID(), startedAt: start, endedAt: start.addingTimeInterval(4 * 3600),
+                              courseName: courseName, notes: nil, curatedCourseId: curatedCourseId,
+                              clubsLeftOut: nil, mode: .casual, startingHole: 1)
+            try RoundRepository.insert(round)
+            for number in 1...holes {
+                try HoleRepository.setHandScore(roundID: round.id, holeNumber: number,
+                                                strokes: scores[number - 1] + bump, putts: 2, at: start)
+                try HoleRepository.setPar(holeID: try storedHole(round.id, number).id, par: pars[number - 1])
+            }
+        }
+    }
+
+    private static func storedHole(_ roundID: UUID, _ number: Int) throws -> Hole {
+        guard let hole = try HoleRepository.hole(forRound: roundID, number: number) else {
+            throw HoleEditError.notFound
+        }
+        return hole
     }
 
     /// Full shots step from the tee toward the green, alternating a little
