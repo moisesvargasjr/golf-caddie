@@ -346,6 +346,7 @@ struct EndRoundSheet: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("End the round?")
@@ -372,11 +373,12 @@ struct EndRoundSheet: View {
             }
         }
         .padding(.horizontal, 24)
-        .padding(.top, 20)
+        .padding(.top, 24)
         .padding(.bottom, 12)
-        .frame(maxWidth: 560, alignment: .leading)
-        .frame(maxWidth: .infinity)
-        .presentationDetents([.medium, .large])
+        .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents(summary.remaining.count > 6 ? [.large] : [.medium, .large])
         .presentationBackground(palette.paper)
         .accessibilityIdentifier("endRound.sheet")
     }
