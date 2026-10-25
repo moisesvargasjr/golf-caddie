@@ -27,7 +27,7 @@ struct ScorecardScreen: View {
     @State private var snapshot = ScorecardSnapshot(model: ScorecardModel(columns: [], hasStrokeIndex: false),
                                                     courseName: nil)
     @State private var selectedHole: Int?
-    @State private var entry: HandScoreDraft?
+    @State private var entry: CardScoreDraft?
     @State private var loadError: String?
 
     init(round: Round, currentHoleNumber: Int?, curatedCourseId: String?,
@@ -114,7 +114,7 @@ struct ScorecardScreen: View {
         switch pick {
         case .addScore, .editScore:
             if let column = snapshot.model.column(pick.holeNumber) {
-                entry = HandScoreDraft(column: column)
+                entry = CardScoreDraft(column: column)
             }
         case let .openHole(n):
             onOpenHole?(n)
@@ -126,7 +126,7 @@ struct ScorecardScreen: View {
     }
 
     /// Returns a message to show in the sheet when the save fails.
-    private func save(_ draft: HandScoreDraft) -> String? {
+    private func save(_ draft: CardScoreDraft) -> String? {
         do {
             try ScorecardLoader.saveHandScore(draft, roundID: round.id, live: live)
             entry = nil

@@ -289,22 +289,22 @@ final class ScorecardScreenTests: XCTestCase {
     // MARK: Hand-score draft
 
     func testDraftStartsAtParWithTwoPutts() {
-        let draft = HandScoreDraft(column: column(4, par: 3, needsEntry: true))
+        let draft = CardScoreDraft(column: column(4, par: 3, needsEntry: true))
         XCTAssertEqual(draft.strokes, 3)
         XCTAssertEqual(draft.putts, 2)
         XCTAssertEqual(draft.summary, "PAR")
-        XCTAssertEqual(HandScoreDraft(column: column(4, par: nil, needsEntry: true)).strokes, 4)
+        XCTAssertEqual(CardScoreDraft(column: column(4, par: nil, needsEntry: true)).strokes, 4)
     }
 
     func testDraftPrefillsAnExistingHandScore() {
-        let draft = HandScoreDraft(column: column(4, par: 4, score: 6, putts: 3, confirmed: true, source: .hand))
+        let draft = CardScoreDraft(column: column(4, par: 4, score: 6, putts: 3, confirmed: true, source: .hand))
         XCTAssertEqual(draft.strokes, 6)
         XCTAssertEqual(draft.putts, 3)
         XCTAssertEqual(draft.summary, "+2")
     }
 
     func testDraftSteppersKeepAPlausibleScore() {
-        var draft = HandScoreDraft(column: column(4, par: 3, needsEntry: true))
+        var draft = CardScoreDraft(column: column(4, par: 3, needsEntry: true))
         draft = draft.decrementingStrokes().decrementingStrokes()
         XCTAssertEqual(draft.strokes, 1)
         XCTAssertEqual(draft.putts, 1, "putts never exceed strokes")
@@ -322,7 +322,7 @@ final class ScorecardScreenTests: XCTestCase {
     }
 
     func testDraftStopsAtTheStrokeCeiling() {
-        var draft = HandScoreDraft(column: column(4, par: 4, needsEntry: true))
+        var draft = CardScoreDraft(column: column(4, par: 4, needsEntry: true))
         for _ in 0..<40 { draft = draft.incrementingStrokes() }
         XCTAssertEqual(draft.strokes, HoleScoring.strokeRange.upperBound)
         XCTAssertFalse(draft.canIncrementStrokes)
@@ -344,7 +344,7 @@ final class ScorecardScreenTests: XCTestCase {
         XCTAssertEqual(snapshot.model.holesNeedingEntry, [1, 2, 3, 4, 5, 6])
         XCTAssertEqual(ScorecardCell.resolve(snapshot.model.columns[3], currentHole: 7), .add)
 
-        let draft = HandScoreDraft(column: snapshot.model.columns[3]).incrementingStrokes()
+        let draft = CardScoreDraft(column: snapshot.model.columns[3]).incrementingStrokes()
         try ScorecardLoader.saveHandScore(draft, roundID: round.id, live: nil)
 
         snapshot = try ScorecardLoader.load(round: round, curatedCourseId: nil)
