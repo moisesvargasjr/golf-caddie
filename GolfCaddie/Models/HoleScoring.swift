@@ -35,19 +35,16 @@ enum HoleScoring {
         return !hasTrackedData
     }
 
-    /// The holes End round offers to mark not played: from the live hole on,
-    /// in play order up to the starting hole, the ones with no score yet.
-    /// `scored` holds the numbers that have one. Holes before a late start are
-    /// left for ADD (they were played, just not tracked).
+    /// The holes End round offers to mark not played: the live hole and the
+    /// ones after it with no score yet, up to 18 — or, once a round that began
+    /// on the back nine has wrapped onto the front, up to the hole before its
+    /// start. `scored` holds the numbers that have one. Holes before a late
+    /// start are left for ADD (they were played, just not tracked).
     static func remainingUnscored(liveHole: Int, startingHole: Int?, scored: Set<Int>) -> [Int] {
         let start = startingHole ?? 1
-        var holes: [Int] = []
-        var n = liveHole
-        repeat {
-            if !scored.contains(n) { holes.append(n) }
-            n = n % holeRange.upperBound + 1
-        } while n != start && holes.count < holeRange.count
-        return holes
+        let last = liveHole >= start ? holeRange.upperBound : start - 1
+        guard liveHole <= last else { return [] }
+        return (liveHole...last).filter { !scored.contains($0) }
     }
 
     /// Throws unless `strokes`/`putts` are a plausible hand score.
