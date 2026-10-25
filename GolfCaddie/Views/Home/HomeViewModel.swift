@@ -1,12 +1,6 @@
 import Foundation
 
-/// How a round is played, picked at Begin on Home.
-///
-/// PR 2 (`feat/duo-v2-data`) adds `RoundController.startRound(startingHole:mode:)`.
-/// Until that merges, `RoundController.startRound(_ request:)` (see
-/// `HomeStartAdapter.swift`) applies the mode after the existing start call;
-/// on merge, that adapter becomes the one-line call to the new API. If PR 2
-/// ships its own mode type, this one folds into it.
+/// How a round is played, picked at Begin on Home (stored as `RoundMode`).
 enum RoundStartMode: String, CaseIterable, Equatable, Sendable {
     case tracking
     case casual
