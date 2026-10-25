@@ -168,30 +168,41 @@ struct ScorecardPickButtons: View {
     var body: some View {
         let title = content.ctaTitle(pick)
         let secondary = pick.secondary
-        if title != nil || secondary != nil {
-            HStack(spacing: 8) {
-                if let title {
-                    ScorecardFilledButton(title: title, fontSize: fontSize, minHeight: minHeight,
-                                          expands: expands) { content.onPick(pick) }
-                        .accessibilityIdentifier("scorecard.cta")
-                }
-                if let secondary {
-                    Button { content.onSecondary(secondary) } label: {
-                        Text(secondary.title)
-                            .font(CardInk.mono(10)).tracking(0.8)
-                            .foregroundStyle(CardInk.ink)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .padding(.horizontal, 10)
-                            .frame(maxWidth: expands ? .infinity : nil, minHeight: minHeight)
-                            .overlay(Rectangle().strokeBorder(CardInk.ink, lineWidth: CardInk.border))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(secondary.accessibilityLabel)
-                    .accessibilityIdentifier("scorecard.secondary")
-                }
+        if title != nil, secondary != nil {
+            // Side by side when both fit at full size; stacked in a narrow panel.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { buttons(title: title, secondary: secondary, expands: false) }
+                VStack(spacing: 6) { buttons(title: title, secondary: secondary, expands: true) }
             }
+        } else if title != nil || secondary != nil {
+            buttons(title: title, secondary: secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func buttons(title: String?, secondary: ScorecardSecondaryPick?, expands: Bool? = nil) -> some View {
+        let wide = expands ?? self.expands
+        if let title {
+            ScorecardFilledButton(title: title, fontSize: fontSize, minHeight: minHeight,
+                                  expands: wide) { content.onPick(pick) }
+                .fixedSize(horizontal: expands == false, vertical: false)
+                .accessibilityIdentifier("scorecard.cta")
+        }
+        if let secondary {
+            Button { content.onSecondary(secondary) } label: {
+                Text(secondary.title)
+                    .font(CardInk.mono(10)).tracking(0.8)
+                    .foregroundStyle(CardInk.ink)
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: wide ? .infinity : nil, minHeight: minHeight)
+                    .overlay(Rectangle().strokeBorder(CardInk.ink, lineWidth: CardInk.border))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .fixedSize(horizontal: expands == false, vertical: false)
+            .accessibilityLabel(secondary.accessibilityLabel)
+            .accessibilityIdentifier("scorecard.secondary")
         }
     }
 }
