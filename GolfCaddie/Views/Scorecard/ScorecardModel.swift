@@ -80,6 +80,12 @@ struct ScorecardModel: Equatable {
     var playedCount: Int { columns.filter { !$0.isNotPlayed }.count }
     var notPlayedHoles: [Int] { columns.filter(\.isNotPlayed).map(\.number) }
     var firCount: Int { columns.filter { $0.teeShot == .fairway }.count }
+    /// Fairways hit / tee shots answered; nil before any answer.
+    var firHits: Int? { firAnswered == nil ? nil : firCount }
+    var firAnswered: Int? {
+        let n = columns.filter { $0.teeShot != nil }.count
+        return n == 0 ? nil : n
+    }
 
     /// Hole numbers the scorecard shows ADD for.
     var holesNeedingEntry: [Int] { columns.filter(\.needsEntry).map(\.number) }

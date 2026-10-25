@@ -5,6 +5,63 @@ struct ScorecardSnapshot: Equatable {
     let model: ScorecardModel
     /// The curated course's name, when the round is linked to one.
     let courseName: String?
+    /// AT THIS COURSE: your best earlier rounds here (`CourseHistory`).
+    var history: [CourseHistoryRow] = []
+}
+
+/// One earlier round at the same course, as AT THIS COURSE lists it.
+struct CourseHistoryRow: Identifiable, Equatable {
+    let round: Round
+    /// "OCT 05".
+    let dateText: String
+    let score: Int
+    /// "+12", "E"; nil without par.
+    let toParText: String?
+    let holesScored: Int
+
+    var id: UUID { round.id }
+    var isComplete: Bool { holesScored >= HoleScoring.holeRange.count }
+
+    /// "COMPLETE · TRACKED" / "NOT COMPLETE · 14 HOLES".
+    var note: String {
+        guard isComplete else { return "NOT COMPLETE · \(holesScored) \(holesScored == 1 ? "HOLE" : "HOLES")" }
+        switch round.mode {
+        case .some(.tracking): return "COMPLETE · TRACKED"
+        case .some(.casual): return "COMPLETE · CASUAL"
+        case .none: return "COMPLETE"
+        }
+    }
+
+    var accessibilityLabel: String {
+        "Open the \(dateText.lowercased()) round, \(score)" + (toParText.map { ", \($0)" } ?? "")
+            + (isComplete ? "" : ", not complete, \(holesScored) holes")
+    }
+}
+
+/// AT THIS COURSE (Round-Open-History): your 3 best earlier rounds at the
+/// round's course, complete rounds first (lowest score), then incomplete ones
+/// (most holes) labelled NOT COMPLETE. Pure.
+enum CourseHistory {
+    static let limit = 3
+
+    /// Same curated course when both are linked, else the same course name.
+    static func isSameCourse(_ a: Round, _ b: Round) -> Bool {
+        if let x = a.curatedCourseId, let y = b.curatedCourseId { return x == y }
+        let name = { (r: Round) in r.courseName?.trimmingCharacters(in: .whitespaces).lowercased() ?? "" }
+        return !name(a).isEmpty && name(a) == name(b)
+    }
+
+    static func rows(for round: Round, entries: [HomeRoundEntry]) -> [CourseHistoryRow] {
+        let rows = entries
+            .filter { $0.round.id != round.id && $0.round.endedAt != nil && isSameCourse($0.round, round) }
+            .filter { !$0.cells.isEmpty }
+            .map { CourseHistoryRow(round: $0.round, dateText: $0.dateText, score: $0.score,
+                                    toParText: $0.deltaText, holesScored: $0.cells.count) }
+        let complete = rows.filter(\.isComplete).sorted { ($0.score, $0.round.startedAt) < ($1.score, $1.round.startedAt) }
+        let partial = rows.filter { !$0.isComplete }
+            .sorted { $0.holesScored != $1.holesScored ? $0.holesScored > $1.holesScored : $0.score < $1.score }
+        return Array((complete + partial).prefix(limit))
+    }
 }
 
 /// Loads a round's card and saves hand-entered scores. The only database
@@ -25,7 +82,14 @@ enum ScorecardLoader {
             holes: inputs, course: course,
             localAnchors: Dictionary(anchors.map { ($0.holeNumber, $0) }, uniquingKeysWith: { a, _ in a }),
             startingHole: round.startingHole)
-        return ScorecardSnapshot(model: model, courseName: course?.name)
+        return ScorecardSnapshot(model: model, courseName: course?.name, history: history(for: round))
+    }
+
+    /// Earlier rounds at this round's course, scored like Home's entries.
+    static func history(for round: Round) -> [CourseHistoryRow] {
+        let others = ((try? RoundRepository.allRounds()) ?? [])
+            .filter { $0.id != round.id && $0.endedAt != nil && CourseHistory.isSameCourse($0, round) }
+        return CourseHistory.rows(for: round, entries: others.compactMap { try? HomeData.entry(for: $0) })
     }
 
     /// Writes the draft through `HoleSession`, so the live hole (if it is the
