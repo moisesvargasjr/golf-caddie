@@ -179,7 +179,7 @@ struct HomeStartPanel: View {
             }
             .foregroundStyle(palette.paper)
             .frame(maxWidth: .infinity, minHeight: 64)
-            .background(palette.ink)
+            .background(palette.ink, ignoresSafeAreaEdges: [])
             .compositingGroup()
             .shadow(color: palette.cardShadow.color, radius: 0, x: 3, y: 3)
             .contentShape(Rectangle())
