@@ -31,12 +31,21 @@ enum FinishedRoundActions {
         try RoundRepository.delete(round)
     }
 
-    /// Share round: a one-line summary plus the logbook's `.sqlite` snapshot
-    /// (the same export as Settings → Export Rounds).
+    /// Share round: the card as an image for a post or a message, plus a
+    /// one-line summary. Never the logbook's database — that backup lives in
+    /// Settings → Export Rounds and holds every round's GPS.
     static func shareItems(for round: Round) throws -> [Any] {
-        let url = try Database.makeExport()
         let text = ReviewText.shareText(courseName: round.courseName, roundText: roundText(for: round))
-        return [text, url]
+        guard let summary = RoundShareSummary.make(round: round),
+              let image = RoundShareCard.renderPNG(summary) else {
+            throw ShareError.couldNotDrawCard
+        }
+        return [image, text]
+    }
+
+    enum ShareError: LocalizedError {
+        case couldNotDrawCard
+        var errorDescription: String? { "The card image couldn't be drawn." }
     }
 
     /// "OCT 23 · 79 (+7)" from the round's card.

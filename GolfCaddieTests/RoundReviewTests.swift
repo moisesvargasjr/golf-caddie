@@ -1,4 +1,5 @@
 import GRDB
+import UIKit
 import XCTest
 @testable import GolfCaddie
 
@@ -290,5 +291,62 @@ final class FinishedRoundCourseTests: XCTestCase {
         XCTAssertEqual(pars, [4, 5], "hole 1 was A's auto-filled par 3; hole 2's 5 was typed by hand")
         XCTAssertEqual(try HoleRepository.holesForRound(round.id).first { $0.id == one.id }?.par, 4)
         XCTAssertEqual(try HoleRepository.holesForRound(round.id).first { $0.id == two.id }?.par, 5)
+    }
+
+    // MARK: - Share round: the card image
+
+    private func shareModel(scores: [Int?], notPlayed: Set<Int> = []) -> ScorecardModel {
+        let pars = [4, 5, 3, 4, 4, 3, 4, 4, 5, 4, 3, 5, 4, 4, 3, 4, 5, 4]
+        let tees: [TeeShotResult?] = [.fairway, .left, nil, .fairway, .right, nil, .fairway, .short, .fairway,
+                                      .fairway, nil, .left, .fairway, .fairway, nil, .right, .fairway, .fairway]
+        let columns = (1...18).map { n -> ScorecardColumn in
+            let score = notPlayed.contains(n) ? nil : scores[n - 1]
+            return ScorecardColumn(number: n, yards: nil, par: pars[n - 1], strokeIndex: nil, score: score,
+                                   putts: score.map { _ in n % 4 == 0 ? 1 : 2 }, gir: score.map { $0 <= pars[n - 1] },
+                                   penalties: nil, story: nil, holeID: nil, isConfirmed: score != nil,
+                                   teeShot: score == nil || pars[n - 1] == 3 ? nil : tees[n - 1],
+                                   isNotPlayed: notPlayed.contains(n))
+        }
+        return ScorecardModel(columns: columns, hasStrokeIndex: false)
+    }
+
+    func testShareSummaryLinesAndStats() {
+        let full = RoundShareSummary(courseName: "Native Oaks", dateText: "SAT · OCT 23 · 2026", playerName: "Moises",
+                                     model: shareModel(scores: [5, 5, 3, 5, 4, 4, 5, 4, 6, 5, 3, 6, 5, 5, 2, 4, 6, 5]),
+                                     isTracked: true)
+        XCTAssertEqual(full.score, 82)
+        XCTAssertEqual(full.toParText, "+10")
+        XCTAssertEqual(full.holesLine, "18 HOLES · TRACKED")
+        XCTAssertEqual(full.stats.map(\.title), ["PUTTS", "GIR", "FIR"])
+        let short = RoundShareSummary(courseName: "Native Oaks", dateText: "", playerName: nil,
+                                      model: shareModel(scores: Array(repeating: 4, count: 18), notPlayed: [15, 16, 17, 18]),
+                                      isTracked: false)
+        XCTAssertEqual(short.holesLine, "14 OF 18 HOLES · CASUAL")
+    }
+
+    /// Renders the card at 1080 × 1350 and attaches it (the tour exports
+    /// attachments; this is the image Share round posts).
+    func testShareCardRendersAtFeedSize() throws {
+        let samples = [
+            ("share-card-full", RoundShareSummary(courseName: "Native Oaks", dateText: "SAT · OCT 23 · 2026",
+                                                  playerName: "Moises",
+                                                  model: shareModel(scores: [5, 5, 3, 5, 4, 4, 5, 4, 6, 5, 3, 6, 5, 5, 2, 4, 6, 5]),
+                                                  isTracked: true)),
+            ("share-card-short", RoundShareSummary(courseName: "The Vineyard at Escondido", dateText: "SUN · OCT 19 · 2026",
+                                                   playerName: nil,
+                                                   model: shareModel(scores: [4, 6, 2, 5, 4, 3, 5, 5, 5, 4, 3, 6, 4, 5, 3, 4, 5, 4],
+                                                                     notPlayed: [15, 16, 17, 18]),
+                                                   isTracked: false)),
+        ]
+        for (name, summary) in samples {
+            let url = try XCTUnwrap(RoundShareCard.renderPNG(summary))
+            let image = try XCTUnwrap(UIImage(contentsOfFile: url.path))
+            XCTAssertEqual(image.size.width * image.scale, 1080)
+            XCTAssertEqual(image.size.height * image.scale, 1350)
+            let attachment = XCTAttachment(image: image)
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
     }
 }
