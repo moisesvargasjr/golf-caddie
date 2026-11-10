@@ -81,6 +81,8 @@ struct RoundMapScreen: View {
     @State var roundScoreText: String?
     @State var roundToPar: String?
     @State var isMarking = false
+    /// Shot preview on the live hole: the tapped spot (cleared on a new hole).
+    @State var planAim: CLLocationCoordinate2D?
     /// Bumped every few seconds so the yardage re-reads the latest fix.
     @State var fixTick = 0
 
@@ -126,6 +128,7 @@ struct RoundMapScreen: View {
         .onAppear(perform: setUp)
         .onDisappear { session?.close() }
         .onChange(of: sessionKey) { _, _ in syncSession() }
+        .onChange(of: holeNumber) { _, _ in planAim = nil }
         .onChange(of: curatedCourseId) { _, _ in courseLinkChanged() }
         // Any writer (this screen, the card, the watch): totals and the hole
         // on screen re-read. The first value arrives on subscribe.
@@ -172,14 +175,28 @@ struct RoundMapScreen: View {
             courseHoles: course?.content.outlines ?? [],
             unobstructedRect: ChromeFrames.unobstructedRect(display: display, frames: chromeBook.frames,
                                                             mapFrame: mapFrame, safeRect: safeRect),
+            plan: livePlan,
             onMoveShot: { id, coordinate in moveShot(id, to: coordinate) },
             onLongPress: { coordinate in holdToAdd(at: coordinate) },
             onSelectShot: { id in toggleSelection(id) },
             onTapMap: { autoHide?.tapMap() },
+            onPlanAim: { aim in
+                planAim = aim
+                autoHide?.noteInteraction()
+            },
             onSelectHole: { number in openCourseHole(number) },
             onDragChanged: { dragging in isDragging = dragging }
         )
         .accessibilityIdentifier(InRoundAccessibilityID.map)
+    }
+
+    /// The live hole plans from you (once you're on the hole) through the
+    /// tapped spot to the green. With the controls hidden a tap only brings
+    /// them back, as before.
+    private var livePlan: HoleMapPlan? {
+        guard mapMode == .live else { return nil }
+        return HoleMapPlan(aim: planAim, followsUser: true,
+                           tapsPlaceAim: autoHide?.controlsVisible ?? true, units: units)
     }
 
     static func clubLabels(for shots: [Shot]) -> [UUID: String] {
