@@ -115,10 +115,16 @@ final class RoundMapRulesTests: XCTestCase {
     }
 
     func testGridPick() {
-        XCTAssertEqual(HoleNavigation.gridPick(8, live: 8, isFinished: true, isBeforeStart: false), .live)
-        XCTAssertEqual(HoleNavigation.gridPick(3, live: 8, isFinished: true, isBeforeStart: false), .view(3))
-        XCTAssertEqual(HoleNavigation.gridPick(2, live: 8, isFinished: false, isBeforeStart: true), .view(2))
-        XCTAssertEqual(HoleNavigation.gridPick(12, live: 8, isFinished: false, isBeforeStart: false), .skipAhead)
+        XCTAssertEqual(HoleNavigation.gridPick(8, live: 8, isFinished: true), .live)
+        XCTAssertEqual(HoleNavigation.gridPick(3, live: 8, isFinished: true), .view(3))
+        XCTAssertEqual(HoleNavigation.gridPick(12, live: 8, isFinished: false), .jump(12))
+        XCTAssertEqual(HoleNavigation.gridPick(4, live: nil, isFinished: false), .view(4))
+    }
+
+    func testGridPickPlaysAnyUnscoredHoleLiveEvenBelowTheStart() {
+        // Shotgun start on 17: hole 1 and hole 3 are playable, not "before the start".
+        XCTAssertEqual(HoleNavigation.gridPick(1, live: 18, isFinished: false), .jump(1))
+        XCTAssertEqual(HoleNavigation.gridPick(3, live: 1, isFinished: false), .jump(3))
     }
 
     // MARK: One-time tip

@@ -197,6 +197,19 @@ final class HoleSessionTests: XCTestCase {
         XCTAssertEqual(session.score, 6, "putts on a hand-scored hole don't change its strokes")
     }
 
+    func testHoleBelowTheStartIsntLateOnceTheRoundWrapped() throws {
+        var round = try TestDatabase.seedRound()
+        round.startingHole = 17
+        try RoundRepository.update(round)
+        try HoleRepository.insert(Hole(id: UUID(), roundID: round.id, holeNumber: 17, par: 4, confirmedAt: Date()))
+        XCTAssertTrue(HoleSession(roundID: round.id, holeNumber: 2, live: nil).needsEntry, "before the wrap: late-start ADD")
+        // The live round reached hole 1 (18 → 1).
+        try HoleRepository.insert(Hole(id: UUID(), roundID: round.id, holeNumber: 1, par: 4, confirmedAt: nil))
+        let session = HoleSession(roundID: round.id, holeNumber: 2, live: nil)
+        XCTAssertFalse(session.needsEntry)
+        XCTAssertNil(session.lateStart)
+    }
+
     func testTrackedPuttsOnAPastHole() throws {
         let round = try TestDatabase.seedRound()
         let (hole, _) = try seedPlayedHole(1, roundID: round.id)
