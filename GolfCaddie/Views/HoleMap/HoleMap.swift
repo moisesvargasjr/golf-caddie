@@ -41,6 +41,8 @@ struct HoleMap: UIViewRepresentable {
     var courseHoles: [CourseHoleOutline] = []
     /// Free area for framing, in the map's own coordinates; nil = the whole map.
     var unobstructedRect: CGRect?
+    /// Draw the hole's plan: tee → green as a thin line (course preview).
+    var showsPlanLine = false
     var snapper: HoleMapShotSnapper = .live
 
     var onMoveShot: (UUID, CLLocationCoordinate2D) -> Void = { _, _ in }
