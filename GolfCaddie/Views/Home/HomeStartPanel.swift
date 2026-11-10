@@ -10,6 +10,8 @@ struct HomeStartPanel: View {
     let clubsText: String
     let beginSubtitle: String
     let onCourse: () -> Void
+    /// PREVIEW beside the course: look through its holes (nil = no course picked).
+    var onPreview: (() -> Void)? = nil
     let onClubs: () -> Void
     let onBegin: () -> Void
 
@@ -27,11 +29,11 @@ struct HomeStartPanel: View {
                 modePicker
                 if style == .open {
                     HStack(spacing: 8) {
-                        courseRow(minHeight: 48, labelSize: 9, valueSize: 14)
+                        courseWithPreview(minHeight: 48, labelSize: 9, valueSize: 14)
                         holeStepper(label: "START ON", minHeight: 48)
                     }
                 } else {
-                    courseRow(minHeight: SafeChrome.minTapTarget, labelSize: 10, valueSize: 15)
+                    courseWithPreview(minHeight: SafeChrome.minTapTarget, labelSize: 10, valueSize: 15)
                     HStack(spacing: 8) {
                         holeStepper(label: "HOLE", minHeight: SafeChrome.minTapTarget)
                         clubsCell
@@ -78,6 +80,25 @@ struct HomeStartPanel: View {
     }
 
     // MARK: Course, hole, clubs
+
+    private func courseWithPreview(minHeight: CGFloat, labelSize: CGFloat, valueSize: CGFloat) -> some View {
+        HStack(spacing: 6) {
+            courseRow(minHeight: minHeight, labelSize: labelSize, valueSize: valueSize)
+            if let onPreview {
+                Button(action: onPreview) {
+                    HomeMonoLabel(text: "PREVIEW", size: labelSize)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: minHeight)
+                        .overlay(Rectangle().stroke(palette.ruleStrong, lineWidth: 1.5))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Preview the course")
+                .accessibilityHint("Look through its holes without starting a round")
+                .accessibilityIdentifier(HomeID.previewCourse)
+            }
+        }
+    }
 
     private func courseRow(minHeight: CGFloat, labelSize: CGFloat, valueSize: CGFloat) -> some View {
         Button(action: onCourse) {

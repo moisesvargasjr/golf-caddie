@@ -61,6 +61,7 @@ enum HomeID {
     static let modeTracking = "home.start.tracking"
     static let modeCasual = "home.start.casual"
     static let course = "home.start.course"
+    static let previewCourse = "home.start.previewCourse"
     static let holeDown = "home.start.holeDown"
     static let holeUp = "home.start.holeUp"
     static let startingHole = "home.start.hole"

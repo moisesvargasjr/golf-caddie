@@ -22,6 +22,8 @@ struct HomeActions {
     /// Edit the bag itself (Bag Setup).
     let editBag: () -> Void
     let pickCourse: () -> Void
+    /// Course preview of the picked course; nil until one is picked.
+    var previewCourse: (() -> Void)? = nil
     let begin: () -> Void
     /// Reload after a round is deleted from its review.
     let refresh: () -> Void

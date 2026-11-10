@@ -65,6 +65,7 @@ struct HomeOpenLayout: View {
                     clubsText: content.clubsText,
                     beginSubtitle: startState.beginSubtitle(clubsInPlay: content.inPlayCount, style: .open),
                     onCourse: actions.pickCourse,
+                    onPreview: actions.previewCourse,
                     onClubs: actions.openBag,
                     onBegin: actions.begin
                 )

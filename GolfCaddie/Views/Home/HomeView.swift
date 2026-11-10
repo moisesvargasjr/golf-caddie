@@ -36,6 +36,7 @@ struct HomeView: View {
     @State private var showClubsInPlay = false
     @State private var showBagEditor = false
     @State private var showCoursePicker = false
+    @State private var coursePreview: CoursePreviewRoute?
     #if DEBUG
     @State private var debugShowLogbook = false
     @State private var debugShowSettings = false
@@ -98,6 +99,9 @@ struct HomeView: View {
             openDebugScreenIfRequested()
         }
         .task { await pollWatchStatus() }
+        .navigationDestination(item: $coursePreview) { route in
+            CoursePreviewScreen(course: route.course, holes: route.holes, initialHole: route.initialHole)
+        }
         #if DEBUG
         .navigationDestination(isPresented: $debugShowLogbook) { RoundListView(bag: bag) }
         .navigationDestination(isPresented: $debugShowSettings) { SettingsView(bag: $bag) }
@@ -125,6 +129,19 @@ struct HomeView: View {
         debugReviewHole = HoleScoring.holeRange.contains(requested)
             ? requested : ReviewNavigation.firstHole(startingHole: round.startingHole)
         debugRound = round
+    }
+
+    /// `-DebugOpen course-preview [-DebugCourse id] [-DebugReviewHole N]`:
+    /// that course's preview (default: the first course with anchors).
+    private func openDebugCoursePreview() {
+        let wanted = UserDefaults.standard.string(forKey: "DebugCourse")
+        guard let course = courses.first(where: { $0.id == wanted })
+            ?? courses.first(where: { $0.holes.contains { $0.greenAnchor != nil } }) else { return }
+        startState = startState.with(courseId: course.id)
+        let local = (try? LocalAnchorRepository.anchorsForCourse(course.id)) ?? []
+        let hole = UserDefaults.standard.integer(forKey: "DebugReviewHole")
+        coursePreview = CoursePreviewRoute(course: course, holes: CoursePreview.holes(course: course, local: local),
+                                           initialHole: hole > 0 ? hole : nil)
     }
 
     /// `-DebugOpen course-map [-DebugReviewHole N]`: a finished round with
@@ -159,9 +176,23 @@ struct HomeView: View {
             openBag: openBag,
             editBag: { showBagEditor = true },
             pickCourse: { showCoursePicker = true },
+            previewCourse: previewCourseAction,
             begin: begin,
             refresh: refresh
         )
+    }
+
+    /// PREVIEW: the picked course's holes, read now (sync GRDB, so in the
+    /// tap, never a `.task`). nil hides the button.
+    private var previewCourseAction: (() -> Void)? {
+        guard let id = startState.curatedCourseId, let course = courses.first(where: { $0.id == id }) else {
+            return nil
+        }
+        return {
+            let local = (try? LocalAnchorRepository.anchorsForCourse(id)) ?? []
+            coursePreview = CoursePreviewRoute(course: course,
+                                               holes: CoursePreview.holes(course: course, local: local))
+        }
     }
 
     private func openBag() {
@@ -249,6 +280,7 @@ struct HomeView: View {
         case "roundcard": debugRound = DebugScorecardSeed.finishedRound()
         case "review-round": openDebugReview()
         case "course-map": openDebugCourseMap()
+        case "course-preview": openDebugCoursePreview()
         default: break
         }
         #endif
