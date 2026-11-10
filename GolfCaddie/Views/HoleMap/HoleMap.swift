@@ -41,14 +41,17 @@ struct HoleMap: UIViewRepresentable {
     var courseHoles: [CourseHoleOutline] = []
     /// Free area for framing, in the map's own coordinates; nil = the whole map.
     var unobstructedRect: CGRect?
-    /// Draw the hole's plan: tee → green as a thin line (course preview).
-    var showsPlanLine = false
+    /// Shot preview: start → (tapped spot) → green with each leg's distance;
+    /// nil = none. A tap on the map then reports the new spot (`onPlanAim`).
+    var plan: HoleMapPlan?
     var snapper: HoleMapShotSnapper = .live
 
     var onMoveShot: (UUID, CLLocationCoordinate2D) -> Void = { _, _ in }
     var onLongPress: (CLLocationCoordinate2D) -> Void = { _ in }
     var onSelectShot: (UUID) -> Void = { _ in }
     var onTapMap: () -> Void = {}
+    /// The shot preview's spot moved (nil: tapped on the spot, cleared).
+    var onPlanAim: (CLLocationCoordinate2D?) -> Void = { _ in }
     var onSelectHole: (Int) -> Void = { _ in }
     var onDragChanged: (Bool) -> Void = { _ in }
 
