@@ -261,14 +261,75 @@ extension HandScoreAndPenaltyTests {
 
     // MARK: - Not played
 
-    func testRemainingUnscoredFollowsPlayOrder() {
-        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 15, startingHole: 1, scored: Set(1...14)), [15, 16, 17, 18])
-        // Started on 10: after 18 comes 1 … 9.
-        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 7, startingHole: 10, scored: Set(10...18).union(1...6)),
-                       [7, 8, 9])
-        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 18, startingHole: nil, scored: Set(1...17)), [18])
+    func testRemainingUnscoredIsEveryUnscoredHoleFromTheLateStart() {
+        XCTAssertEqual(HoleScoring.remainingUnscored(lateStart: 1, scored: Set(1...14)), [15, 16, 17, 18])
+        // Started on 10 and wrapped onto the front: no late-start holes left.
+        XCTAssertEqual(HoleScoring.remainingUnscored(lateStart: nil, scored: Set(10...18).union(1...6)), [7, 8, 9])
+        XCTAssertEqual(HoleScoring.remainingUnscored(lateStart: nil, scored: Set(1...17)), [18])
         // A late start's earlier holes are ADD, not "remaining".
-        XCTAssertEqual(HoleScoring.remainingUnscored(liveHole: 16, startingHole: 4, scored: Set(4...15)), [16, 17, 18])
+        XCTAssertEqual(HoleScoring.remainingUnscored(lateStart: 4, scored: Set(4...15)), [16, 17, 18])
+        // Holes hopped over are remaining too, not only the ones after the live hole.
+        XCTAssertEqual(HoleScoring.remainingUnscored(lateStart: 1, scored: [1, 2, 5, 9]),
+                       [3, 4, 6, 7, 8] + Array(10...18))
+    }
+
+    // MARK: - Any hole order (shotgun starts, hopping)
+
+    func testLateStartLastsUntilTheRoundPlaysAHoleBelowIt() {
+        func row(_ n: Int, _ source: HoleScoreSource? = nil) -> Hole {
+            Hole(id: UUID(), roundID: UUID(), holeNumber: n, par: 4, confirmedAt: nil, scoreSource: source)
+        }
+        XCTAssertNil(HoleScoring.lateStart(startingHole: nil, holes: []))
+        XCTAssertEqual(HoleScoring.lateStart(startingHole: 17, holes: [row(17), row(18)]), 17)
+        // Hand ADDs and holes marked not played aren't the round reaching them.
+        XCTAssertEqual(HoleScoring.lateStart(startingHole: 17, holes: [row(17), row(3, .hand), row(4, .notPlayed)]), 17)
+        // Live on hole 1 after 18 (a wrap), or hopped onto 3: the front isn't "before the start" any more.
+        XCTAssertNil(HoleScoring.lateStart(startingHole: 17, holes: [row(17), row(18), row(1)]))
+        XCTAssertNil(HoleScoring.lateStart(startingHole: 17, holes: [row(17), row(3)]))
+    }
+
+    func testFinishMovesToTheNextUnfinishedHoleWrapping() {
+        XCTAssertEqual(HoleScoring.nextAfterFinish(current: 4, finished: [1, 2, 3, 4]), 5)
+        XCTAssertEqual(HoleScoring.nextAfterFinish(current: 18, finished: [17, 18]), 1)
+        // Already played 1 and 3 on a hop round: 18 → 2.
+        XCTAssertEqual(HoleScoring.nextAfterFinish(current: 18, finished: [17, 18, 1, 3]), 2)
+        XCTAssertEqual(HoleScoring.nextAfterFinish(current: 5, finished: [5, 6, 7]), 8)
+        // Every hole done: plain wrap.
+        XCTAssertEqual(HoleScoring.nextAfterFinish(current: 18, finished: Set(1...18)), 1)
+    }
+
+    func testShotgunStartOn17PlaysTheFrontLiveAndTracked() throws {
+        let controller = RoundController(location: LocationManager())
+        try controller.startRound(startingHole: 17, mode: .tracking)
+        let round = try XCTUnwrap(controller.currentRound)
+        try controller.confirmHoleAndAdvance(par: 4)
+        XCTAssertEqual(controller.currentHole?.holeNumber, 18)
+        try controller.confirmHoleAndAdvance(par: 4)
+        XCTAssertEqual(controller.currentHole?.holeNumber, 1, "18 wraps to 1")
+        try controller.confirmHoleAndAdvance(par: 4)
+        controller.goToHole(5) // hop over 2–4
+        try controller.confirmHoleAndAdvance(par: 3)
+        XCTAssertEqual(controller.currentHole?.holeNumber, 6)
+        controller.goToHole(2) // back to one hopped over
+        try controller.confirmHoleAndAdvance(par: 4)
+        XCTAssertEqual(controller.currentHole?.holeNumber, 3, "2 → 3, the next unfinished")
+
+        let holes = try HoleRepository.holesForRound(round.id)
+        XCTAssertNil(HoleScoring.lateStart(startingHole: round.startingHole, holes: holes))
+        XCTAssertFalse(HoleScoring.needsEntry(holeNumber: 4, startingHole: HoleScoring.lateStart(
+            startingHole: round.startingHole, holes: holes), hole: nil, hasTrackedData: false),
+                       "a hopped-over front-nine hole isn't a late-start ADD")
+    }
+
+    func testScorecardDropsLateStartAddOnceTheRoundWraps() {
+        let roundID = UUID()
+        let model = ScorecardModel.build(holes: [
+            trackedInput(17, roundID: roundID, strokes: 4, putts: 2),
+            trackedInput(18, roundID: roundID, strokes: 5, putts: 2),
+            trackedInput(1, roundID: roundID, strokes: 4, putts: 1),
+            trackedInput(3, roundID: roundID, strokes: 3, putts: 1),
+        ], course: nil, startingHole: 17)
+        XCTAssertEqual(model.holesNeedingEntry, [], "the round reached the front: nothing is a late-start ADD")
     }
 
     func testEndRoundMarksTheRemainingHolesNotPlayed() throws {

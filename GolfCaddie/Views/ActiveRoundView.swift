@@ -173,14 +173,15 @@ struct ActiveRoundView: View {
     private func pickFromGrid(_ number: Int, round: Round) {
         let row = controller.holesForCurrentRound().first { $0.holeNumber == number }
         let finished = row.map { $0.confirmedAt != nil || $0.isHandScored } ?? false
-        let beforeStart = round.startingHole.map { number < $0 } ?? false
-        switch HoleNavigation.gridPick(number, live: controller.currentHole?.holeNumber,
-                                       isFinished: finished, isBeforeStart: beforeStart) {
+        switch HoleNavigation.gridPick(number, live: controller.currentHole?.holeNumber, isFinished: finished) {
         case let .view(hole): viewedHole = hole
         case .live: viewedHole = nil
         case .skipAhead:
             viewedHole = nil
-            controller.goToHole(number)
+            controller.stepHole(by: 1)
+        case let .jump(hole):
+            viewedHole = nil
+            controller.goToHole(hole)
         }
     }
 
@@ -259,10 +260,9 @@ struct ActiveRoundView: View {
         var started = Set(scored.keys)
         // The live hole with shots on it was played, just not finished.
         if let live = controller.currentHole, !controller.currentHoleShots.isEmpty { started.insert(live.holeNumber) }
-        let remaining = controller.currentHole.map {
-            HoleScoring.remainingUnscored(liveHole: $0.holeNumber, startingHole: round?.startingHole,
-                                          scored: started)
-        } ?? []
+        let lateStart = HoleScoring.lateStart(startingHole: round?.startingHole, holes: holes)
+        let remaining = controller.currentHole == nil ? []
+            : HoleScoring.remainingUnscored(lateStart: lateStart, scored: started)
         return EndRoundSummary(courseName: round?.courseName, scored: scored.mapValues(\.score),
                                pars: scored.compactMapValues(\.par), remaining: remaining)
     }

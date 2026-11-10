@@ -71,6 +71,9 @@ enum HoleNavigation {
         /// From the live hole, › moves the live hole on without finishing it
         /// (the old arrows' skip-ahead; the hole stays open to come back to).
         case skipAhead
+        /// Make this hole the live one (a hole picked on the grid): any hole
+        /// with no score can be played next, in any order.
+        case jump(Int)
     }
 
     static let holes = HoleScoring.holeRange
@@ -92,13 +95,14 @@ enum HoleNavigation {
         return target == live ? .live : .view(target)
     }
 
-    /// A hole picked on the grid: finished, hand-scored or before-the-start
-    /// holes open for review/entry; anything else becomes the live hole.
-    static func gridPick(_ number: Int, live: Int?, isFinished: Bool,
-                         isBeforeStart: Bool) -> Step {
+    /// A hole picked on the grid: a finished or hand-scored hole opens for
+    /// review; any other hole becomes the live, tracked hole — whatever its
+    /// number, so a shotgun start or a lit-holes event can hop around. (A
+    /// late-start hole's score is still ADDed from the card or ‹.)
+    static func gridPick(_ number: Int, live: Int?, isFinished: Bool) -> Step {
         if number == live { return .live }
-        if isFinished || isBeforeStart || live == nil { return .view(number) }
-        return .skipAhead
+        if isFinished || live == nil { return .view(number) }
+        return .jump(number)
     }
 }
 

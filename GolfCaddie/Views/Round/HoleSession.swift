@@ -32,6 +32,9 @@ final class HoleSession {
     private(set) var trail: [TracePoint] = []
     /// The round's starting hole (nil for pre-v10 rounds).
     private(set) var startingHole: Int? = nil
+    /// `startingHole` while it still marks late-start holes; nil once the
+    /// round has wrapped or hopped below it (`HoleScoring.lateStart`).
+    private(set) var lateStart: Int? = nil
 
     private let live: LiveHoleEditing?
     private let store: HoleStore
@@ -99,7 +102,7 @@ final class HoleSession {
     var gir: Bool? { hole?.girOverride ?? autoGir }
 
     var needsEntry: Bool {
-        HoleScoring.needsEntry(holeNumber: holeNumber, startingHole: startingHole, hole: hole,
+        HoleScoring.needsEntry(holeNumber: holeNumber, startingHole: lateStart, hole: hole,
                                hasTrackedData: !shots.isEmpty || !penalties.isEmpty)
     }
 
@@ -122,6 +125,8 @@ final class HoleSession {
     /// Re-read the hole, its shots, penalties and trail from the store.
     func reload() {
         startingHole = (try? store.round(id: roundID))?.startingHole
+        lateStart = HoleScoring.lateStart(startingHole: startingHole,
+                                          holes: (try? store.holes(roundID: roundID)) ?? [])
         storedHole = try? store.hole(roundID: roundID, number: holeNumber)
         guard let id = storedHole?.id else {
             storedShots = []
