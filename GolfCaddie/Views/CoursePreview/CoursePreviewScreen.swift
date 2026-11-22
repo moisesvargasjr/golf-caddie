@@ -1,14 +1,21 @@
+import CoreLocation
 import SwiftUI
 
 /// Look through a course's holes without starting a round (Home → PREVIEW).
 /// The same `HoleMap` the round uses: the whole course with a badge per hole,
 /// tap a hole (or its chip) to glide in — tee → green, par, length, SI — and
-/// ‹ › to page through the holes. COURSE glides back out. Read-only: no
-/// round, no rows, nothing saved.
+/// ‹ › to page through the holes. COURSE glides back out. On a hole, tap the
+/// map to plan a shot: the line bends at that spot with both distances (tap
+/// the spot again to clear it). Read-only: no round, no rows, nothing saved.
 struct CoursePreviewScreen: View {
     let course: CuratedCourse
     let holes: [CoursePreviewHole]
     var initialHole: Int? = nil
+    /// In a round (the hole grid): the holes that can be played next. A hole
+    /// in it shows PLAY HOLE n › in place of COURSE MAP; nil = Home's preview.
+    var playable: Set<Int>? = nil
+    var onPlay: (Int) -> Void = { _ in }
+    var closeTitle = "‹ HOME"
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
@@ -16,6 +23,8 @@ struct CoursePreviewScreen: View {
     @State private var mapController = HoleMapController()
     /// nil = the whole course.
     @State private var viewedHole: Int?
+    /// The shot preview's spot on the hole on screen.
+    @State private var aim: CLLocationCoordinate2D?
     @State private var topHeight: CGFloat = 0
     @State private var bottomHeight: CGFloat = 0
 
@@ -47,6 +56,9 @@ struct CoursePreviewScreen: View {
             guard viewedHole == nil, let initialHole, holes.contains(where: { $0.number == initialHole }) else { return }
             mapController.selectHole(initialHole, animated: false)
             viewedHole = initialHole
+            #if DEBUG
+            aim = Self.debugAim(holes.first { $0.number == initialHole })
+            #endif
         }
     }
 
@@ -68,7 +80,8 @@ struct CoursePreviewScreen: View {
             green: onCourse ? nil : hole?.green?.coordinate,
             courseHoles: CoursePreview.outlines(holes),
             unobstructedRect: free.height > 40 ? free : nil,
-            showsPlanLine: true,
+            plan: HoleMapPlan(aim: aim, units: units),
+            onPlanAim: { aim = $0 },
             onSelectHole: open
         )
         .accessibilityIdentifier(CoursePreviewID.map)
@@ -79,7 +92,7 @@ struct CoursePreviewScreen: View {
     private var topBar: some View {
         HStack(spacing: 0) {
             Button { dismiss() } label: {
-                Text("‹ HOME")
+                Text(closeTitle)
                     .font(RoundFont.mono(10))
                     .tracking(0.8)
                     .foregroundStyle(palette.ink)
@@ -88,7 +101,7 @@ struct CoursePreviewScreen: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Back to Home")
+            .accessibilityLabel(closeTitle == "‹ HOME" ? "Back to Home" : "Back to the round")
             .accessibilityIdentifier(CoursePreviewID.close)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -132,6 +145,9 @@ struct CoursePreviewScreen: View {
                 StampLabel(text: CoursePreview.caption(hole, units: units) + noAnchorsNote(hole), size: 9)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                StampLabel(text: planText(hole), size: 9, color: aim == nil ? nil : palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 6)
@@ -140,6 +156,34 @@ struct CoursePreviewScreen: View {
             stepButton("›", label: "Next hole", id: CoursePreviewID.next) {
                 CoursePreview.next(after: hole.number, in: holes).map(show)
             }
+            if let playable {
+                if playable.contains(hole.number) { playButton(hole.number) }
+            } else {
+                courseMapButton
+            }
+        }
+        .padding(.vertical, 6)
+        .chromeBox()
+    }
+
+    private func playButton(_ number: Int) -> some View {
+        Button { onPlay(number) } label: {
+            Text("PLAY \(number) ›")
+                .font(RoundFont.mono(11).weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(palette.paper)
+                .padding(.horizontal, 12)
+                .frame(minHeight: RoundChromeMetrics.minTap)
+                .background(palette.ink)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 6)
+        .accessibilityLabel("Play hole \(number)")
+        .accessibilityIdentifier(CoursePreviewID.play)
+    }
+
+    private var courseMapButton: some View {
             Button(action: showCourse) {
                 Text(CourseMapText.courseMapButton)
                     .font(RoundFont.mono(10))
@@ -153,9 +197,17 @@ struct CoursePreviewScreen: View {
             .buttonStyle(.plain)
             .padding(.trailing, 6)
             .accessibilityIdentifier(CoursePreviewID.courseMap)
+    }
+
+    /// "TEE → SPOT 212 · SPOT → PIN 187 YD", or how to plan one.
+    private func planText(_ hole: CoursePreviewHole) -> String {
+        guard hole.green != nil else { return "NO GREEN MAPPED" }
+        guard let aim, let tee = hole.tee?.coordinate, let green = hole.green?.coordinate,
+              let summary = ShotPlan.summary(legs: ShotPlan.legs(start: tee, aim: aim, green: green),
+                                             units: units, fromYou: false) else {
+            return "TAP THE MAP TO PLAN A SHOT"
         }
-        .padding(.vertical, 6)
-        .chromeBox()
+        return summary
     }
 
     private func noAnchorsNote(_ hole: CoursePreviewHole) -> String {
@@ -215,20 +267,40 @@ struct CoursePreviewScreen: View {
         .contentShape(Rectangle())
     }
 
+    #if DEBUG
+    /// `-DebugPlanAt 0.6`: a spot 60% of the way from tee to green, nudged
+    /// 25 m right of the line (screenshots can't tap).
+    private static func debugAim(_ hole: CoursePreviewHole?) -> CLLocationCoordinate2D? {
+        let fraction = UserDefaults.standard.double(forKey: "DebugPlanAt")
+        guard fraction > 0, let tee = hole?.tee, let green = hole?.green else { return nil }
+        let lat = tee.lat + (green.lat - tee.lat) * fraction
+        let lng = tee.lng + (green.lng - tee.lng) * fraction
+        // Perpendicular, ~25 m.
+        let dLat = green.lat - tee.lat, dLng = (green.lng - tee.lng) * cos(tee.lat * .pi / 180)
+        let length = max(hypot(dLat, dLng), 1e-9)
+        let metres = 25.0 / 111_320
+        return CLLocationCoordinate2D(latitude: lat - dLng / length * metres,
+                                      longitude: lng + dLat / length * metres / cos(tee.lat * .pi / 180))
+    }
+    #endif
+
     // MARK: Moves (camera glides on the one map)
 
     /// From the course: glide in to the hole.
     private func open(_ number: Int) {
+        aim = nil
         mapController.selectHole(number)
         withAnimation(.easeInOut(duration: 0.35)) { viewedHole = number }
     }
 
     /// ‹ › between holes: the hole id changes and the map re-frames.
     private func show(_ number: Int) {
+        aim = nil
         viewedHole = number
     }
 
     private func showCourse() {
+        aim = nil
         mapController.showWholeCourse()
         withAnimation(.easeInOut(duration: 0.35)) { viewedHole = nil }
     }
@@ -242,5 +314,6 @@ enum CoursePreviewID {
     static let next = "coursePreview.next"
     static let holeTitle = "coursePreview.hole"
     static let courseMap = "coursePreview.courseMap"
+    static let play = "coursePreview.play"
     static func chip(_ number: Int) -> String { "coursePreview.chip.\(number)" }
 }

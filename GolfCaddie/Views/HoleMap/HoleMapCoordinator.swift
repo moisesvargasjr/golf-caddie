@@ -14,7 +14,8 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     var lastMode: HoleMapMode?
     var lastTrailKey: String?
     var lastShotLineKey: String?
-    var lastPlanLineKey: String?
+    var lastPlanKey: String?
+    var lastPlanUser: CLLocationCoordinate2D?
     var lastCourseKey: String?
     var lastAimUserCoord: CLLocationCoordinate2D?
     var lastAimGreen: CLLocationCoordinate2D?
@@ -354,7 +355,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
 
     /// Metres per point at the view's centre, horizontally (nil before the
     /// map can convert).
-    private func metersPerPoint(_ map: MKMapView) -> Double? {
+    func metersPerPoint(_ map: MKMapView) -> Double? {
         let size = map.bounds.size
         let step = min(100, size.width / 4)
         guard step >= 1, size.height >= 1 else { return nil }
@@ -389,6 +390,9 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
 
     @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
         guard recognizer.state == .ended else { return }
+        if let map = recognizer.view as? MKMapView, handlePlanTap(at: recognizer.location(in: map), on: map) {
+            return
+        }
         parent.onTapMap()
     }
 
@@ -459,6 +463,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
         guard parent.mode == .live else { return }
         syncAimLine(mapView)
+        syncPlan(mapView)
         guard parent.controller.isAutoFraming, draggingShotID == nil,
               let here = userLocation.location?.coordinate, CLLocationCoordinate2DIsValid(here) else { return }
         if let last = lastFrameUserCoord, Distance.meters(from: last, to: here) < Self.walkReframeMeters { return }

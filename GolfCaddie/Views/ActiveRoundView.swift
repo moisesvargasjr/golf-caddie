@@ -19,6 +19,8 @@ struct ActiveRoundView: View {
     /// The hole on screen; nil follows the live hole.
     @State private var viewedHole: Int?
     @State private var question: RoundMapQuestion?
+    /// An unplayed hole picked on the grid, previewed before it's played.
+    @State private var gridPreview: CoursePreviewRoute?
 
     var body: some View {
         Group {
@@ -109,6 +111,11 @@ struct ActiveRoundView: View {
                     onCancel: { showHoleGrid = false }
                 )
             }
+            .fullScreenCover(item: $gridPreview) { route in
+                CoursePreviewScreen(course: route.course, holes: route.holes, initialHole: route.initialHole,
+                                    playable: playableHoles(), onPlay: playFromPreview,
+                                    closeTitle: "‹ ROUND")
+            }
             .sheet(isPresented: $showClubsInPlay) {
                 ClubsInPlaySheet(
                     bag: bag,
@@ -180,9 +187,40 @@ struct ActiveRoundView: View {
             viewedHole = nil
             controller.stepHole(by: 1)
         case let .jump(hole):
-            viewedHole = nil
-            controller.goToHole(hole)
+            if let route = previewRoute(hole) {
+                gridPreview = route
+            } else {
+                viewedHole = nil
+                controller.goToHole(hole)
+            }
         }
+    }
+
+    /// The linked course's preview opened on `hole`; nil without a course or
+    /// with nothing mapped on that hole (then the grid just plays it).
+    private func previewRoute(_ hole: Int) -> CoursePreviewRoute? {
+        guard let id = controller.curatedCourseId,
+              let course = curatedCourses.first(where: { $0.id == id })
+                ?? (try? CourseDataRepository.course(byId: id)) else { return nil }
+        let local = (try? LocalAnchorRepository.anchorsForCourse(id)) ?? []
+        let holes = CoursePreview.holes(course: course, local: local)
+        guard let target = holes.first(where: { $0.number == hole }), target.green != nil else { return nil }
+        return CoursePreviewRoute(course: course, holes: holes, initialHole: hole)
+    }
+
+    /// Holes the preview may PLAY: not finished and not the live one.
+    private func playableHoles() -> Set<Int> {
+        let finished = controller.holesForCurrentRound()
+            .filter { $0.confirmedAt != nil || $0.isHandScored }
+            .map(\.holeNumber)
+        let live = controller.currentHole?.holeNumber
+        return Set(HoleScoring.holeRange).subtracting(finished).subtracting(live.map { [$0] } ?? [])
+    }
+
+    private func playFromPreview(_ hole: Int) {
+        gridPreview = nil
+        viewedHole = nil
+        controller.goToHole(hole)
     }
 
     #if DEBUG

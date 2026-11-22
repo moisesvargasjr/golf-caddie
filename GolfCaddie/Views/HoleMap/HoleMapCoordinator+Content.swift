@@ -42,12 +42,12 @@ extension HoleMapCoordinator {
 
     private func removeHoleContent(from map: MKMapView) {
         map.removeAnnotations(map.annotations.filter { $0 is HoleMapShotAnnotation || $0 is HoleMapGreenAnnotation })
-        map.removeOverlays(map.overlays.filter {
-            $0 is HoleMapShotLine || $0 is HoleMapAimLine || $0 is HoleMapPlanLine
-        })
+        map.removeOverlays(map.overlays.filter { $0 is HoleMapShotLine || $0 is HoleMapAimLine })
+        removePlan(from: map)
         MapTrailStyle.sync([], in: map, lastKey: &lastTrailKey)
         lastShotLineKey = nil
-        lastPlanLineKey = nil
+        lastPlanKey = nil
+        lastPlanUser = nil
         lastAimUserCoord = nil
         lastAimGreen = nil
     }
@@ -66,7 +66,7 @@ extension HoleMapCoordinator {
         syncGreen(map)
         syncShotLine(map)
         syncAimLine(map)
-        syncPlanLine(map)
+        syncPlan(map)
         MapTrailStyle.sync(parent.trail, in: map, lastKey: &lastTrailKey)
         syncMapKitSelection(map)
     }
@@ -144,7 +144,9 @@ extension HoleMapCoordinator {
     /// walks `walkReframeMeters` (keeps overlay churn bounded).
     func syncAimLine(_ map: MKMapView) {
         let existing = map.overlays.compactMap { $0 as? HoleMapAimLine }
-        guard parent.mode == .live, let green = parent.green, let user = userCoordinate(map) else {
+        // The shot preview's line replaces it (it starts at you on the hole).
+        guard parent.mode == .live, parent.plan == nil, let green = parent.green,
+              let user = userCoordinate(map) else {
             if !existing.isEmpty { map.removeOverlays(existing) }
             lastAimUserCoord = nil
             lastAimGreen = nil
@@ -159,19 +161,6 @@ extension HoleMapCoordinator {
         map.addOverlay(HoleMapAimLine(coordinates: [user, green], count: 2), level: .aboveRoads)
         lastAimUserCoord = user
         lastAimGreen = green
-    }
-
-    /// Course preview: tee → green, redrawn only when an anchor moves.
-    private func syncPlanLine(_ map: MKMapView) {
-        var coords: [CLLocationCoordinate2D] = []
-        if parent.showsPlanLine, let tee = parent.tee, let green = parent.green { coords = [tee, green] }
-        let key = coords.map { Self.key($0) }.joined(separator: ";")
-        guard key != lastPlanLineKey else { return }
-        lastPlanLineKey = key
-        let old = map.overlays.filter { $0 is HoleMapPlanLine }
-        if !old.isEmpty { map.removeOverlays(old) }
-        guard coords.count == 2 else { return }
-        map.addOverlay(HoleMapPlanLine(coordinates: coords, count: 2), level: .aboveRoads)
     }
 
     // MARK: Course
@@ -213,6 +202,7 @@ extension HoleMapCoordinator {
             view.annotation = annotation
             return view
         }
+        if let view = planView(for: annotation, on: mapView) { return view }
         if let shot = annotation as? HoleMapShotAnnotation {
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: HoleMapPinView.reuseID) as? HoleMapPinView)
                 ?? HoleMapPinView(annotation: annotation, reuseIdentifier: HoleMapPinView.reuseID)
