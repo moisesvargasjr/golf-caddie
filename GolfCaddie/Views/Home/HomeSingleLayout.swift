@@ -49,6 +49,7 @@ struct HomeSingleLayout: View {
                 clubsText: content.clubsText,
                 beginSubtitle: startState.beginSubtitle(clubsInPlay: content.inPlayCount, style: .folded),
                 onCourse: actions.pickCourse,
+                onPreview: actions.previewCourse,
                 onClubs: actions.openBag,
                 onBegin: actions.begin
             )

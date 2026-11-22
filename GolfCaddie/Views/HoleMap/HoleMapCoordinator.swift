@@ -14,6 +14,7 @@ final class HoleMapCoordinator: NSObject, MKMapViewDelegate, UIGestureRecognizer
     var lastMode: HoleMapMode?
     var lastTrailKey: String?
     var lastShotLineKey: String?
+    var lastPlanLineKey: String?
     var lastCourseKey: String?
     var lastAimUserCoord: CLLocationCoordinate2D?
     var lastAimGreen: CLLocationCoordinate2D?

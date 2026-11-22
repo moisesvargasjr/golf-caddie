@@ -20,6 +20,8 @@ enum HoleMapColors {
 final class HoleMapShotLine: MKPolyline {}
 /// Live hole: "you" → green, dashed flag orange.
 final class HoleMapAimLine: MKPolyline {}
+/// Tee → green on a hole being previewed (no round).
+final class HoleMapPlanLine: MKPolyline {}
 /// Course mode: one hole's tee → shots → green.
 final class HoleMapCourseLine: MKPolyline {
     var holeNumber = 0

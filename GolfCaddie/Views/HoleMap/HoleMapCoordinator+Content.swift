@@ -42,9 +42,12 @@ extension HoleMapCoordinator {
 
     private func removeHoleContent(from map: MKMapView) {
         map.removeAnnotations(map.annotations.filter { $0 is HoleMapShotAnnotation || $0 is HoleMapGreenAnnotation })
-        map.removeOverlays(map.overlays.filter { $0 is HoleMapShotLine || $0 is HoleMapAimLine })
+        map.removeOverlays(map.overlays.filter {
+            $0 is HoleMapShotLine || $0 is HoleMapAimLine || $0 is HoleMapPlanLine
+        })
         MapTrailStyle.sync([], in: map, lastKey: &lastTrailKey)
         lastShotLineKey = nil
+        lastPlanLineKey = nil
         lastAimUserCoord = nil
         lastAimGreen = nil
     }
@@ -63,6 +66,7 @@ extension HoleMapCoordinator {
         syncGreen(map)
         syncShotLine(map)
         syncAimLine(map)
+        syncPlanLine(map)
         MapTrailStyle.sync(parent.trail, in: map, lastKey: &lastTrailKey)
         syncMapKitSelection(map)
     }
@@ -157,6 +161,19 @@ extension HoleMapCoordinator {
         lastAimGreen = green
     }
 
+    /// Course preview: tee → green, redrawn only when an anchor moves.
+    private func syncPlanLine(_ map: MKMapView) {
+        var coords: [CLLocationCoordinate2D] = []
+        if parent.showsPlanLine, let tee = parent.tee, let green = parent.green { coords = [tee, green] }
+        let key = coords.map { Self.key($0) }.joined(separator: ";")
+        guard key != lastPlanLineKey else { return }
+        lastPlanLineKey = key
+        let old = map.overlays.filter { $0 is HoleMapPlanLine }
+        if !old.isEmpty { map.removeOverlays(old) }
+        guard coords.count == 2 else { return }
+        map.addOverlay(HoleMapPlanLine(coordinates: coords, count: 2), level: .aboveRoads)
+    }
+
     // MARK: Course
 
     func syncCourse(_ map: MKMapView) {
@@ -234,6 +251,13 @@ extension HoleMapCoordinator {
             renderer.strokeColor = HoleMapColors.flag
             renderer.lineWidth = 2.5
             renderer.lineDashPattern = [8, 6]
+            return renderer
+        }
+        if let plan = overlay as? HoleMapPlanLine {
+            let renderer = MKPolylineRenderer(polyline: plan)
+            renderer.strokeColor = HoleMapColors.cream
+            renderer.lineWidth = 2.5
+            renderer.lineCap = .round
             return renderer
         }
         if let course = overlay as? HoleMapCourseLine {
