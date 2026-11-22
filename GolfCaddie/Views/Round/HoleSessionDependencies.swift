@@ -29,6 +29,7 @@ extension RoundController: LiveHoleEditing {}
 protocol HoleStore {
     func round(id: UUID) throws -> Round?
     func hole(roundID: UUID, number: Int) throws -> Hole?
+    func holes(roundID: UUID) throws -> [Hole]
     func shots(holeID: UUID) throws -> [Shot]
     func penalties(holeID: UUID) throws -> [Penalty]
     func trail(holeID: UUID) -> [TracePoint]
@@ -53,6 +54,8 @@ struct RepositoryHoleStore: HoleStore {
     func hole(roundID: UUID, number: Int) throws -> Hole? {
         try HoleRepository.hole(forRound: roundID, number: number)
     }
+
+    func holes(roundID: UUID) throws -> [Hole] { try HoleRepository.holesForRound(roundID) }
 
     func shots(holeID: UUID) throws -> [Shot] { try ShotRepository.shotsForHole(holeID) }
 

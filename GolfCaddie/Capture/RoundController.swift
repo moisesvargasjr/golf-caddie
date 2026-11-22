@@ -888,10 +888,13 @@ final class RoundController {
         updated.confirmedAt = Date()
         try HoleRepository.update(updated)
         reconstructHole(currentHole, in: round) // B7: green-split + confidence, persisted
-        // Advance to the next hole number, wrapping 18 → 1 (so a back-9 start
-        // rolls onto the front 9). goToHole finds an existing row or creates it.
-        let next = (currentHole.holeNumber % Self.holesPerRound) + 1
-        goToHole(next)
+        // Advance to the next hole not yet finished, wrapping 18 → 1 (a back-9
+        // or shotgun start rolls onto the front; holes already played on a
+        // hop-around round are skipped). goToHole finds the row or creates it.
+        let finished = ((try? HoleRepository.holesForRound(round.id)) ?? [])
+            .filter { $0.confirmedAt != nil || ($0.isHandScored && $0.handStrokes != nil) }
+            .map(\.holeNumber)
+        goToHole(HoleScoring.nextAfterFinish(current: currentHole.holeNumber, finished: Set(finished)))
     }
 
     /// End-of-hole reconstruction (B7 Path A): classify the just-played hole's

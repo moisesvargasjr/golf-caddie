@@ -77,7 +77,7 @@ extension RoundMapScreen {
                                                     alreadyScored: session?.isHandScored ?? false,
                                                     advancesHole: isLive),
             notTrackedText: RoundMapFormat.notTrackedText(holeNumber: holeNumber,
-                                                          startingHole: session?.startingHole),
+                                                          startingHole: session?.lateStart),
             entryShowsBackToLive: !isViewingLive && live != nil,
             roundSoFar: roundSoFar,
             scoreDraft: scoreDraft,

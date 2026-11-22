@@ -139,6 +139,8 @@ struct ScorecardModel: Equatable {
                       localAnchors: [Int: LocalCourseAnchor] = [:],
                       startingHole: Int? = nil) -> ScorecardModel {
         let byNumber = Dictionary(holes.map { ($0.hole.holeNumber, $0) }, uniquingKeysWith: { a, _ in a })
+        // A round that wrapped or hopped below its start has no late-start holes.
+        let startingHole = HoleScoring.lateStart(startingHole: startingHole, holes: holes.map(\.hole))
         let columns = (1...18).map { number -> ScorecardColumn in
             let curated = course?.holes.first { $0.number == number }
             return column(number: number, input: byNumber[number], curated: curated,

@@ -35,16 +35,37 @@ enum HoleScoring {
         return !hasTrackedData
     }
 
-    /// The holes End round offers to mark not played: the live hole and the
-    /// ones after it with no score yet, up to 18 — or, once a round that began
-    /// on the back nine has wrapped onto the front, up to the hole before its
-    /// start. `scored` holds the numbers that have one. Holes before a late
-    /// start are left for ADD (they were played, just not tracked).
-    static func remainingUnscored(liveHole: Int, startingHole: Int?, scored: Set<Int>) -> [Int] {
-        let start = startingHole ?? 1
-        let last = liveHole >= start ? holeRange.upperBound : start - 1
-        guard liveHole <= last else { return [] }
-        return (liveHole...last).filter { !scored.contains($0) }
+    /// The holes End round offers to mark not played: every hole with no
+    /// score yet, wherever it sits in the order played (hopped-over holes
+    /// included), except the holes before a late start — those were played,
+    /// just not tracked, and are left for ADD. Pass `lateStart(…)`, not the
+    /// raw starting hole. `scored` holds the numbers that have one.
+    static func remainingUnscored(lateStart: Int?, scored: Set<Int>) -> [Int] {
+        let first = lateStart ?? holeRange.lowerBound
+        return holeRange.filter { $0 >= first && !scored.contains($0) }
+    }
+
+    /// The starting hole that still marks "before a late start" holes, or nil
+    /// when there are none. Once the live round has reached a hole numbered
+    /// below its start — 18 wrapped onto 1, or a shotgun / lit-holes round
+    /// hopped there — those holes are part of the round being played, not
+    /// holes played before tracking began. Hand-scored (ADD) and not-played
+    /// rows don't count: only rows the live round created.
+    static func lateStart(startingHole: Int?, holes: [Hole]) -> Int? {
+        guard let startingHole, startingHole > holeRange.lowerBound else { return startingHole }
+        let reachedBelow = holes.contains {
+            $0.holeNumber < startingHole && !$0.isHandScored && !$0.isNotPlayed
+        }
+        return reachedBelow ? nil : startingHole
+    }
+
+    /// Where Finish hole goes next: the first hole after `current` (wrapping
+    /// 18 → 1) that isn't finished, so a round that hopped around skips holes
+    /// already played. With every hole finished, the plain wrap.
+    static func nextAfterFinish(current: Int, finished: Set<Int>) -> Int {
+        let count = holeRange.upperBound
+        let order = (1..<count).map { (current - 1 + $0) % count + 1 }
+        return order.first { !finished.contains($0) } ?? (current % count + 1)
     }
 
     /// Throws unless `strokes`/`putts` are a plausible hand score.

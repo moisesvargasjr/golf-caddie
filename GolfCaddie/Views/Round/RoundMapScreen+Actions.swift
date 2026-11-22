@@ -101,6 +101,9 @@ extension RoundMapScreen {
         case .skipAhead:
             viewedHole = nil
             live?.stepHole(by: 1)
+        case let .jump(number):
+            viewedHole = nil
+            live?.goToHole(number)
         }
     }
 
